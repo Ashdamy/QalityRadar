@@ -17,6 +17,16 @@ class Settings(BaseSettings):
     github_client_secret: str
     github_oauth_redirect_uri: str
 
+    # Origenes autorizados para llamar a la API desde un navegador, separados
+    # por comas. El navegador bloquea las peticiones del frontend si su origen
+    # no esta aqui. En produccion debe apuntar al dominio real, nunca a "*",
+    # porque la API responde con credenciales.
+    cors_origins: str = "http://localhost:3000"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
 
 @lru_cache
 def get_settings() -> Settings:
