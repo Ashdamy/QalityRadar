@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import delete
@@ -8,7 +10,7 @@ from app.models.user import User
 
 client = TestClient(app)
 
-TEST_EMAILS = ["juan@example.com", "maria@example.com", "dup@example.com"]
+TEST_EMAILS = ["juan@example.com", "maria@example.com", "dup@example.com", "github-only@example.com"]
 
 
 @pytest.fixture(autouse=True)
@@ -53,3 +55,24 @@ def test_register_with_duplicate_email_returns_409():
     client.post("/api/auth/register", json={"email": "dup@example.com", "password": "password-one"})
     response = client.post("/api/auth/register", json={"email": "dup@example.com", "password": "password-two"})
     assert response.status_code == 409
+
+
+def test_login_for_github_only_user_returns_401_not_crash():
+    db = SessionLocal()
+    try:
+        db.add(
+            User(
+                id=uuid.uuid4(),
+                email="github-only@example.com",
+                github_id=123456789,
+                password_hash=None,
+            )
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    response = client.post(
+        "/api/auth/login", json={"email": "github-only@example.com", "password": "any-password"}
+    )
+    assert response.status_code == 401

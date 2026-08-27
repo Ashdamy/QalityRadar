@@ -13,6 +13,11 @@ from app.utils.crypto import encrypt_token
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+# Computado una sola vez, en import, para que el costo de bcrypt se pague
+# igual en el path de "usuario no existe" que en el de "password incorrecta"
+# y no se pueda distinguir por tiempo de respuesta cual email esta registrado.
+_DUMMY_PASSWORD_HASH = hash_password("dummy-password-for-timing-equalization")
+
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> dict:
@@ -30,7 +35,11 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> dict:
 @router.post("/login", response_model=TokenResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
     user = db.scalar(select(User).where(User.email == payload.email))
-    if user is None or user.password_hash is None or not verify_password(payload.password, user.password_hash):
+    if user is None or user.password_hash is None:
+        verify_password(payload.password, _DUMMY_PASSWORD_HASH)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials")
+
+    if not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials")
 
     return TokenResponse(access_token=create_access_token(user.id))
