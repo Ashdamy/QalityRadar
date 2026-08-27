@@ -1,7 +1,11 @@
+from urllib.parse import parse_qs, urlparse
+
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, func, select
 
+from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.main import app
 from app.models.user import User
@@ -88,3 +92,62 @@ def test_github_callback_called_twice_updates_existing_user_without_duplicate(mo
 
     assert count == 1
     assert updated_user.github_username == "maria-dev-renamed"
+
+
+def test_github_login_returns_authorization_url_with_exact_scopes():
+    response = client.get("/api/auth/github/login")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "authorization_url" in body
+
+    parsed = urlparse(body["authorization_url"])
+    assert f"{parsed.scheme}://{parsed.netloc}{parsed.path}" == "https://github.com/login/oauth/authorize"
+
+    query = parse_qs(parsed.query)
+    # Exactly the three required scopes, no more, no less.
+    assert query["scope"] == ["public_repo read:user user:email"]
+    assert query["client_id"] == [get_settings().github_client_id]
+    # client_id must come from the test env (conftest.py), never the real
+    # credentials from backend/.env.
+    assert query["client_id"] == ["test-client-id"]
+    assert query["redirect_uri"] == [get_settings().github_oauth_redirect_uri]
+
+
+def test_github_callback_with_bad_verification_code_returns_400(monkeypatch):
+    """GitHub's token endpoint answers HTTP 200 with an error body (e.g. a
+    reused or expired `code`), so raise_for_status() alone can't catch it —
+    the missing access_token must be turned into a 400, not surfaced as
+    whatever downstream KeyError/500 would otherwise happen."""
+
+    def fake_request(method, url, **kwargs):
+        return httpx.Response(200, json={"error": "bad_verification_code"}, request=httpx.Request(method, url))
+
+    monkeypatch.setattr(github_service.httpx, "request", fake_request)
+
+    response = client.get("/api/auth/github/callback", params={"code": "already-used-code"})
+
+    assert response.status_code == 400
+    detail = response.json()["detail"]
+    assert detail == "invalid or expired GitHub authorization code"
+    # Never echo GitHub's raw error body or the submitted code back to the caller.
+    assert "bad_verification_code" not in response.text
+    assert "already-used-code" not in response.text
+
+
+def test_github_callback_with_github_http_error_returns_502(monkeypatch):
+    """Any non-2xx from GitHub (rate limit, revoked app, etc.) or a network
+    error must surface as a safe 502, not an unhandled 500."""
+
+    def fake_request(method, url, **kwargs):
+        return httpx.Response(503, text="upstream rate limited", request=httpx.Request(method, url))
+
+    monkeypatch.setattr(github_service.httpx, "request", fake_request)
+
+    response = client.get("/api/auth/github/callback", params={"code": "any-code"})
+
+    assert response.status_code == 502
+    detail = response.json()["detail"]
+    assert detail == "GitHub is unavailable"
+    # Never echo GitHub's raw response body into the error detail.
+    assert "upstream rate limited" not in response.text

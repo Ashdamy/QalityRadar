@@ -1,10 +1,12 @@
 import uuid
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_db
+from app.core.config import get_settings
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.user import User
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
@@ -12,6 +14,9 @@ from app.services import github_service
 from app.utils.crypto import encrypt_token
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
+GITHUB_OAUTH_SCOPES = "public_repo read:user user:email"
 
 # Computado una sola vez, en import, para que el costo de bcrypt se pague
 # igual en el path de "usuario no existe" que en el de "password incorrecta"
@@ -43,6 +48,23 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials")
 
     return TokenResponse(access_token=create_access_token(user.id))
+
+
+# SEGURIDAD (pendiente, Fase futura): este endpoint no genera ni valida el
+# parametro `state` de OAuth 2.0, que es la proteccion estandar contra CSRF
+# en este flujo. Debe implementarse antes de exponer el servicio en
+# produccion (ver tambien el comentario en github_callback mas abajo).
+@router.get("/github/login")
+def github_login() -> dict:
+    settings = get_settings()
+    query = urlencode(
+        {
+            "client_id": settings.github_client_id,
+            "redirect_uri": settings.github_oauth_redirect_uri,
+            "scope": GITHUB_OAUTH_SCOPES,
+        }
+    )
+    return {"authorization_url": f"{GITHUB_AUTHORIZE_URL}?{query}"}
 
 
 # SEGURIDAD (pendiente, Fase futura): este callback no valida el parametro
