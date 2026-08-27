@@ -1,7 +1,7 @@
 # RESUME — Bitácora de QalitiRadar
 
 > Documento vivo. Se actualiza a medida que avanza el proyecto.
-> Última actualización: 2026-08-27
+> Última actualización: 2026-08-27 (Semana 1 backend completa)
 
 ---
 
@@ -13,7 +13,7 @@
 |---|---|
 | Fase 0 — Arquitectura y diseño | ✅ Completada |
 | Diseño visual (mockup de pantallas Semana 1) | ✅ Aprobado |
-| Semana 1 — Setup + Auth (backend) | 🔄 En progreso (2 de 9 tareas completadas) |
+| Semana 1 — Setup + Auth (backend) | ✅ 9/9 tareas implementadas, 27/27 tests |
 | Semana 1 — Frontend (páginas reales) | ⏸️ Pendiente (se implementa después del backend) |
 | Semanas 2-5 | ⏸️ No iniciadas |
 
@@ -86,14 +86,29 @@ Modo de trabajo: subagentes especializados, uno por tarea, con revisión indepen
 | 1 | Scaffolding + Docker Compose + endpoint `/health` | ✅ Completada y revisada |
 | 2 | Configuración (pydantic-settings) + sesión de base de datos | ✅ Completada y revisada |
 | 3 | Modelo `User` + migraciones 0001-0003 | ✅ Completada y revisada |
-| 4 | Migraciones 0004-0010 + modelos restantes | ⏸️ Pendiente |
-| 5 | Hashing de contraseñas + JWT | ⏸️ Pendiente |
-| 6 | Cifrado del token de GitHub (Fernet) | ⏸️ Pendiente |
-| 7 | Endpoints de registro y login | ⏸️ Pendiente |
-| 8 | Callback de GitHub OAuth | ⏸️ Pendiente |
-| 9 | Listado de repositorios públicos | ⏸️ Pendiente |
+| 4 | Migraciones 0004-0010 + modelos restantes | ✅ Completada y revisada |
+| 5 | Hashing de contraseñas + JWT | ✅ Completada y revisada |
+| 6 | Cifrado del token de GitHub (Fernet) | ✅ Completada y revisada |
+| 7 | Endpoints de registro y login | ✅ Completada y revisada |
+| 8 | Callback de GitHub OAuth | ✅ Completada y revisada |
+| 9 | Listado de repositorios públicos | ✅ Implementada, en revisión final |
 
-**Infraestructura ya funcionando:** Docker Desktop levantado, contenedores de PostgreSQL y Redis corriendo y sanos, ambas bases de datos creadas (`qalitiradar` para desarrollo, `qalitiradar_test` para tests) y las migraciones 0001-0003 aplicadas y verificadas en las dos.
+**Suite de tests: 27/27 pasando.**
+
+**Endpoints funcionando:**
+
+| Método | Ruta | Qué hace |
+|---|---|---|
+| GET | `/health` | Comprobación de salud del servicio |
+| POST | `/api/auth/register` | Registro con email + contraseña |
+| POST | `/api/auth/login` | Login, devuelve un JWT |
+| GET | `/api/auth/github/login` | Devuelve la URL para iniciar el flujo de GitHub |
+| GET | `/api/auth/github/callback` | Recibe el código de GitHub y devuelve un JWT |
+| GET | `/api/repositories` | Lista los repositorios públicos del usuario |
+
+**Infraestructura funcionando:** Docker Desktop levantado, contenedores de PostgreSQL y Redis sanos, ambas bases de datos creadas (`qalitiradar` para desarrollo, `qalitiradar_test` para tests) y las 10 migraciones aplicadas y verificadas en las dos.
+
+**Base de datos:** 13 tablas creadas, datos de benchmarking simulados sembrados.
 
 ### 8. Cambio de nombre del proyecto
 
@@ -111,10 +126,29 @@ Solución aplicada: el contenedor de Postgres ahora se publica en el puerto **54
 
 ---
 
+### 10. Problemas de seguridad encontrados y corregidos
+
+Las revisiones independientes de cada tarea encontraron varios problemas reales que el plan original no contemplaba. Estos ya están **corregidos**:
+
+- **Enumeración de usuarios por tiempo de respuesta** (login): el endpoint devolvía siempre el mismo error `401`, pero tardaba menos cuando el email no existía, porque se saltaba la comprobación de contraseña. Eso permite averiguar qué correos están registrados. Corregido igualando el costo de ambos caminos.
+- **Errores de GitHub sin manejar**: cuando GitHub rechaza un código de autorización (lo más común: códigos expirados o ya usados), responde con `HTTP 200` y un cuerpo de error — no con un error HTTP. El código original habría fallado con un `500` genérico. Ahora devuelve `400` si el código es inválido y `502` si GitHub no responde, sin filtrar nunca el token ni la respuesta cruda de GitHub.
+- **Faltaba el endpoint que inicia el flujo OAuth**: el plan solo tenía el callback, así que la regla de pedir exactamente los permisos `public_repo read:user user:email` no estaba implementada en ningún sitio. Se añadió `GET /api/auth/github/login`.
+- **Modelo de datos incompleto**: faltaba el modelo `SharedReport`, lo que podía provocar que una futura migración automática propusiera borrar esa tabla.
+
+### ⚠️ Deuda de seguridad pendiente (antes de producción)
+
+Estas quedan documentadas en el código y **deben cerrarse antes de exponer el servicio públicamente**:
+
+1. **Falta la protección CSRF del flujo OAuth** (parámetro `state`). Sin ella, un atacante podría hacer que la cuenta de GitHub de otra persona quede vinculada a su sesión. Implementarla requiere almacenamiento de sesión, que está fuera del alcance de la Semana 1. Es seguro mientras esto corra solo en local.
+2. **Límite de 72 bytes de bcrypt**: contraseñas más largas provocan un error no manejado.
+3. **Condición de carrera en el registro**: dos registros simultáneos del mismo email podrían devolver un `500` en lugar de `409`.
+
+---
+
 ## Lo que sigue
 
-1. Terminar las 9 tareas de la Semana 1 (backend de autenticación).
-2. Revisión final de toda la rama antes de integrarla a `main`.
+1. Revisión final de toda la rama antes de integrarla a `main`.
+2. Prueba end-to-end real del flujo de GitHub con las credenciales OAuth ya configuradas.
 3. Implementar el frontend real de la Semana 1, usando el prototipo aprobado como referencia exacta de estilos.
 4. Semana 2: sandbox de análisis + los 7 analizadores de repositorio.
 
