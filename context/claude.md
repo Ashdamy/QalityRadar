@@ -1,8 +1,8 @@
-Quiero construir QualityRadar: un escáner automático de calidad de software basado en ISO/IEC 25010.
+Quiero construir QalitiRadar: un escáner automático de calidad de software basado en ISO/IEC 25010.
 
 ## VISIÓN DEL PRODUCTO
 
-QualityRadar analiza automáticamente un repositorio de código (GitHub/GitLab) Y/O una URL de aplicación desplegada (Vercel, Netlify, etc.) y genera una puntuación de calidad del software basada en el estándar ISO/IEC 25010, detectando riesgos, deudas técnicas y oportunidades de mejora con evidencia concreta.
+QalitiRadar analiza automáticamente un repositorio de código (GitHub/GitLab) Y/O una URL de aplicación desplegada (Vercel, Netlify, etc.) y genera una puntuación de calidad del software basada en el estándar ISO/IEC 25010, detectando riesgos, deudas técnicas y oportunidades de mejora con evidencia concreta.
 
 El sistema permite comparar análisis a lo largo del tiempo para mostrar evolución, mejoras y regresiones entre commits.
 
@@ -464,7 +464,7 @@ Regression (id, comparison_id, dimension, previous_score, current_score, delta, 
    - Respetar robots.txt en análisis de URLs
 
 ## ESTRUCTURA DE ARCHIVOS SUGERIDA
-quality-radar/
+qaliti-radar/
 ├── backend/
 │ ├── app/
 │ │ ├── api/ (endpoints FastAPI)
@@ -640,6 +640,6 @@ quality-radar/
 
 
 ## REPOSITORIO
-Todos los avnces seran subidos a este repositorio https://github.com/Ashdamy/QualityRadar
+Todos los avnces seran subidos a este repositorio https://github.com/Ashdamy/QalitiRadar
 
 ¿Comprendes la visión y estás listo para comenzar?

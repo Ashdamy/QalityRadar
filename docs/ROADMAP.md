@@ -1,4 +1,4 @@
-# QualityRadar — Roadmap de Implementación
+# QalitiRadar — Roadmap de Implementación
 
 > Complementa [`ARCHITECTURE.md`](./ARCHITECTURE.md) y [`DATA_MODEL.md`](./DATA_MODEL.md). Reescribe las 8 fases de [`context/claude.md`](../context/claude.md) en 5 semanas, incorporando las decisiones de MVP ya acordadas (Docker sandbox, solo repos públicos, Hugging Face free tier, sin monetización, benchmarking simulado).
 
@@ -12,7 +12,7 @@ Este roadmap es de **nivel de milestone**, no de tarea bite-sized. Antes de empe
 
 | Semana | Foco | Depende de | Milestone (Definition of Done) |
 |---|---|---|---|
-| 0 | Arquitectura y diseño | — | ✅ Ya completado: `ARCHITECTURE.md`, `DATA_MODEL.md`, este roadmap, repo conectado a `Ashdamy/QualityRadar` |
+| 0 | Arquitectura y diseño | — | ✅ Ya completado: `ARCHITECTURE.md`, `DATA_MODEL.md`, este roadmap, repo conectado a `Ashdamy/QalitiRadar` |
 | 1 | Setup + Auth | Semana 0 | Usuario se registra/loguea (email+password o GitHub OAuth `public_repo`), ve sus repos públicos listados. Docker Compose levanta Postgres+Redis+API+FE. Migraciones Alembic 0001-0010 aplicadas |
 | 2 | Sandbox + analizadores de repositorio | Semana 1 | Un análisis de repo real (público) corre end-to-end: clona → sandbox Docker aislado → 7 analizadores → `Finding`/`Dimension` persistidos. Sin scoring todavía |
 | 3 | Analizadores de URL + motor de scoring ISO 25010 | Semana 2 | Los 3 modos (repo/URL/combinado) producen `overall_score` + `confidence_level` persistidos. SSRF-safe fetch verificado con tests |

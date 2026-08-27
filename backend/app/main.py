@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-app = FastAPI(title="QualityRadar API")
+app = FastAPI(title="QalitiRadar API")
 
 
 @app.get("/health")

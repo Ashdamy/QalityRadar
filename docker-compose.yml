@@ -2,13 +2,14 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: qualityradar
-      POSTGRES_PASSWORD: qualityradar_dev
-      POSTGRES_DB: qualityradar
-    ports: ["5432:5432"]
+      POSTGRES_USER: qalitiradar
+      POSTGRES_PASSWORD: qalitiradar_dev
+      POSTGRES_DB: qalitiradar
+    # 5433 en el host: el 5432 lo ocupa un PostgreSQL nativo de Windows
+    ports: ["5433:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U qualityradar"]
+      test: ["CMD-SHELL", "pg_isready -U qalitiradar"]
       interval: 5s
       timeout: 5s
       retries: 5
