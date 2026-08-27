@@ -62,3 +62,13 @@ def fetch_github_primary_email(token: str) -> str:
     emails = response.json()
     primary = next((e for e in emails if e.get("primary")), emails[0])
     return primary["email"]
+
+
+def list_public_repos(token: str) -> list[dict]:
+    response = _github_request(
+        "GET",
+        f"{GITHUB_API_BASE}/user/repos",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"visibility": "public", "per_page": 100},
+    )
+    return response.json()
