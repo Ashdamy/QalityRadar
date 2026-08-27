@@ -59,7 +59,7 @@ pytest-mock==3.14.0
 ```python
 from fastapi import FastAPI
 
-app = FastAPI(title="QualityRadar API")
+app = FastAPI(title="QalitiRadar API")
 
 
 @app.get("/health")
@@ -115,13 +115,13 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: qualityradar
-      POSTGRES_PASSWORD: qualityradar_dev
-      POSTGRES_DB: qualityradar
+      POSTGRES_USER: qalitiradar
+      POSTGRES_PASSWORD: qalitiradar_dev
+      POSTGRES_DB: qalitiradar
     ports: ["5432:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U qualityradar"]
+      test: ["CMD-SHELL", "pg_isready -U qalitiradar"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -191,7 +191,7 @@ git commit -m "feat: scaffold del proyecto y docker compose base"
 # backend/tests/test_config.py
 import os
 
-os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://qualityradar:qualityradar_dev@localhost:5432/qualityradar_test")
+os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://qalitiradar:qalitiradar_dev@localhost:5432/qalitiradar_test")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("JWT_SECRET", "test-secret")
 os.environ.setdefault("ENCRYPTION_KEY", "Zm9vYmFyYmF6cXV1eGZvb2JhcmJhenF1dXg=")
@@ -276,7 +276,7 @@ def get_db() -> Generator[Session, None, None]:
 - [ ] **Step 6: Escribir `backend/.env.example`**
 
 ```text
-DATABASE_URL=postgresql+psycopg://qualityradar:qualityradar_dev@postgres:5432/qualityradar
+DATABASE_URL=postgresql+psycopg://qalitiradar:qalitiradar_dev@postgres:5432/qalitiradar
 REDIS_URL=redis://redis:6379/0
 JWT_SECRET=change-me-in-production
 ENCRYPTION_KEY=generate-with-fernet-generate-key
@@ -963,7 +963,7 @@ from fastapi import FastAPI
 
 from app.api.auth import router as auth_router
 
-app = FastAPI(title="QualityRadar API")
+app = FastAPI(title="QalitiRadar API")
 app.include_router(auth_router)
 
 
@@ -1197,7 +1197,7 @@ def test_list_repositories_returns_only_public_repos(monkeypatch, db_session_wit
     monkeypatch.setattr(
         github_service, "list_public_repos",
         lambda token: [
-            {"id": 1, "name": "quality-radar", "full_name": "juan/quality-radar", "private": False},
+            {"id": 1, "name": "qaliti-radar", "full_name": "juan/qaliti-radar", "private": False},
             {"id": 2, "name": "side-project", "full_name": "juan/side-project", "private": False},
         ],
     )

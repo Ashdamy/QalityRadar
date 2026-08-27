@@ -1,16 +1,12 @@
-# QualityRadar — Arquitectura Técnica
+# QalitiRadar — Arquitectura Técnica
 
 > Spec de origen: [`context/claude.md`](../context/claude.md) + decisiones de MVP acordadas el 2026-08-27 (ver tabla de decisiones al final de este documento).
 
-## 1. Estado del repositorio (importante)
+## 1. Estado del repositorio
 
-Esta carpeta (`QualityRadar/`) actualmente solo contiene `context/claude.md`. **No está inicializada como repo git propio** — está anidada dentro de `proyectos/`, cuyo `.git` apunta a `github.com/Apollored7/proyecto-app-habitos` (un proyecto distinto, la app de hábitos). El spec indica que QualityRadar vive en `github.com/Ashdamy/QualityRadar`.
+Esta carpeta es un repositorio git propio, conectado a `github.com/Ashdamy/QalitiRadar`. Está anidada dentro de `proyectos/`, cuyo `.git` apunta a otro proyecto distinto (`Apollored7/proyecto-app-habitos`, la app de hábitos) — son repositorios independientes y el trabajo de QalitiRadar nunca se mezcla con ese.
 
-Antes de la Fase 1 (Task 1 del plan de implementación) hay que:
-1. Inicializar un repo git nuevo dentro de `QualityRadar/` (no reutilizar el de `proyectos/`).
-2. Conectar el remote a `https://github.com/Ashdamy/QualityRadar`.
-
-Esto se deja como primer paso explícito del plan de Fase 1, no se hace en este documento.
+Nota de entorno de desarrollo local: el puerto **5432 está ocupado por un servicio nativo de PostgreSQL en Windows**, así que el contenedor de Postgres se publica en el **5433** del host (`ports: ["5433:5432"]`). Las conexiones entre contenedores siguen usando `postgres:5432`; solo las herramientas que corren desde el host (pytest, alembic) apuntan a `localhost:5433`.
 
 ## 2. Visión de componentes
 
@@ -150,7 +146,7 @@ Mitigación obligatoria (más estricta que "bloquear por string" el spec origina
 1. Resolver DNS de la URL **antes** de conectar y validar que la(s) IP(s) resultantes no sean privadas/loopback/link-local (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `127.0.0.0/8`, `169.254.0.0/16` — este último bloquea metadata de cloud como `169.254.169.254`).
 2. Repetir la validación en **cada redirect** (una URL pública puede redirigir a `http://169.254.169.254/`), no solo en la URL inicial.
 3. Bloquear esquemas distintos de `http`/`https` (`file://`, `gopher://`, etc.).
-4. El contenedor que ejecuta Lighthouse/axe-core corre con `--network` restringido a salida únicamente (no puede recibir conexiones entrantes), y sin acceso a la red interna del propio QualityRadar (para que no pueda alcanzar Postgres/Redis).
+4. El contenedor que ejecuta Lighthouse/axe-core corre con `--network` restringido a salida únicamente (no puede recibir conexiones entrantes), y sin acceso a la red interna del propio QalitiRadar (para que no pueda alcanzar Postgres/Redis).
 
 ### 4.4 Rate limiting y abuso
 

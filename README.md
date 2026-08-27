@@ -1,4 +1,4 @@
-# QualityRadar
+# QalitiRadar
 
 Escáner automático de calidad de software basado en **ISO/IEC 25010**. Analiza un repositorio (GitHub), una URL de una app desplegada, o ambos, y genera una puntuación de calidad con hallazgos, riesgos y recomendaciones priorizadas — con histórico y comparación entre análisis a lo largo del tiempo.
 

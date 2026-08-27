@@ -1,4 +1,4 @@
-# QualityRadar — Modelo de Datos
+# QalitiRadar — Modelo de Datos
 
 > Complementa [`ARCHITECTURE.md`](./ARCHITECTURE.md). PostgreSQL, IDs `UUID` (default `gen_random_uuid()`, extensión `pgcrypto`), timestamps `TIMESTAMPTZ`.
 

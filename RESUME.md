@@ -1,4 +1,4 @@
-# RESUME — Bitácora de QualityRadar
+# RESUME — Bitácora de QalitiRadar
 
 > Documento vivo. Se actualiza a medida que avanza el proyecto.
 > Última actualización: 2026-08-27
@@ -42,9 +42,9 @@ Respondiste las 6 preguntas. Decisiones acordadas:
 
 ### 3. Corrección del repositorio
 
-**Problema encontrado:** la carpeta `QualityRadar/` no era un repositorio git propio — estaba anidada dentro de `proyectos/`, que apunta a `Apollored7/proyecto-app-habitos` (otro proyecto, la app de hábitos). El spec indicaba que QualityRadar debía vivir en `Ashdamy/QualityRadar`.
+**Problema encontrado:** la carpeta `QalitiRadar/` no era un repositorio git propio — estaba anidada dentro de `proyectos/`, que apunta a `Apollored7/proyecto-app-habitos` (otro proyecto, la app de hábitos). El spec indicaba que QalitiRadar debía vivir en `Ashdamy/QalitiRadar`.
 
-**Solución aplicada:** inicialicé un repo git independiente dentro de `QualityRadar/`, lo conecté a `https://github.com/Ashdamy/QualityRadar`, traje el commit inicial del remoto como base, y desde entonces todo el trabajo de QualityRadar vive ahí — completamente separado del proyecto de hábitos.
+**Solución aplicada:** inicialicé un repo git independiente dentro de `QalitiRadar/`, lo conecté a `https://github.com/Ashdamy/QalitiRadar`, traje el commit inicial del remoto como base, y desde entonces todo el trabajo de QalitiRadar vive ahí — completamente separado del proyecto de hábitos.
 
 ### 4. Documentos de arquitectura (Fase 0)
 
@@ -75,7 +75,7 @@ Modo de trabajo: subagentes especializados, uno por tarea, con revisión indepen
 **Antes de empezar** hice un escaneo del plan buscando contradicciones y encontré 4 defectos reales, que corregí con decisiones registradas:
 
 1. La Task 9 usaba un fixture de test (`db_session_with_github_user`) que no estaba definido en ninguna parte.
-2. Ninguna tarea creaba la base de datos de tests (`qualityradar_test`) que varias tareas asumían existente.
+2. Ninguna tarea creaba la base de datos de tests (`qalitiradar_test`) que varias tareas asumían existente.
 3. La configuración de variables de entorno para tests era frágil — dependía del orden alfabético en que pytest importa los archivos. Lo moví a un `conftest.py` que pytest carga siempre primero.
 4. La Task 8 declaraba modificar un archivo que en realidad no toca.
 
@@ -85,7 +85,7 @@ Modo de trabajo: subagentes especializados, uno por tarea, con revisión indepen
 |---|---|---|
 | 1 | Scaffolding + Docker Compose + endpoint `/health` | ✅ Completada y revisada |
 | 2 | Configuración (pydantic-settings) + sesión de base de datos | ✅ Completada y revisada |
-| 3 | Modelo `User` + migraciones 0001-0003 | 🔄 En progreso |
+| 3 | Modelo `User` + migraciones 0001-0003 | ✅ Completada y revisada |
 | 4 | Migraciones 0004-0010 + modelos restantes | ⏸️ Pendiente |
 | 5 | Hashing de contraseñas + JWT | ⏸️ Pendiente |
 | 6 | Cifrado del token de GitHub (Fernet) | ⏸️ Pendiente |
@@ -93,7 +93,21 @@ Modo de trabajo: subagentes especializados, uno por tarea, con revisión indepen
 | 8 | Callback de GitHub OAuth | ⏸️ Pendiente |
 | 9 | Listado de repositorios públicos | ⏸️ Pendiente |
 
-**Infraestructura ya funcionando:** Docker Desktop levantado, contenedores de PostgreSQL y Redis corriendo y sanos, y ambas bases de datos creadas (`qualityradar` para desarrollo, `qualityradar_test` para tests).
+**Infraestructura ya funcionando:** Docker Desktop levantado, contenedores de PostgreSQL y Redis corriendo y sanos, ambas bases de datos creadas (`qalitiradar` para desarrollo, `qalitiradar_test` para tests) y las migraciones 0001-0003 aplicadas y verificadas en las dos.
+
+### 8. Cambio de nombre del proyecto
+
+El proyecto pasó de llamarse **QualityRadar** a **QalitiRadar**. Se aplicó en documentación, código, `docker-compose.yml` y credenciales de base de datos (usuario y base `qalitiradar`, base de tests `qalitiradar_test`).
+
+Pendiente de tu parte: renombrar el repositorio en GitHub (Settings → Repository name → `QalitiRadar`). En cuanto lo hagas, actualizo el remote local. GitHub mantiene redirecciones automáticas, así que nada se rompe mientras tanto.
+
+Pendiente mío, para el final: renombrar la carpeta local en disco. Se pospuso a propósito porque el worktree de git guarda rutas absolutas y los contenedores montan `./backend` — renombrarla en plena implementación rompería ambos.
+
+### 9. Problema de entorno resuelto: conflicto de puerto de PostgreSQL
+
+Durante la Task 3 apareció un problema real del entorno: **un servicio nativo de PostgreSQL de Windows (`postgresql-x64-18`) ya estaba ocupando el puerto 5432**, así que todo lo que se conectaba a `localhost:5432` desde el host llegaba al servidor equivocado — fallando de forma silenciosa, sin error claro.
+
+Solución aplicada: el contenedor de Postgres ahora se publica en el puerto **5433** del host. Tu PostgreSQL nativo queda intacto (parece estar en uso para Odoo). Las conexiones entre contenedores siguen usando `postgres:5432`; solo las herramientas que corren desde el host (pytest, alembic) apuntan a `localhost:5433`.
 
 ---
 
@@ -108,7 +122,7 @@ Modo de trabajo: subagentes especializados, uno por tarea, con revisión indepen
 
 ## Enlaces útiles
 
-- Repositorio: https://github.com/Ashdamy/QualityRadar
+- Repositorio: https://github.com/Ashdamy/QalitiRadar
 - Especificación original: [`context/claude.md`](context/claude.md)
 - Arquitectura: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - Modelo de datos: [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md)
