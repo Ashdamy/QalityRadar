@@ -1,9 +1,12 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 
 class RegisterRequest(BaseModel):
     email: EmailStr
-    password: str
+    # bcrypt (4.x) raises on passwords over 72 bytes, which would otherwise
+    # surface as a 500 from /register. Reject too-long passwords at the
+    # validation layer instead.
+    password: str = Field(max_length=72)
 
 
 class LoginRequest(BaseModel):

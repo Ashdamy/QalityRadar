@@ -57,6 +57,17 @@ def test_register_with_duplicate_email_returns_409():
     assert response.status_code == 409
 
 
+def test_register_with_password_over_72_bytes_returns_422():
+    """bcrypt (4.x) raises on passwords over 72 bytes, which would otherwise
+    surface as an unhandled 500 from /register. It must be rejected at the
+    validation layer as a 422 instead."""
+
+    response = client.post(
+        "/api/auth/register", json={"email": "toolongpassword@example.com", "password": "x" * 73}
+    )
+    assert response.status_code == 422
+
+
 def test_login_for_github_only_user_returns_401_not_crash():
     db = SessionLocal()
     try:

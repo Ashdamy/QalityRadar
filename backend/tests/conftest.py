@@ -1,6 +1,22 @@
 import os
 
 os.environ.setdefault("DATABASE_URL", "postgresql+psycopg://qalitiradar:qalitiradar_dev@localhost:5433/qalitiradar_test")
+
+# Guard against running this destructive test suite (it does `delete(User)`
+# cleanups) against a real, non-test database. This must run before any
+# fixture executes, so it lives here at import time, right after resolving
+# DATABASE_URL. setdefault() above yields to any ambient env value (e.g. the
+# compose `backend` service's DATABASE_URL, which points at the real
+# `qalitiradar` database) so we can't just trust the default is in effect.
+if not os.environ["DATABASE_URL"].endswith("_test"):
+    raise RuntimeError(
+        "DATABASE_URL does not point at a *_test database "
+        f"(got {os.environ['DATABASE_URL']!r}). Refusing to run the test "
+        "suite, which deletes rows, against what looks like a real "
+        "database. Set DATABASE_URL to a database whose name ends in "
+        "'_test' (e.g. qalitiradar_test)."
+    )
+
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("JWT_SECRET", "test-secret")
 os.environ.setdefault("ENCRYPTION_KEY", "vxhb4mYBgiJ9hV5GKwlB7XZOeQQZLAuGayrkNp4UWNQ=")

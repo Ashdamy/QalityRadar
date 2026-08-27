@@ -19,7 +19,11 @@ client = TestClient(app)
 # qalitiradar_test database always start from a clean slate and exercise the
 # "new user" path rather than silently degrading into the "existing user"
 # path.
-TEST_GITHUB_IDS = [123456, 654321]
+TEST_GITHUB_IDS = [123456, 654321, 789012]
+
+# Email used by the account-linking tests below: registered via password
+# first, then "claimed" by a GitHub identity with the same primary email.
+LINK_EMAIL = "link-existing@example.com"
 
 
 @pytest.fixture(autouse=True)
@@ -28,6 +32,7 @@ def _clean_test_users():
         db = SessionLocal()
         try:
             db.execute(delete(User).where(User.github_id.in_(TEST_GITHUB_IDS)))
+            db.execute(delete(User).where(User.email == LINK_EMAIL))
             db.commit()
         finally:
             db.close()
@@ -94,6 +99,50 @@ def test_github_callback_called_twice_updates_existing_user_without_duplicate(mo
     assert updated_user.github_username == "maria-dev-renamed"
 
 
+def test_github_callback_links_existing_password_account_by_email(monkeypatch):
+    """If the caller already has a password-registered account, and then
+    authenticates via GitHub with an identity whose primary email matches
+    that account, the callback must LINK the existing row (set its
+    github_id/github_username/avatar_url/github_access_token_encrypted)
+    instead of inserting a second row -- which would otherwise violate the
+    users.email UNIQUE constraint and surface as an unhandled 500,
+    permanently locking that person out of GitHub login."""
+
+    register_response = client.post(
+        "/api/auth/register", json={"email": LINK_EMAIL, "password": "s3cur3-passw0rd"}
+    )
+    assert register_response.status_code == 201
+
+    monkeypatch.setattr(github_service, "exchange_code_for_token", lambda code: "gho_fake_token_link")
+    monkeypatch.setattr(
+        github_service,
+        "fetch_github_user",
+        lambda token: {"id": 789012, "login": "linked-dev", "avatar_url": "https://avatars.example/linked"},
+    )
+    monkeypatch.setattr(github_service, "fetch_github_primary_email", lambda token: LINK_EMAIL)
+
+    response = client.get("/api/auth/github/callback", params={"code": "any-code"})
+
+    assert response.status_code == 200
+    assert "access_token" in response.json()
+
+    db = SessionLocal()
+    try:
+        count = db.scalar(select(func.count()).select_from(User).where(User.email == LINK_EMAIL))
+        linked_user = db.scalar(select(User).where(User.email == LINK_EMAIL))
+    finally:
+        db.close()
+
+    # Exactly one row with this email -- no duplicate was inserted.
+    assert count == 1
+    assert linked_user.github_id == 789012
+    assert linked_user.github_username == "linked-dev"
+    assert linked_user.github_access_token_encrypted is not None
+    # Linking must not wipe the password login: the account should now
+    # support both auth methods.
+    assert linked_user.password_hash is not None
+
+
 def test_github_login_returns_authorization_url_with_exact_scopes():
     response = client.get("/api/auth/github/login")
 
@@ -133,6 +182,30 @@ def test_github_callback_with_bad_verification_code_returns_400(monkeypatch):
     # Never echo GitHub's raw error body or the submitted code back to the caller.
     assert "bad_verification_code" not in response.text
     assert "already-used-code" not in response.text
+
+
+def test_github_callback_with_no_emails_returns_400(monkeypatch):
+    """GitHub's /user/emails can return an empty list. The old code did
+    `next((e for e in emails if e.get("primary")), emails[0])`, which
+    evaluates emails[0] eagerly and raises IndexError before next() ever
+    runs -- surfacing as an unhandled 500. This must be a clean 400
+    instead."""
+
+    def fake_request(method, url, **kwargs):
+        if url == github_service.GITHUB_OAUTH_TOKEN_URL:
+            return httpx.Response(200, json={"access_token": "gho_fake_token"}, request=httpx.Request(method, url))
+        if url.endswith("/user/emails"):
+            return httpx.Response(200, json=[], request=httpx.Request(method, url))
+        if url.endswith("/user"):
+            return httpx.Response(200, json={"id": 999999, "login": "no-email-dev"}, request=httpx.Request(method, url))
+        raise AssertionError(f"unexpected url in test: {url}")
+
+    monkeypatch.setattr(github_service.httpx, "request", fake_request)
+
+    response = client.get("/api/auth/github/callback", params={"code": "any-code"})
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "GitHub account has no accessible email"
 
 
 def test_github_callback_with_github_http_error_returns_502(monkeypatch):

@@ -78,7 +78,17 @@ def github_callback(code: str, db: Session = Depends(get_db)) -> TokenResponse:
 
     user = db.scalar(select(User).where(User.github_id == github_user["id"]))
     if user is None:
-        user = User(id=uuid.uuid4(), email=email, github_id=github_user["id"])
+        # No row is linked to this GitHub account yet. The GitHub primary
+        # email may already belong to a password-registered account, in
+        # which case we must LINK that existing row instead of inserting a
+        # new one — otherwise db.commit() below violates the users.email
+        # UNIQUE constraint (unhandled IntegrityError -> 500), and that
+        # person could never authenticate via GitHub.
+        user = db.scalar(select(User).where(User.email == email))
+        if user is None:
+            user = User(id=uuid.uuid4(), email=email, github_id=github_user["id"])
+        else:
+            user.github_id = github_user["id"]
 
     user.github_username = github_user["login"]
     user.avatar_url = github_user.get("avatar_url")

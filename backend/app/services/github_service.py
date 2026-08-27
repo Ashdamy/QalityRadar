@@ -60,6 +60,10 @@ def fetch_github_primary_email(token: str) -> str:
         "GET", f"{GITHUB_API_BASE}/user/emails", headers={"Authorization": f"Bearer {token}"}
     )
     emails = response.json()
+    if not emails:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="GitHub account has no accessible email"
+        )
     primary = next((e for e in emails if e.get("primary")), emails[0])
     return primary["email"]
 
