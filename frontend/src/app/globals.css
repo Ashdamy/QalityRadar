@@ -12,6 +12,9 @@
   --accent: oklch(0.78 0.13 195);
   --accent-strong: oklch(0.62 0.14 195);
   --accent-dim: oklch(0.3 0.05 195);
+  --on-accent: oklch(0.15 0.01 195);
+  --good: oklch(0.72 0.15 150);
+  --bad: oklch(0.7 0.18 25);
 }
 
 @theme inline {
@@ -26,8 +29,39 @@
   --color-accent: var(--accent);
   --color-accentStrong: var(--accent-strong);
   --color-accentDim: var(--accent-dim);
+  --color-onAccent: var(--on-accent);
+  --color-good: var(--good);
+  --color-bad: var(--bad);
   --font-sans: var(--font-ibm-plex-sans);
   --font-mono: var(--font-ibm-plex-mono);
+}
+
+@keyframes radar-sweep {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes radar-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-radar-sweep {
+  transform-origin: 160px 160px;
+  animation: radar-sweep 5s linear infinite;
+}
+
+.animate-radar-spin {
+  transform-origin: 44px 44px;
+  animation: radar-spin 1.6s linear infinite;
 }
 
 body {
