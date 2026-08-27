@@ -39,6 +39,30 @@ def test_rejects_nonexistent_repo_directory():
         build_docker_command("qaliti/analyzer:latest", ["echo"], Path("/no/existe/jamas"))
 
 
+def test_rejects_image_name_starting_with_dash(tmp_path):
+    with pytest.raises(ValueError, match="imagen"):
+        build_docker_command("--privileged", ["echo"], tmp_path)
+
+
+def test_rejects_image_name_that_looks_like_short_flag(tmp_path):
+    with pytest.raises(ValueError, match="imagen"):
+        build_docker_command("-v", ["echo"], tmp_path)
+
+
+def test_double_dash_separator_precedes_image_name(tmp_path):
+    command = build_docker_command("qaliti/analyzer:latest", ["echo", "hola"], tmp_path)
+    index_double_dash = command.index("--")
+    index_image = command.index("qaliti/analyzer:latest")
+    assert index_image == index_double_dash + 1
+
+
+def test_command_element_starting_with_dash_is_preserved(tmp_path):
+    tool_command = ["gitleaks", "detect", "--no-git", "--report-format=json"]
+    command = build_docker_command("qaliti/gitleaks:latest", tool_command, tmp_path)
+    index_image = command.index("qaliti/gitleaks:latest")
+    assert command[index_image + 1:] == tool_command
+
+
 docker_available = pytest.mark.skipif(
     shutil.which("docker") is None, reason="Docker no disponible"
 )

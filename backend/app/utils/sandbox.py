@@ -38,8 +38,10 @@ class SandboxResult:
 
 
 def build_docker_command(image: str, command: list[str], repo_dir: Path) -> list[str]:
-    if not _IMAGE_PATTERN.match(image):
+    if image.startswith("-") or not _IMAGE_PATTERN.match(image):
         raise ValueError(f"nombre de imagen no valido: {image!r}")
+    if not all(isinstance(part, str) for part in command):
+        raise ValueError("cada elemento de command debe ser str")
     repo_dir = Path(repo_dir)
     if not repo_dir.is_dir():
         raise ValueError(f"directorio de repositorio inexistente: {repo_dir}")
@@ -52,6 +54,9 @@ def build_docker_command(image: str, command: list[str], repo_dir: Path) -> list
         # tmpfs para que las herramientas puedan escribir temporales pese al
         # sistema de archivos en solo lectura.
         "--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
+        # Fin de opciones: aunque el nombre de imagen pasara la validacion de
+        # arriba, Docker nunca lo interpretara como una flag a partir de aqui.
+        "--",
         image,
         *command,
     ]
