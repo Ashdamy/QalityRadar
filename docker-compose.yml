@@ -32,8 +32,16 @@ services:
       redis: { condition: service_healthy }
     volumes: ["./backend:/app"]
 
+  # El worker NO se levanta con `docker compose up`: corre en el host para
+  # poder lanzar los contenedores de analisis contra el demonio Docker local
+  # sin tener que montar /var/run/docker.sock dentro de un contenedor (via
+  # clasica de escalada a root del host). Ver docs/ARCHITECTURE.md §4.1.
+  # En desarrollo:  celery -A app.worker worker --loglevel=info
+  # Este servicio queda solo para inspeccion puntual:
+  #   docker compose --profile manual up worker
   worker:
     build: ./backend
+    profiles: ["manual"]
     command: celery -A app.worker worker --loglevel=info
     env_file: ./backend/.env
     depends_on:
