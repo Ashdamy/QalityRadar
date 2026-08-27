@@ -14,8 +14,9 @@
 | Fase 0 — Arquitectura y diseño | ✅ Completada |
 | Diseño visual (mockup de pantallas Semana 1) | ✅ Aprobado |
 | Semana 1 — Setup + Auth (backend) | ✅ 9/9 tareas implementadas, 27/27 tests |
-| Semana 1 — Frontend (páginas reales) | ⏸️ Pendiente (se implementa después del backend) |
-| Semanas 2-5 | ⏸️ No iniciadas |
+| Semana 1 — Frontend (3 pantallas reales) | ✅ Implementado y funcionando |
+| Semana 2A — Motor de análisis (sandbox + primer resultado) | 🔄 En curso |
+| Semanas 2B-5 | ⏸️ No iniciadas |
 
 ---
 
