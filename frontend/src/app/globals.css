@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+:root {
+  --bg: oklch(0.16 0.006 260);
+  --bg-panel: oklch(0.135 0.006 260);
+  --surface: oklch(0.205 0.008 260);
+  --surface-2: oklch(0.24 0.008 260);
+  --border: oklch(0.32 0.01 260);
+  --text: oklch(0.94 0.004 260);
+  --text-muted: oklch(0.64 0.01 260);
+  --text-faint: oklch(0.46 0.01 260);
+  --accent: oklch(0.78 0.13 195);
+  --accent-strong: oklch(0.62 0.14 195);
+  --accent-dim: oklch(0.3 0.05 195);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--bg-panel);
+  --color-surface: var(--surface);
+  --color-surface2: var(--surface-2);
+  --color-border: var(--border);
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-accent: var(--accent);
+  --color-accentStrong: var(--accent-strong);
+  --color-accentDim: var(--accent-dim);
+  --font-sans: var(--font-ibm-plex-sans);
+  --font-mono: var(--font-ibm-plex-mono);
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+}

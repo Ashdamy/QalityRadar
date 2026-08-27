@@ -1,3 +1,8 @@
 FROM node:20-slim
 WORKDIR /app
-CMD ["sh", "-c", "echo 'frontend scaffold pendiente de Task de diseño'"]
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+EXPOSE 3000
+CMD ["npm", "start"]
