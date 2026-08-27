@@ -32,3 +32,6 @@ Thumbs.db
 coverage/
 htmlcov/
 *.log
+
+# Git worktrees (local scratch, never committed)
+.worktrees/
