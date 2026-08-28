@@ -323,3 +323,133 @@ def _try_analysis_model(
         return None
 
     return texto if len(texto) >= MIN_USEFUL_SUMMARY_CHARS else None
+
+
+# --- Resumen de un analisis combinado ---------------------------------------
+
+
+def build_combined_summary(
+    *,
+    repository_name: str,
+    url: str,
+    repo_score: float,
+    url_score: float,
+    consolidated_score: float,
+    discrepancy_explanation: str | None,
+    plan: list[tuple[str, str]],
+    api_key: str | None = None,
+) -> tuple[str, str]:
+    """Resumen del contraste entre codigo y produccion."""
+    if api_key:
+        texto = _try_combined_model(
+            repository_name=repository_name,
+            url=url,
+            repo_score=repo_score,
+            url_score=url_score,
+            consolidated_score=consolidated_score,
+            discrepancy_explanation=discrepancy_explanation,
+            plan=plan,
+            api_key=api_key,
+        )
+        if texto:
+            return texto, "modelo"
+
+    return (
+        _combined_template(
+            repo_score=repo_score,
+            url_score=url_score,
+            consolidated_score=consolidated_score,
+            discrepancy_explanation=discrepancy_explanation,
+            plan=plan,
+        ),
+        "plantilla",
+    )
+
+
+def _combined_template(
+    *,
+    repo_score: float,
+    url_score: float,
+    consolidated_score: float,
+    discrepancy_explanation: str | None,
+    plan: list[tuple[str, str]],
+) -> str:
+    partes = [
+        f"El proyecto obtiene una puntuacion consolidada de {consolidated_score:g}/100, "
+        f"con {repo_score:g} en el codigo y {url_score:g} en produccion."
+    ]
+
+    if discrepancy_explanation:
+        partes.append(discrepancy_explanation)
+    else:
+        partes.append(
+            "Ambas notas son coherentes entre si: lo que hay en el repositorio se corresponde "
+            "con lo que llega al usuario final."
+        )
+
+    if plan:
+        partes.append(f"La accion mas prioritaria es: {plan[0][1].rstrip('.')}.")
+
+    return " ".join(partes)
+
+
+def _try_combined_model(
+    *,
+    repository_name: str,
+    url: str,
+    repo_score: float,
+    url_score: float,
+    consolidated_score: float,
+    discrepancy_explanation: str | None,
+    plan: list[tuple[str, str]],
+    api_key: str,
+) -> str | None:
+    lineas_plan = "\n".join(
+        f"- [{SEVERITY_LABELS.get(s, s)}] {t}" for s, t in plan[:6]
+    ) or "- ninguna"
+    brecha = discrepancy_explanation or "No hay una discrepancia significativa entre ambas notas."
+
+    prompt = (
+        f"Repositorio: {repository_name}\n"
+        f"Aplicacion desplegada: {url}\n\n"
+        f"Puntuacion del codigo: {repo_score:g}/100\n"
+        f"Puntuacion en produccion: {url_score:g}/100\n"
+        f"Puntuacion consolidada: {consolidated_score:g}/100\n\n"
+        f"Analisis de la brecha:\n{brecha}\n\n"
+        f"Plan de mejora priorizado:\n{lineas_plan}\n\n"
+        "Redacta el resumen ejecutivo."
+    )
+
+    try:
+        respuesta = httpx.post(
+            HF_URL,
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={
+                "model": HF_MODEL,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Eres un consultor tecnico. Escribes en espanol un resumen ejecutivo "
+                            "de maximo cinco frases comparando la calidad del codigo de un "
+                            "proyecto con la de su aplicacion ya desplegada. Explicas que "
+                            "significa la diferencia entre ambas notas y a que se debe, y "
+                            "terminas con la accion mas prioritaria. Tono profesional pero "
+                            "accesible. No inventas ningun dato que no aparezca en la informacion "
+                            "facilitada. Respondes solo con el resumen, sin encabezados ni "
+                            "vinetas."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "max_tokens": 320,
+                "temperature": 0.3,
+            },
+            timeout=HF_TIMEOUT_SECONDS,
+        )
+        respuesta.raise_for_status()
+        texto = (respuesta.json()["choices"][0]["message"]["content"] or "").strip()
+    except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError):
+        return None
+
+    return texto if len(texto) >= MIN_USEFUL_SUMMARY_CHARS else None

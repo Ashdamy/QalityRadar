@@ -5,10 +5,17 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
-from app.models.analysis import Analysis, Dimension, Finding
+from app.models.analysis import Analysis, Dimension, Discrepancy, Finding
 from app.models.repository import Repository
 from app.models.user import User
-from app.schemas.analysis import AnalysisOut, DimensionOut, FindingOut
+from app.schemas.analysis import (
+    AnalysisOut,
+    CombinedOut,
+    CorrespondenceOut,
+    DimensionOut,
+    FindingOut,
+    PlanItemOut,
+)
 from app.services.report_service import build_analysis_report
 
 router = APIRouter(prefix="/api/analyses", tags=["analyses"])
@@ -45,6 +52,8 @@ def get_analysis(
         error_message=analysis.error_message,
         summary_text=analysis.summary_text,
         summary_source=analysis.summary_source,
+        analysis_type=analysis.analysis_type,
+        combined=_combined_block(db, analysis),
         dimensions=[
             DimensionOut(name=d.name, score=float(d.score), weight=float(d.weight))
             for d in dimensions
@@ -61,6 +70,32 @@ def get_analysis(
             )
             for f in sorted(findings, key=lambda f: SEVERITY_ORDER.get(f.severity, 99))
         ],
+    )
+
+
+def _combined_block(db: Session, analysis: Analysis) -> CombinedOut | None:
+    """Reune los datos propios del modo combinado, si el analisis es de ese tipo.
+
+    Viven en dos sitios: la tabla `discrepancies` y el `raw_data` del analisis.
+    Se juntan aqui para que el cliente reciba un unico bloque coherente.
+    """
+    if analysis.analysis_type != "combined":
+        return None
+
+    bruto = analysis.raw_data or {}
+    correspondencia = bruto.get("correspondence")
+    discrepancia = db.scalar(
+        select(Discrepancy).where(Discrepancy.analysis_id == analysis.id)
+    )
+
+    return CombinedOut(
+        repository_score=bruto.get("repository_score"),
+        url_score=bruto.get("url_score"),
+        delta=float(discrepancia.delta) if discrepancia else None,
+        explanation=discrepancia.explanation if discrepancia else None,
+        recommendations=discrepancia.recommendations if discrepancia else None,
+        improvement_plan=[PlanItemOut(**item) for item in bruto.get("improvement_plan", [])],
+        correspondence=CorrespondenceOut(**correspondencia) if correspondencia else None,
     )
 
 

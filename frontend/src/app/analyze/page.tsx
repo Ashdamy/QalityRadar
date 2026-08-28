@@ -55,7 +55,6 @@ type Modo = {
   icono: React.ReactNode;
   destino: string | null;
   recomendado?: boolean;
-  proximamente?: boolean;
 };
 
 const MODOS: Modo[] = [
@@ -81,9 +80,8 @@ const MODOS: Modo[] = [
       "Compara el código con lo que hay en producción y detecta discrepancias entre ambos.",
     etiquetas: ["Visión completa", "Discrepancias", "Nota consolidada"],
     icono: <BothIcon />,
-    destino: null,
+    destino: "/analyze/combined",
     recomendado: true,
-    proximamente: true,
   },
 ];
 
@@ -138,7 +136,7 @@ export default function AnalyzePage() {
               >
                 {modo.recomendado && (
                   <span className="absolute -top-[9px] left-[22px] rounded-[4px] bg-accent px-2 py-[2px] text-[10.5px] font-semibold uppercase tracking-[0.04em] text-[oklch(0.15_0.01_195)]">
-                    {modo.proximamente ? "Próximamente" : "Recomendado"}
+                    Recomendado
                   </span>
                 )}
 

@@ -10,7 +10,8 @@ from app.api.deps import get_current_user, get_db
 from app.models.analysis import Analysis
 from app.models.deployed_app import DeployedApp
 from app.models.user import User
-from app.tasks import queue_url_analysis
+from app.models.repository import Repository
+from app.tasks import queue_combined_analysis, queue_url_analysis
 from app.utils.url_validation import UnsafeUrlError, validate_public_url
 
 router = APIRouter(prefix="/api/apps", tags=["apps"])
@@ -61,4 +62,56 @@ def analyze_url(
     db.commit()
 
     queue_url_analysis(str(analysis.id))
+    return {"analysis_id": str(analysis.id)}
+
+
+class AnalyzeCombinedRequest(BaseModel):
+    repository_id: uuid.UUID
+    url: str
+
+
+@router.post("/analyze-combined", status_code=status.HTTP_202_ACCEPTED)
+def analyze_combined(
+    payload: AnalyzeCombinedRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict:
+    """Analiza el repositorio y su despliegue, y compara ambos resultados."""
+    repository = db.get(Repository, payload.repository_id)
+    if repository is None or repository.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="repositorio no encontrado"
+        )
+    if repository.is_private:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="solo se analizan repositorios publicos",
+        )
+
+    try:
+        objetivo = validate_public_url(payload.url)
+    except UnsafeUrlError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    app_row = DeployedApp(
+        id=uuid.uuid4(),
+        user_id=current_user.id,
+        name=objetivo.hostname[:255],
+        url=objetivo.url,
+    )
+    db.add(app_row)
+    db.flush()
+
+    analysis = Analysis(
+        id=uuid.uuid4(),
+        user_id=current_user.id,
+        repository_id=repository.id,
+        app_id=app_row.id,
+        analysis_type="combined",
+        status="pending",
+    )
+    db.add(analysis)
+    db.commit()
+
+    queue_combined_analysis(str(analysis.id))
     return {"analysis_id": str(analysis.id)}

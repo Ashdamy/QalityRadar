@@ -30,3 +30,19 @@ def analyze_url_task(analysis_id: str) -> None:
 
 def queue_url_analysis(analysis_id: str) -> None:
     analyze_url_task.delay(analysis_id)
+
+
+@celery_app.task(
+    name="qalitiradar.analyze_combined",
+    # El doble de tiempo: ejecuta los dos analisis, uno detras de otro.
+    time_limit=1200,
+    soft_time_limit=1140,
+)
+def analyze_combined_task(analysis_id: str) -> None:
+    from app.services.combined_analysis_service import run_combined_analysis
+
+    run_combined_analysis(analysis_id)
+
+
+def queue_combined_analysis(analysis_id: str) -> None:
+    analyze_combined_task.delay(analysis_id)

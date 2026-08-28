@@ -125,6 +125,32 @@ export interface AnalysisDimension {
   weight: number;
 }
 
+export interface Correspondence {
+  kind: "ok" | "no_deployment" | "possible_mismatch";
+  looks_related: boolean;
+  confidence: string;
+  reasons: string[];
+  warning: string | null;
+}
+
+export interface PlanItem {
+  severity: AnalysisFinding["severity"];
+  origin: "codigo" | "produccion" | "discrepancia";
+  title: string;
+  detail: string | null;
+}
+
+/** Datos que solo existen en el modo combinado (código frente a producción). */
+export interface Combined {
+  repository_score: number | null;
+  url_score: number | null;
+  delta: number | null;
+  explanation: string | null;
+  recommendations: string | null;
+  improvement_plan: PlanItem[];
+  correspondence: Correspondence | null;
+}
+
 export interface Analysis {
   id: string;
   status: "pending" | "cloning" | "running" | "scoring" | "completed" | "failed" | "timeout";
@@ -135,8 +161,10 @@ export interface Analysis {
   error_message: string | null;
   summary_text: string | null;
   summary_source: string | null;
+  analysis_type: string;
   dimensions: AnalysisDimension[];
   findings: AnalysisFinding[];
+  combined: Combined | null;
 }
 
 export function startRepositoryAnalysis(
@@ -257,5 +285,17 @@ export function analyzeUrl(
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ url, name }),
+  });
+}
+
+export function analyzeCombined(
+  token: string,
+  repositoryId: string,
+  url: string,
+): Promise<{ analysis_id: string }> {
+  return request<{ analysis_id: string }>("/api/apps/analyze-combined", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ repository_id: repositoryId, url }),
   });
 }
