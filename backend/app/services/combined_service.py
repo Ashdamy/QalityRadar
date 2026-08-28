@@ -165,6 +165,20 @@ def prefixed(origin: str, name: str) -> str:
     return f"{origin}{ORIGIN_SEPARATOR}{name}"
 
 
+def clear_copied_results(db: Session, target: Analysis) -> None:
+    """Borra dimensiones y hallazgos ya copiados en el analisis combinado.
+
+    Un reintento (de Celery o manual) volveria a copiarlos y chocaria con el
+    indice unico, convirtiendo un fallo transitorio en uno permanente. Se
+    limpia antes de copiar para que la operacion sea repetible.
+    """
+    from sqlalchemy import delete
+
+    db.execute(delete(Dimension).where(Dimension.analysis_id == target.id))
+    db.execute(delete(Finding).where(Finding.analysis_id == target.id))
+    db.execute(delete(Discrepancy).where(Discrepancy.analysis_id == target.id))
+
+
 def copy_results_into(
     db: Session,
     target: Analysis,

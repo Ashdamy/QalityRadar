@@ -20,6 +20,7 @@ from app.services.analysis_service import run_repository_analysis
 from app.services.correspondence_service import check_correspondence
 from app.services.combined_service import (
     apply_severity_cap,
+    clear_copied_results,
     build_improvement_plan,
     consolidate_score,
     copy_results_into,
@@ -84,6 +85,8 @@ def run_combined_analysis(analysis_id: str) -> None:
 
         # Se copian dimensiones y hallazgos para que el combinado sea
         # autocontenido: al exportarlo o compararlo no hay que reconstruirlo.
+        # Un reintento no debe chocar con lo que dejo el intento anterior.
+        clear_copied_results(db, analysis)
         copy_results_into(db, analysis, repo_analysis, REPOSITORY_WEIGHTS, "codigo")
         copy_results_into(db, analysis, url_analysis, URL_WEIGHTS, "produccion")
 
