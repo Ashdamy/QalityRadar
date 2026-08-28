@@ -114,6 +114,7 @@ export interface AnalysisFinding {
   title: string;
   description: string;
   file_path: string | null;
+  url: string | null;
   recommendation: string | null;
 }
 
@@ -242,4 +243,16 @@ export async function downloadAnalysisReport(token: string, analysisId: string):
   link.remove();
   // Se libera el objeto para no retener el PDF en memoria.
   URL.revokeObjectURL(url);
+}
+
+export function analyzeUrl(
+  token: string,
+  url: string,
+  name?: string,
+): Promise<{ analysis_id: string }> {
+  return request<{ analysis_id: string }>("/api/apps/analyze", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ url, name }),
+  });
 }

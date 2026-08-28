@@ -7,6 +7,8 @@ class FindingOut(BaseModel):
     title: str
     description: str
     file_path: str | None = None
+    # Los hallazgos de URL se ubican por direccion, no por archivo.
+    url: str | None = None
     recommendation: str | None = None
 
 

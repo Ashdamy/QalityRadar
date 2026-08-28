@@ -54,6 +54,7 @@ def get_analysis(
                 title=f.title,
                 description=f.description,
                 file_path=f.file_path,
+                url=f.url,
                 recommendation=f.recommendation,
             )
             for f in sorted(findings, key=lambda f: SEVERITY_ORDER.get(f.severity, 99))

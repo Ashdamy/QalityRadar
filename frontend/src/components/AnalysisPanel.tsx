@@ -13,6 +13,11 @@ const DIMENSION_LABELS: Record<string, string> = {
   maintainability: "Mantenibilidad",
   portability: "Portabilidad",
   project_activity: "Actividad del proyecto",
+  // Dimensiones del analisis de URL (Modo 2).
+  performance: "Rendimiento",
+  usability: "Usabilidad",
+  accessibility: "Accesibilidad",
+  compatibility: "Compatibilidad",
 };
 
 const SEVERITY_LABELS: Record<AnalysisFinding["severity"], string> = {
@@ -141,7 +146,7 @@ export function AnalysisPanel({ analysis, onClose }: { analysis: Analysis; onClo
           </div>
 
           <p className="mt-4 rounded-[6px] border border-border bg-bg px-3 py-2 text-[12.5px] text-faint">
-            Puntuación sobre {analysis.dimensions.length} de las 6 dimensiones ISO/IEC 25010. Es una
+            Puntuación sobre {analysis.dimensions.length} dimensiones del modelo ISO/IEC 25010. Es una
             aproximación al estándar, no una certificación oficial.
           </p>
 
@@ -201,8 +206,8 @@ export function AnalysisPanel({ analysis, onClose }: { analysis: Analysis; onClo
                         {f.recommendation}
                       </p>
                     )}
-                    {f.file_path && (
-                      <p className="mt-1 font-mono text-[12px] text-faint">{f.file_path}</p>
+                    {(f.file_path ?? f.url) && (
+                      <p className="mt-1 font-mono text-[12px] text-faint">{f.file_path ?? f.url}</p>
                     )}
                   </li>
                 ))}

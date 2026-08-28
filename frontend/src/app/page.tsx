@@ -47,7 +47,7 @@ export default function Home() {
 
   useEffect(() => {
     if (getToken()) {
-      router.replace("/repositories");
+      router.replace("/analyze");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -70,7 +70,7 @@ export default function Home() {
       }
       const tokenResponse = await login(email, password);
       saveToken(tokenResponse.access_token);
-      router.push("/repositories");
+      router.push("/analyze");
     } catch (err) {
       setError(genericErrorMessage(err));
       setPending(false);

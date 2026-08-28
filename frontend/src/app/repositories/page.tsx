@@ -156,10 +156,14 @@ export default function RepositoriesPage() {
   return (
     <main className="flex min-h-screen w-full flex-col bg-bg text-text">
       <div className="flex items-center justify-between border-b border-border px-8 py-4">
-        <div className="flex items-center gap-[10px]">
+        <button
+          type="button"
+          onClick={() => router.push("/analyze")}
+          className="flex items-center gap-[10px] focus:outline-none focus:ring-[3px] focus:ring-accentDim"
+        >
           <RadarMark size={20} />
           <span className="text-[14.5px] font-semibold">QalitiRadar</span>
-        </div>
+        </button>
         <div className="flex items-center gap-[14px]">
           <div className="h-[26px] w-[26px] rounded-[6px] border border-border bg-surface2" aria-hidden="true" />
           <button
