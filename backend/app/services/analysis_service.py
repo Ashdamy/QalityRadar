@@ -26,6 +26,7 @@ from app.analyzers.repository.tests_analyzer import TestsAnalyzer
 from app.core.database import SessionLocal
 from app.models.analysis import Analysis, Dimension, Finding
 from app.models.repository import Repository
+from app.services.comparison_service import compare_analyses, find_previous_analysis
 from app.services.repo_service import clone_repository, read_head_commit
 from app.services.scoring_service import (
     REPOSITORY_WEIGHTS,
@@ -130,6 +131,16 @@ def run_repository_analysis(analysis_id: str) -> None:
 
         repository.last_analyzed_at = analysis.completed_at
         db.commit()
+
+        # Regla de negocio del spec: cada analisis nuevo se compara
+        # automaticamente con el anterior. Si es el primero no hay con que
+        # comparar, y un fallo aqui no debe invalidar un analisis ya completado.
+        previous = find_previous_analysis(db, analysis)
+        if previous is not None:
+            try:
+                compare_analyses(db, previous, analysis)
+            except Exception:  # noqa: BLE001
+                db.rollback()
     finally:
         db.close()
 

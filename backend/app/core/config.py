@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     # porque la API responde con credenciales.
     cors_origins: str = "http://localhost:3000"
 
+    # Opcional: sin clave, los resumenes se generan con la plantilla de
+    # respaldo, que produce un texto correcto con los mismos datos.
+    huggingface_api_key: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
