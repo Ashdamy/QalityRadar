@@ -30,8 +30,19 @@ MAX_CONCURRENT = 2
 HOUR_SECONDS = 3600
 DAY_SECONDS = 86400
 
+# Los analisis automaticos de los monitores llevan su propia cuenta. Si
+# compartieran la del usuario, un proyecto vigilado le consumiria los analisis
+# manuales y se encontraria bloqueado sin haber hecho nada.
+MONITOR_MAX_PER_HOUR = 10
+MONITOR_MAX_PER_DAY = 40
+# Uno cada vez: la vigilancia es trabajo de fondo y no debe competir con lo
+# que el usuario esta esperando en pantalla.
+MONITOR_MAX_CONCURRENT = 1
+
 _HISTORY_KEY = "ratelimit:analyses:{user_id}"
 _RUNNING_KEY = "ratelimit:running:{user_id}"
+_MONITOR_HISTORY_KEY = "ratelimit:monitor:analyses:{user_id}"
+_MONITOR_RUNNING_KEY = "ratelimit:monitor:running:{user_id}"
 # Si un analisis muere sin avisar, su marca de "en curso" caducaria sola en
 # vez de bloquear la cuenta para siempre.
 _RUNNING_TTL = 2400
@@ -59,41 +70,55 @@ def check_and_reserve(user_id: uuid.UUID, reservation: str) -> None:
 
     Lanza RateLimitExceeded si no hay hueco, antes de encolar nada.
     """
+    _reservar(
+        user_id,
+        reservation,
+        historial=_HISTORY_KEY.format(user_id=user_id),
+        en_curso=_RUNNING_KEY.format(user_id=user_id),
+        max_hora=MAX_PER_HOUR,
+        max_dia=MAX_PER_DAY,
+        max_simultaneos=MAX_CONCURRENT,
+        etiqueta="",
+    )
+
+
+def _reservar(
+    user_id: uuid.UUID,
+    reservation: str,
+    *,
+    historial: str,
+    en_curso: str,
+    max_hora: int,
+    max_dia: int,
+    max_simultaneos: int,
+    etiqueta: str,
+) -> None:
     cliente = _client()
     ahora = time.time()
-    historial = _HISTORY_KEY.format(user_id=user_id)
-    en_curso = _RUNNING_KEY.format(user_id=user_id)
+    sufijo = f" {etiqueta}" if etiqueta else ""
 
     # Los que ya salieron de la ventana no cuentan para nada.
     cliente.zremrangebyscore(historial, 0, ahora - DAY_SECONDS)
     cliente.zremrangebyscore(en_curso, 0, ahora - _RUNNING_TTL)
 
-    simultaneos = cliente.zcard(en_curso)
-    if simultaneos >= MAX_CONCURRENT:
+    if cliente.zcard(en_curso) >= max_simultaneos:
         raise RateLimitExceeded(
-            f"Ya tienes {MAX_CONCURRENT} analisis en curso. Espera a que terminen.",
+            f"Ya hay {max_simultaneos} analisis{sufijo} en curso. Espera a que terminen.",
             60,
         )
 
-    en_la_hora = cliente.zcount(historial, ahora - HOUR_SECONDS, ahora)
-    if en_la_hora >= MAX_PER_HOUR:
+    for ventana, maximo, unidad in (
+        (HOUR_SECONDS, max_hora, "por hora"),
+        (DAY_SECONDS, max_dia, "diarios"),
+    ):
+        if cliente.zcount(historial, ahora - ventana, ahora) < maximo:
+            continue
         mas_antiguo = cliente.zrangebyscore(
-            historial, ahora - HOUR_SECONDS, ahora, start=0, num=1, withscores=True
+            historial, ahora - ventana, ahora, start=0, num=1, withscores=True
         )
-        espera = int(mas_antiguo[0][1] + HOUR_SECONDS - ahora) + 1 if mas_antiguo else HOUR_SECONDS
+        espera = int(mas_antiguo[0][1] + ventana - ahora) + 1 if mas_antiguo else ventana
         raise RateLimitExceeded(
-            f"Has alcanzado el limite de {MAX_PER_HOUR} analisis por hora.",
-            max(1, espera),
-        )
-
-    en_el_dia = cliente.zcount(historial, ahora - DAY_SECONDS, ahora)
-    if en_el_dia >= MAX_PER_DAY:
-        mas_antiguo = cliente.zrangebyscore(
-            historial, ahora - DAY_SECONDS, ahora, start=0, num=1, withscores=True
-        )
-        espera = int(mas_antiguo[0][1] + DAY_SECONDS - ahora) + 1 if mas_antiguo else DAY_SECONDS
-        raise RateLimitExceeded(
-            f"Has alcanzado el limite de {MAX_PER_DAY} analisis diarios.",
+            f"Has alcanzado el limite de {maximo} analisis{sufijo} {unidad}.",
             max(1, espera),
         )
 
@@ -103,6 +128,24 @@ def check_and_reserve(user_id: uuid.UUID, reservation: str) -> None:
     cliente.expire(en_curso, _RUNNING_TTL)
 
 
+def check_and_reserve_monitor(user_id: uuid.UUID, reservation: str) -> None:
+    """Igual que `check_and_reserve`, pero con la cuota de los monitores.
+
+    Cuando no hay hueco no es un problema: el monitor ya guardo que el
+    objetivo cambio, asi que lo reintentara en la siguiente vuelta.
+    """
+    _reservar(
+        user_id,
+        reservation,
+        historial=_MONITOR_HISTORY_KEY.format(user_id=user_id),
+        en_curso=_MONITOR_RUNNING_KEY.format(user_id=user_id),
+        max_hora=MONITOR_MAX_PER_HOUR,
+        max_dia=MONITOR_MAX_PER_DAY,
+        max_simultaneos=MONITOR_MAX_CONCURRENT,
+        etiqueta="automaticos",
+    )
+
+
 def release(user_id: uuid.UUID, reservation: str) -> None:
     """Libera el hueco de simultaneos. El historial no se toca: cuenta igual.
 
@@ -110,7 +153,11 @@ def release(user_id: uuid.UUID, reservation: str) -> None:
     caduca sola por TTL y como mucho se pierde un hueco un rato.
     """
     try:
-        _client().zrem(_RUNNING_KEY.format(user_id=user_id), reservation)
+        cliente = _client()
+        # No se sabe de que cuota salio, y quitar una marca que no existe no
+        # cuesta nada, asi que se limpian las dos.
+        cliente.zrem(_RUNNING_KEY.format(user_id=user_id), reservation)
+        cliente.zrem(_MONITOR_RUNNING_KEY.format(user_id=user_id), reservation)
     except Exception:  # noqa: BLE001
         pass
 

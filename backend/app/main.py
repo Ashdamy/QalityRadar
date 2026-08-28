@@ -5,6 +5,7 @@ from app.api.analyses import router as analyses_router
 from app.api.apps import router as apps_router
 from app.api.auth import router as auth_router
 from app.api.history import router as history_router
+from app.api.monitors import router as monitors_router
 from app.api.notifications import router as notifications_router
 from app.api.repositories import router as repositories_router
 from app.api.share import router as share_router
@@ -30,6 +31,7 @@ app.include_router(history_router)
 app.include_router(apps_router)
 app.include_router(share_router)
 app.include_router(notifications_router)
+app.include_router(monitors_router)
 
 
 @app.get("/health")
