@@ -1,6 +1,8 @@
 "use client";
 
-import type { Analysis, AnalysisFinding } from "@/lib/api";
+import { useState } from "react";
+import { ApiError, downloadAnalysisReport, type Analysis, type AnalysisFinding } from "@/lib/api";
+import { getToken } from "@/lib/auth";
 import { RadarChart } from "@/components/RadarChart";
 
 // Nombres tecnicos de las dimensiones ISO 25010 traducidos para el usuario.
@@ -51,6 +53,24 @@ function severityColor(severity: AnalysisFinding["severity"]): string {
 
 export function AnalysisPanel({ analysis, onClose }: { analysis: Analysis; onClose: () => void }) {
   const running = !["completed", "failed", "timeout"].includes(analysis.status);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+
+  async function handleDownload() {
+    const token = getToken();
+    if (!token || downloading) return;
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      await downloadAnalysisReport(token, analysis.id);
+    } catch (error) {
+      setDownloadError(
+        error instanceof ApiError ? error.message : "No se pudo generar el PDF.",
+      );
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   return (
     <section
@@ -66,13 +86,25 @@ export function AnalysisPanel({ analysis, onClose }: { analysis: Analysis; onClo
             </p>
           )}
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-[6px] border border-border px-3 py-1 text-[12.5px] text-muted hover:text-text focus:outline-none focus:ring-[3px] focus:ring-accentDim"
-        >
-          Cerrar
-        </button>
+        <div className="flex items-center gap-2">
+          {analysis.status === "completed" && (
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={downloading}
+              className="rounded-[6px] border border-border px-3 py-1 text-[12.5px] text-muted hover:text-text disabled:opacity-60 focus:outline-none focus:ring-[3px] focus:ring-accentDim"
+            >
+              {downloading ? "Generando…" : "Exportar PDF"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-[6px] border border-border px-3 py-1 text-[12.5px] text-muted hover:text-text focus:outline-none focus:ring-[3px] focus:ring-accentDim"
+          >
+            Cerrar
+          </button>
+        </div>
       </div>
 
       {running && (
@@ -80,6 +112,12 @@ export function AnalysisPanel({ analysis, onClose }: { analysis: Analysis; onClo
           <span className="h-3 w-3 animate-pulse rounded-full bg-accent" aria-hidden="true" />
           <span className="text-[13px] text-muted">Esto puede tardar hasta un par de minutos.</span>
         </div>
+      )}
+
+      {downloadError && (
+        <p role="alert" className="mt-3 text-[12.5px] text-[oklch(0.68_0.19_25)]">
+          {downloadError}
+        </p>
       )}
 
       {analysis.status === "failed" && analysis.error_message && (

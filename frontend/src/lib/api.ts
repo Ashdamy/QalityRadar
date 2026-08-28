@@ -215,3 +215,31 @@ export function getComparison(
     headers: { Authorization: `Bearer ${token}` },
   });
 }
+
+/**
+ * Descarga el informe en PDF. Se usa fetch + blob en vez de un enlace directo
+ * porque el endpoint exige la cabecera Authorization, que un <a href> no envía.
+ */
+export async function downloadAnalysisReport(token: string, analysisId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/analyses/${analysisId}/report.pdf`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new ApiError(response.status, await parseErrorMessage(response));
+  }
+
+  const blob = await response.blob();
+  const nombre =
+    response.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1] ??
+    "informe-qalitiradar.pdf";
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nombre;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Se libera el objeto para no retener el PDF en memoria.
+  URL.revokeObjectURL(url);
+}

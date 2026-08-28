@@ -1,13 +1,15 @@
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
 from app.models.analysis import Analysis, Dimension, Finding
+from app.models.repository import Repository
 from app.models.user import User
 from app.schemas.analysis import AnalysisOut, DimensionOut, FindingOut
+from app.services.report_service import build_analysis_report
 
 router = APIRouter(prefix="/api/analyses", tags=["analyses"])
 
@@ -56,4 +58,41 @@ def get_analysis(
             )
             for f in sorted(findings, key=lambda f: SEVERITY_ORDER.get(f.severity, 99))
         ],
+    )
+
+
+@router.get("/{analysis_id}/report.pdf")
+def download_report(
+    analysis_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Response:
+    analysis = db.get(Analysis, analysis_id)
+    if analysis is None or analysis.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="analisis no encontrado")
+    if analysis.status != "completed":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="el analisis todavia no ha terminado",
+        )
+
+    repository = db.get(Repository, analysis.repository_id) if analysis.repository_id else None
+    dimensions = db.scalars(select(Dimension).where(Dimension.analysis_id == analysis.id)).all()
+    findings = db.scalars(select(Finding).where(Finding.analysis_id == analysis.id)).all()
+
+    pdf = build_analysis_report(
+        repository_full_name=repository.full_name if repository else "proyecto",
+        analysis=analysis,
+        dimensions=list(dimensions),
+        findings=list(findings),
+    )
+
+    nombre_base = (repository.name if repository else "analisis").replace("/", "-")
+    fecha = analysis.completed_at.strftime("%Y-%m-%d") if analysis.completed_at else "informe"
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="qalitiradar-{nombre_base}-{fecha}.pdf"'
+        },
     )
