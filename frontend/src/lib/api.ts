@@ -150,3 +150,68 @@ export function getAnalysis(token: string, analysisId: string): Promise<Analysis
     headers: { Authorization: `Bearer ${token}` },
   });
 }
+
+export interface TimelineEntry {
+  id: string;
+  status: string;
+  overall_score: number | null;
+  commit_hash: string | null;
+  commit_message: string | null;
+  created_at: string;
+  delta: number | null;
+}
+
+export interface Progress {
+  total_analyses: number;
+  current_score: number | null;
+  best_score: number | null;
+  best_score_at: string | null;
+  first_score: number | null;
+  total_delta: number | null;
+  days_tracked: number | null;
+}
+
+export interface Change {
+  dimension: string;
+  previous_score: number | null;
+  current_score: number | null;
+  delta: number;
+  description: string;
+  severity: string | null;
+}
+
+export interface Comparison {
+  id: string;
+  analysis_1_id: string;
+  analysis_2_id: string;
+  previous_score: number | null;
+  current_score: number | null;
+  score_delta: number;
+  trend: "mejorando" | "empeorando" | "estable";
+  summary_text: string | null;
+  summary_source: string | null;
+  improvements: Change[];
+  regressions: Change[];
+}
+
+export function getTimeline(token: string, repositoryId: string): Promise<TimelineEntry[]> {
+  return request<TimelineEntry[]>(`/api/repositories/${repositoryId}/timeline`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function getProgress(token: string, repositoryId: string): Promise<Progress> {
+  return request<Progress>(`/api/repositories/${repositoryId}/progress`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function getComparison(
+  token: string,
+  analysisId: string,
+  otherId: string,
+): Promise<Comparison> {
+  return request<Comparison>(`/api/analyses/${analysisId}/comparison/${otherId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}

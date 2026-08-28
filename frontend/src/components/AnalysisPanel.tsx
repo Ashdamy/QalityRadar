@@ -1,6 +1,7 @@
 "use client";
 
 import type { Analysis, AnalysisFinding } from "@/lib/api";
+import { RadarChart } from "@/components/RadarChart";
 
 // Nombres tecnicos de las dimensiones ISO 25010 traducidos para el usuario.
 const DIMENSION_LABELS: Record<string, string> = {
@@ -29,6 +30,12 @@ const STATUS_LABELS: Record<Analysis["status"], string> = {
   failed: "El análisis falló",
   timeout: "El análisis tardó demasiado",
 };
+
+function dimensionColor(score: number): string {
+  if (score >= 80) return "oklch(0.72 0.15 150)";
+  if (score >= 50) return "oklch(0.80 0.14 85)";
+  return "oklch(0.68 0.19 25)";
+}
 
 function scoreColor(score: number): string {
   if (score >= 80) return "text-[oklch(0.72_0.15_150)]";
@@ -96,29 +103,36 @@ export function AnalysisPanel({ analysis, onClose }: { analysis: Analysis; onClo
           </div>
 
           <p className="mt-4 rounded-[6px] border border-border bg-bg px-3 py-2 text-[12.5px] text-faint">
-            Esta puntuación cubre {analysis.dimensions.length} de las 6 dimensiones ISO/IEC 25010.
-            Seguridad, portabilidad y actividad llegan en la siguiente fase. No es una certificación oficial.
+            Puntuación sobre {analysis.dimensions.length} de las 6 dimensiones ISO/IEC 25010. Es una
+            aproximación al estándar, no una certificación oficial.
           </p>
 
           <div className="mt-6">
             <h3 className="text-[13px] font-semibold text-muted">Dimensiones</h3>
-            <div className="mt-3 flex flex-col gap-3">
-              {analysis.dimensions.map((d) => (
-                <div key={d.name} className="flex items-center gap-4">
-                  <span className="w-[190px] shrink-0 text-[13px]">
-                    {DIMENSION_LABELS[d.name] ?? d.name}
-                  </span>
-                  <div className="h-[6px] flex-1 overflow-hidden rounded-full bg-surface2">
-                    <div
-                      className="h-full rounded-full bg-accent"
-                      style={{ width: `${Math.max(0, Math.min(100, d.score))}%` }}
-                    />
+            <div className="mt-3 flex flex-wrap items-center gap-8">
+              <RadarChart dimensions={analysis.dimensions} />
+
+              <div className="flex min-w-[300px] flex-1 flex-col gap-3">
+                {analysis.dimensions.map((d) => (
+                  <div key={d.name} className="flex items-center gap-4">
+                    <span className="w-[170px] shrink-0 text-[13px]">
+                      {DIMENSION_LABELS[d.name] ?? d.name}
+                    </span>
+                    <div className="h-[6px] flex-1 overflow-hidden rounded-full bg-surface2">
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${Math.max(0, Math.min(100, d.score))}%`,
+                          background: dimensionColor(d.score),
+                        }}
+                      />
+                    </div>
+                    <span className="w-[62px] shrink-0 text-right font-mono text-[13px]">
+                      {d.score.toFixed(0)}/100
+                    </span>
                   </div>
-                  <span className="w-[70px] shrink-0 text-right font-mono text-[13px]">
-                    {d.score.toFixed(0)}/100
-                  </span>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
 

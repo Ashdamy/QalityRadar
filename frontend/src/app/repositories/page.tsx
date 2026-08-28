@@ -158,7 +158,7 @@ export default function RepositoriesPage() {
       <div className="flex items-center justify-between border-b border-border px-8 py-4">
         <div className="flex items-center gap-[10px]">
           <RadarMark size={20} />
-          <span className="text-[14.5px] font-semibold">QualityRadar</span>
+          <span className="text-[14.5px] font-semibold">QalitiRadar</span>
         </div>
         <div className="flex items-center gap-[14px]">
           <div className="h-[26px] w-[26px] rounded-[6px] border border-border bg-surface2" aria-hidden="true" />
@@ -221,6 +221,14 @@ export default function RepositoriesPage() {
                 placeholder="Buscar repositorio…"
                 className="flex-1 rounded-[6px] border border-border bg-surface px-[12px] py-[9px] text-[13.5px] text-text placeholder:text-faint focus:border-accent focus:outline-none focus:ring-[3px] focus:ring-accentDim"
               />
+              <button
+                type="button"
+                disabled={!hasSelection}
+                onClick={() => selectedId && router.push(`/repositories/${selectedId}/history`)}
+                className="whitespace-nowrap rounded-[6px] border border-border bg-surface px-[18px] py-[9px] text-[13.5px] text-text disabled:cursor-not-allowed disabled:text-faint focus:outline-none focus:ring-[3px] focus:ring-accentDim"
+              >
+                Ver histórico
+              </button>
               <PrimaryButton
                 type="button"
                 disabled={!hasSelection || analyzePending}

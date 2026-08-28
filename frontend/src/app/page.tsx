@@ -100,7 +100,7 @@ export default function Home() {
 
         <div className="relative flex items-center gap-[10px]">
           <RadarMark size={22} />
-          <span className="text-[15px] font-semibold tracking-[0.01em]">QualityRadar</span>
+          <span className="text-[15px] font-semibold tracking-[0.01em]">QalitiRadar</span>
         </div>
 
         <div className="relative flex flex-1 items-center justify-center py-16">
