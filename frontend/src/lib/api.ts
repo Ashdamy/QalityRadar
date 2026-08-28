@@ -107,3 +107,46 @@ export function listRepositories(token: string): Promise<Repository[]> {
     headers: { Authorization: `Bearer ${token}` },
   });
 }
+
+export interface AnalysisFinding {
+  type: string;
+  severity: "critical" | "high" | "medium" | "low" | "info";
+  title: string;
+  description: string;
+  file_path: string | null;
+  recommendation: string | null;
+}
+
+export interface AnalysisDimension {
+  name: string;
+  score: number;
+  weight: number;
+}
+
+export interface Analysis {
+  id: string;
+  status: "pending" | "cloning" | "running" | "scoring" | "completed" | "failed" | "timeout";
+  overall_score: number | null;
+  confidence_level: number | null;
+  commit_hash: string | null;
+  commit_message: string | null;
+  error_message: string | null;
+  dimensions: AnalysisDimension[];
+  findings: AnalysisFinding[];
+}
+
+export function startRepositoryAnalysis(
+  token: string,
+  repositoryId: string,
+): Promise<{ analysis_id: string }> {
+  return request<{ analysis_id: string }>(`/api/repositories/${repositoryId}/analyze`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function getAnalysis(token: string, analysisId: string): Promise<Analysis> {
+  return request<Analysis>(`/api/analyses/${analysisId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}

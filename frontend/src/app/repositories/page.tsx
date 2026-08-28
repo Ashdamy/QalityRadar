@@ -2,11 +2,32 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ApiError, getGithubAuthorizationUrl, listRepositories, type Repository } from "@/lib/api";
+import {
+  ApiError,
+  getAnalysis,
+  getGithubAuthorizationUrl,
+  listRepositories,
+  startRepositoryAnalysis,
+  type Analysis,
+  type Repository,
+} from "@/lib/api";
 import { clearToken, getToken } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { GithubButton } from "@/components/GithubButton";
+import { AnalysisPanel } from "@/components/AnalysisPanel";
+
+// Estados en los que el analisis sigue en marcha y hay que volver a consultar.
+const IN_PROGRESS: ReadonlySet<Analysis["status"]> = new Set([
+  "pending",
+  "cloning",
+  "running",
+  "scoring",
+]);
+const POLL_INTERVAL_MS = 2000;
+// Tope de sondeo algo mayor que el limite de 10 minutos del backend, para que
+// un analisis que agota su tiempo se vea reflejado en vez de quedar colgado.
+const MAX_POLLS = 330;
 
 type LoadState =
   | { kind: "loading" }
@@ -32,8 +53,10 @@ export default function RepositoriesPage() {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [analyzeNotice, setAnalyzeNotice] = useState(false);
   const [githubPending, setGithubPending] = useState(false);
+  const [analysis, setAnalysis] = useState<Analysis | null>(null);
+  const [analyzePending, setAnalyzePending] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
   useEffect(() => {
     const token = getToken();
@@ -96,9 +119,36 @@ export default function RepositoriesPage() {
     }
   }
 
-  function handleAnalyze() {
-    if (!selectedId) return;
-    setAnalyzeNotice(true);
+  async function handleAnalyze() {
+    const token = getToken();
+    if (!selectedId || !token || analyzePending) return;
+
+    setAnalyzeError(null);
+    setAnalyzePending(true);
+    setAnalysis(null);
+
+    try {
+      const { analysis_id } = await startRepositoryAnalysis(token, selectedId);
+
+      // Se sondea hasta que el analisis deja de estar en marcha. El backend
+      // corta a los 10 minutos, y MAX_POLLS deja algo de margen sobre eso.
+      for (let attempt = 0; attempt < MAX_POLLS; attempt += 1) {
+        const current = await getAnalysis(token, analysis_id);
+        setAnalysis(current);
+        if (!IN_PROGRESS.has(current.status)) return;
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      }
+      setAnalyzeError("El análisis está tardando más de lo esperado. Vuelve a intentarlo.");
+    } catch (error) {
+      setAnalysis(null);
+      setAnalyzeError(
+        error instanceof ApiError
+          ? error.message
+          : "No se pudo iniciar el análisis. Intenta de nuevo.",
+      );
+    } finally {
+      setAnalyzePending(false);
+    }
   }
 
   const hasSelection = !!selectedId;
@@ -173,20 +223,22 @@ export default function RepositoriesPage() {
               />
               <PrimaryButton
                 type="button"
-                disabled={!hasSelection}
+                disabled={!hasSelection || analyzePending}
                 onClick={handleAnalyze}
                 className="whitespace-nowrap"
                 style={{ padding: "9px 18px" }}
               >
-                Analizar seleccionado
+                {analyzePending ? "Analizando…" : "Analizar seleccionado"}
               </PrimaryButton>
             </div>
 
-            {analyzeNotice && (
-              <p role="status" className="-mt-3 text-[12.5px] text-faint">
-                El análisis automático llega en la Semana 2. Por ahora esto es solo una vista previa.
+            {analyzeError && (
+              <p role="alert" className="-mt-3 text-[12.5px] text-[oklch(0.68_0.19_25)]">
+                {analyzeError}
               </p>
             )}
+
+            {analysis && <AnalysisPanel analysis={analysis} onClose={() => setAnalysis(null)} />}
 
             {filtered.length === 0 ? (
               <div className="p-8 text-center text-[13.5px] text-faint">
