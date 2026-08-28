@@ -47,6 +47,9 @@ def list_repositories(
             name=repo.name,
             full_name=repo.full_name,
             is_private=repo.is_private,
+            last_analyzed_at=(
+                repo.last_analyzed_at.isoformat() if repo.last_analyzed_at else None
+            ),
         )
         for repo in stored
     ]

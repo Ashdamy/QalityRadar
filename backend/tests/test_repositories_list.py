@@ -175,3 +175,58 @@ def test_a_real_github_outage_is_still_reported_as_unavailable(
     response = client.get("/api/repositories", headers={"Authorization": f"Bearer {token}"})
 
     assert response.status_code == 502
+
+
+def test_the_listing_reports_when_each_repository_was_last_analyzed(
+    monkeypatch, db_session_with_github_user
+):
+    """La columna de "ultimo analisis" se alimenta de este campo. Estuvo
+    escrita a mano en la interfaz porque el dato no se exponia, y mostraba
+    siempre "Nunca analizado" aunque el repositorio si se hubiera analizado.
+    """
+    from datetime import datetime, timezone
+
+    from app.models.repository import Repository
+
+    user = db_session_with_github_user
+    monkeypatch.setattr(
+        github_service,
+        "list_public_repos",
+        lambda token: [
+            {"id": 4001, "name": "sin-analizar", "full_name": "juan/sin-analizar", "private": False},
+            {"id": 4002, "name": "analizado", "full_name": "juan/analizado", "private": False},
+        ],
+    )
+
+    token = create_access_token(user.id)
+    # Primer listado: ninguno se ha analizado todavia.
+    primero = client.get("/api/repositories", headers={"Authorization": f"Bearer {token}"}).json()
+    assert all(r["last_analyzed_at"] is None for r in primero)
+
+    # Se marca uno como analizado, igual que hace el pipeline al terminar.
+    momento = datetime.now(timezone.utc)
+    db = SessionLocal()
+    try:
+        repo = db.scalars(
+            select_repository_by_full_name("juan/analizado")
+        ).one()
+        repo.last_analyzed_at = momento
+        db.commit()
+    finally:
+        db.close()
+
+    segundo = client.get("/api/repositories", headers={"Authorization": f"Bearer {token}"}).json()
+    por_nombre = {r["full_name"]: r for r in segundo}
+    assert por_nombre["juan/sin-analizar"]["last_analyzed_at"] is None
+    assert por_nombre["juan/analizado"]["last_analyzed_at"] is not None
+    assert por_nombre["juan/analizado"]["last_analyzed_at"].startswith(
+        momento.strftime("%Y-%m-%d")
+    )
+
+
+def select_repository_by_full_name(full_name: str):
+    from sqlalchemy import select
+
+    from app.models.repository import Repository
+
+    return select(Repository).where(Repository.full_name == full_name)

@@ -35,6 +35,23 @@ type LoadState =
   | { kind: "needsGithub" }
   | { kind: "error"; message: string };
 
+function formatLastAnalyzed(iso: string | null): string {
+  if (!iso) return "Nunca analizado";
+
+  const cuando = new Date(iso);
+  const minutos = Math.floor((Date.now() - cuando.getTime()) / 60000);
+  if (minutos < 1) return "Hace un momento";
+  if (minutos < 60) return `Hace ${minutos} min`;
+
+  const horas = Math.floor(minutos / 60);
+  if (horas < 24) return `Hace ${horas} h`;
+
+  const dias = Math.floor(horas / 24);
+  if (dias === 1) return "Ayer";
+  if (dias < 30) return `Hace ${dias} días`;
+  return cuando.toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" });
+}
+
 function RepoIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0" aria-hidden="true">
@@ -135,7 +152,25 @@ export default function RepositoriesPage() {
       for (let attempt = 0; attempt < MAX_POLLS; attempt += 1) {
         const current = await getAnalysis(token, analysis_id);
         setAnalysis(current);
-        if (!IN_PROGRESS.has(current.status)) return;
+        if (!IN_PROGRESS.has(current.status)) {
+          // La fecha de "último análisis" acaba de cambiar en el servidor: se
+          // refleja aquí sin obligar al usuario a recargar la página.
+          if (current.status === "completed") {
+            setState((actual) =>
+              actual.kind === "ready"
+                ? {
+                    ...actual,
+                    repos: actual.repos.map((r) =>
+                      r.id === selectedId
+                        ? { ...r, last_analyzed_at: new Date().toISOString() }
+                        : r,
+                    ),
+                  }
+                : actual,
+            );
+          }
+          return;
+        }
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       }
       setAnalyzeError("El análisis está tardando más de lo esperado. Vuelve a intentarlo.");
@@ -291,7 +326,7 @@ export default function RepositoriesPage() {
                       </span>
 
                       <span className="w-[150px] whitespace-nowrap text-right text-xs text-muted">
-                        Nunca analizado
+                        {formatLastAnalyzed(repo.last_analyzed_at)}
                       </span>
                     </button>
                   );

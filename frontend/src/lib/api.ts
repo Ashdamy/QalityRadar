@@ -24,6 +24,7 @@ export interface Repository {
   name: string;
   full_name: string;
   is_private: boolean;
+  last_analyzed_at: string | null;
 }
 
 export interface GithubAuthorizationUrlResponse {
