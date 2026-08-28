@@ -35,3 +35,8 @@ htmlcov/
 
 # Git worktrees (local scratch, never committed)
 .worktrees/
+
+# Salida de las pruebas end-to-end (Playwright)
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
