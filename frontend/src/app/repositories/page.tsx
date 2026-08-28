@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { clearToken, getToken } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
+import { NotificationBell } from "@/components/NotificationBell";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { GithubButton } from "@/components/GithubButton";
 import { AnalysisPanel } from "@/components/AnalysisPanel";
@@ -200,6 +201,7 @@ export default function RepositoriesPage() {
           <span className="text-[14.5px] font-semibold">QalitiRadar</span>
         </button>
         <div className="flex items-center gap-[14px]">
+          <NotificationBell />
           <div className="h-[26px] w-[26px] rounded-[6px] border border-border bg-surface2" aria-hidden="true" />
           <button
             type="button"

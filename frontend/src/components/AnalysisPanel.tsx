@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ApiError, downloadAnalysisReport, type Analysis, type AnalysisFinding } from "@/lib/api";
+import {
+  ApiError,
+  downloadAnalysisReport,
+  shareAnalysis,
+  type Analysis,
+  type AnalysisFinding,
+} from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { RadarChart, dimensionLabel } from "@/components/RadarChart";
 
@@ -74,6 +80,28 @@ export function AnalysisPanel({
   const running = !["completed", "failed", "timeout"].includes(analysis.status);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareExpiry, setShareExpiry] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  async function handleShare() {
+    const token = getToken();
+    if (!token || sharing) return;
+    setSharing(true);
+    setDownloadError(null);
+    try {
+      const enlace = await shareAnalysis(token, analysis.id);
+      setShareUrl(`${window.location.origin}/r/${enlace.token}`);
+      setShareExpiry(new Date(enlace.expires_at).toLocaleDateString("es"));
+    } catch (error) {
+      setDownloadError(
+        error instanceof ApiError ? error.message : "No se pudo crear el enlace.",
+      );
+    } finally {
+      setSharing(false);
+    }
+  }
 
   async function handleDownload() {
     const token = getToken();
@@ -109,6 +137,16 @@ export function AnalysisPanel({
           {analysis.status === "completed" && (
             <button
               type="button"
+              onClick={handleShare}
+              disabled={sharing}
+              className="rounded-[6px] border border-border px-3 py-1 text-[12.5px] text-muted hover:text-text disabled:opacity-60 focus:outline-none focus:ring-[3px] focus:ring-accentDim"
+            >
+              {sharing ? "Creando…" : "Compartir"}
+            </button>
+          )}
+          {analysis.status === "completed" && (
+            <button
+              type="button"
               onClick={handleDownload}
               disabled={downloading}
               className="rounded-[6px] border border-border px-3 py-1 text-[12.5px] text-muted hover:text-text disabled:opacity-60 focus:outline-none focus:ring-[3px] focus:ring-accentDim"
@@ -125,6 +163,35 @@ export function AnalysisPanel({
           </button>
         </div>
       </div>
+
+      {shareUrl && (
+        <div className="mt-4 rounded-[6px] border border-border bg-bg p-3">
+          <div className="flex items-center gap-2">
+            <input
+              readOnly
+              value={shareUrl}
+              onFocus={(e) => e.currentTarget.select()}
+              aria-label="Enlace público al informe"
+              className="min-w-0 flex-1 bg-transparent font-mono text-[12px] text-muted focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard?.writeText(shareUrl);
+                setCopied(true);
+                window.setTimeout(() => setCopied(false), 2000);
+              }}
+              className="shrink-0 rounded-[5px] border border-border px-2 py-[3px] text-[11.5px] text-muted hover:text-text focus:outline-none focus:ring-[3px] focus:ring-accentDim"
+            >
+              {copied ? "Copiado" : "Copiar"}
+            </button>
+          </div>
+          <p className="mt-2 text-[11.5px] leading-[1.5] text-faint">
+            Cualquiera con el enlace puede ver este informe, sin necesidad de cuenta.
+            {shareExpiry && ` Caduca el ${shareExpiry}.`}
+          </p>
+        </div>
+      )}
 
       {running && (
         <div className="mt-5 flex items-center gap-3">

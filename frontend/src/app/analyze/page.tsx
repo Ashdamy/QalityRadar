@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { clearToken, getToken } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
+import { NotificationBell } from "@/components/NotificationBell";
 
 function GithubIcon() {
   return (
@@ -101,16 +102,19 @@ export default function AnalyzePage() {
           <RadarMark size={20} />
           <span className="text-[14.5px] font-semibold">QalitiRadar</span>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            clearToken();
-            router.push("/");
-          }}
-          className="text-[13px] text-muted hover:text-text focus:outline-none focus:ring-[3px] focus:ring-accentDim"
-        >
-          Cerrar sesión
-        </button>
+        <div className="flex items-center gap-3">
+          <NotificationBell />
+          <button
+            type="button"
+            onClick={() => {
+              clearToken();
+              router.push("/");
+            }}
+            className="text-[13px] text-muted hover:text-text focus:outline-none focus:ring-[3px] focus:ring-accentDim"
+          >
+            Cerrar sesión
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center px-8 py-12">

@@ -226,6 +226,8 @@ export interface Analysis {
   summary_text: string | null;
   summary_source: string | null;
   analysis_type: string;
+  // Ausente en los análisis de URL, que no parten de un repositorio.
+  repository_full_name: string | null;
   dimensions: AnalysisDimension[];
   findings: AnalysisFinding[];
   combined: Combined | null;
@@ -369,5 +371,77 @@ export function analyzeCombined(
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ repository_id: repositoryId, url }),
+  });
+}
+
+// --- Compartir informes ---------------------------------------------------
+
+export interface ShareLink {
+  token: string;
+  expires_at: string;
+}
+
+export function shareAnalysis(
+  token: string,
+  analysisId: string,
+  expiryDays?: number,
+): Promise<ShareLink> {
+  return request<ShareLink>(`/api/analyses/${analysisId}/share`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ expiry_days: expiryDays ?? null }),
+  });
+}
+
+/** Lee un informe compartido. Sin sesión: el token del enlace es la credencial. */
+export function getSharedReport(shareToken: string): Promise<Analysis> {
+  return request<Analysis>(`/api/reports/shared/${encodeURIComponent(shareToken)}`);
+}
+
+// --- Avisos ---------------------------------------------------------------
+
+export interface NotificationItem {
+  id: string;
+  analysis_id: string;
+  kind: string;
+  severity: AnalysisFinding["severity"];
+  title: string;
+  body: string;
+  read: boolean;
+  created_at: string | null;
+}
+
+export interface NotificationList {
+  unread_count: number;
+  notifications: NotificationItem[];
+}
+
+export function listNotifications(token: string): Promise<NotificationList> {
+  return request<NotificationList>("/api/notifications", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export async function markAllNotificationsRead(token: string): Promise<void> {
+  await fetch(`${API_BASE_URL}/api/notifications/read-all`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+// --- Límites de uso -------------------------------------------------------
+
+export interface Usage {
+  last_hour: number;
+  max_per_hour: number;
+  last_day: number;
+  max_per_day: number;
+  running: number;
+  max_concurrent: number;
+}
+
+export function getUsage(token: string): Promise<Usage> {
+  return request<Usage>("/api/usage", {
+    headers: { Authorization: `Bearer ${token}` },
   });
 }
