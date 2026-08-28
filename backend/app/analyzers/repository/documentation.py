@@ -13,6 +13,10 @@ ARCHITECTURE_NAMES = ("ARCHITECTURE.md", "DESIGN.md", "docs/ARCHITECTURE.md")
 # Por debajo de esto un README no explica ni que hace el proyecto ni como usarlo.
 MINIMUM_USEFUL_README_CHARS = 300
 
+# Senales de que el README explica como usar el proyecto, no solo que es.
+INSTALL_MARKERS = ("instal", "getting started", "setup", "requisitos", "requirements", "quick start")
+USAGE_MARKERS = ("uso", "usage", "ejemplo", "example", "how to")
+
 
 class DocumentationAnalyzer:
     name = "documentation"
@@ -25,9 +29,15 @@ class DocumentationAnalyzer:
             (repo_dir / "docs").is_dir() and any((repo_dir / "docs").glob("*.md"))
         )
 
+        readme_text = (
+            readme_path.read_text(encoding="utf-8", errors="replace").lower() if readme_path else ""
+        )
         metrics = {
             "has_readme": readme_path is not None,
             "readme_length": readme_length,
+            "readme_has_install_instructions": any(m in readme_text for m in INSTALL_MARKERS),
+            "readme_has_usage_section": any(m in readme_text for m in USAGE_MARKERS),
+            "readme_has_code_examples": "```" in readme_text,
             "has_license": self._first_existing(repo_dir, LICENSE_NAMES) is not None,
             "has_contributing": self._first_existing(repo_dir, CONTRIBUTING_NAMES) is not None,
             "has_changelog": self._first_existing(repo_dir, CHANGELOG_NAMES) is not None,

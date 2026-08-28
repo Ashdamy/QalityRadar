@@ -85,7 +85,8 @@ def run_repository_analysis(analysis_id: str) -> None:
                     )
                 )
 
-        analysis.overall_score = calculate_overall_score(dimension_scores)
+        all_findings = [finding for result in results for finding in result.findings]
+        analysis.overall_score = calculate_overall_score(dimension_scores, all_findings)
         analysis.confidence_level = calculate_confidence(results)
         analysis.commit_hash = commit_hash
         analysis.commit_message = commit_message
