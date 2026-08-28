@@ -24,9 +24,12 @@
 | Modo 3 — Código frente a producción (combinado) | ✅ Completado |
 | Deuda de seguridad (OAuth `state`, bcrypt, carrera) | ✅ Cerrada |
 | Sesiones con renovación automática | ✅ Implementadas |
-| Semana 5 — Compartir, límites de uso y despliegue | ⏸️ No iniciada |
+| Semana 5 — Compartir, límites de uso, purga y avisos | ✅ Completada |
+| Pruebas end-to-end (Playwright) | ✅ 5 en verde |
+| Seguimiento continuo de proyectos | ✅ Completado |
+| Despliegue | ⏸️ A la espera de tu señal |
 
-**262 pruebas en verde** en el backend; el frontend compila y pasa lint.
+**328 pruebas en verde** en el backend y **5 end-to-end** con navegador real; el frontend compila y pasa lint.
 
 ---
 
@@ -230,10 +233,41 @@ Los dos tipos de token se firman con el mismo secreto, así que llevan una marca
 
 ---
 
+### 17. Semana 5 y seguimiento continuo
+
+**Enlaces compartidos.** `POST /api/analyses/{id}/share` crea un enlace público y temporal; `GET /api/reports/shared/{token}` lo sirve sin sesión. El token **es** la credencial, así que son 256 bits, caduca (7 días por defecto, 30 como máximo) y cada enlace se revoca por separado. Un token inexistente y uno caducado dan exactamente la misma respuesta: distinguirlos convertiría el endpoint en un oráculo sobre qué tokens han existido.
+
+**Límites de uso.** 5 análisis por hora, 20 al día y 2 en paralelo, comprobados **antes de encolar**. Si se comprobaran en el worker, el cliente recibiría un `202` para algo que después se descarta en silencio. Ventana deslizante sobre Redis y no contador por hora natural, porque con contadores fijos se pueden lanzar 5 a las 10:59 y otros 5 a las 11:00.
+
+**Purga.** Tarea diaria: máximo 50 análisis por objetivo y 90 días de retención, pero **siempre se conservan los 10 últimos**. Un proyecto aparcado que se retoma necesita su histórico para poder compararse con el pasado.
+
+**Avisos.** Caída de más de 10 puntos, riesgos críticos nuevos, vulnerabilidades introducidas o cobertura que se desploma. Dentro de la aplicación, no por email: no hay infraestructura de correo y el MVP es gratuito. Los hallazgos nuevos se detectan comparando **títulos y no cantidades**: si se arregla uno y aparece otro, el total no cambia pero el problema nuevo existe.
+
+**Pruebas end-to-end.** El flujo de URL se recorre entero con navegador real: registro → análisis → resultado → compartir → abrir el enlace público sin sesión. Los flujos de repositorio y combinado no se automatizan porque parten de repositorios de GitHub y eso exige un token OAuth real; fingir ese paso probaría el simulacro, no el sistema.
+
+### 18. Seguimiento continuo
+
+Idea tuya: dejar un proyecto enganchado y ver cómo evoluciona sin volver a pulsar «Analizar».
+
+**La decisión que lo hace viable:** comprobar es barato, analizar es caro. Un análisis clona el repositorio y levanta un contenedor —casi un minuto—; preguntarle a GitHub cuál es el último commit es una llamada que no descarga código. Así que se comprueba cada 5 minutos y **solo se analiza cuando el commit cambia**. Si nadie ha subido nada, la vuelta no cuesta prácticamente nada.
+
+Para direcciones no hay commit, así que se usa el `ETag` o el `Last-Modified` con una petición `HEAD`.
+
+**Los análisis automáticos tienen cuota propia** (10/hora, 40/día), separada de la del usuario. Compartirla era el fallo más previsible: un proyecto vigilado le consumiría los análisis manuales y se encontraría bloqueado sin haber hecho nada.
+
+**Fusión con los avisos.** Si el análisis lo lanzó el sistema, el usuario no estaba delante: se le cuenta cómo fue, **también cuando mejora**. Si lo pidió a mano, no se le avisa — el resultado ya lo tiene en pantalla. Y si la nota no se movió, silencio: un aviso diario de «sigue igual» enseña a ignorar la campana.
+
+**Verificado en vivo** contra GitHub real: el ciclo detectó el commit `2354d41`, disparó el análisis en 2 segundos, terminó con 58,50 y generó el aviso «Ha bajado 7 puntos: ahora 58». Una segunda comprobación con el mismo commit **no** lanzó nada, que es la propiedad que sostiene toda la función.
+
+**Nota de entorno:** en Windows, Celery Beat no puede ir dentro del worker (`-B` no está soportado); son dos procesos.
+
+---
+
 ## Lo que sigue
 
-1. **Semana 5:** enlaces para compartir un informe y límites de uso (rate limiting). El rate limiting además desbloquea analizar URLs sin sesión, que el spec permite y hoy se exige por prudencia.
-2. **Despliegue.** La recomendación es **Vercel para el frontend y Oracle Cloud Always Free para el backend**: Render y Railway no dan acceso al demonio de Docker, que el sandbox necesita.
+1. **Despliegue**, cuando tú lo digas. La recomendación sigue siendo **Vercel para el frontend y Oracle Cloud Always Free para el backend**: Render y Railway no dan acceso al demonio de Docker, que el sandbox necesita.
+2. Al desplegar, la vigilancia mejora sola: con una dirección pública se pueden usar **webhooks de GitHub** y el análisis arrancaría a los segundos del push, en vez de esperar a la siguiente comprobación.
+3. Pendiente menor: la tabla `refresh_tokens` del modelo de datos no se usa. La renovación de sesión es sin estado, lo que funciona pero no permite revocar una sesión concreta al cerrarla.
 
 ---
 
