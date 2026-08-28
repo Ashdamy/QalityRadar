@@ -201,7 +201,7 @@ export default function AnalyzeCombinedPage() {
 
         {analysis?.combined && analysis.status === "completed" && (
           <div className="mt-7">
-            <CombinedPanel combined={analysis.combined} />
+            <CombinedPanel combined={analysis.combined} overallScore={analysis.overall_score} />
           </div>
         )}
 

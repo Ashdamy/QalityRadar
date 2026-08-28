@@ -59,23 +59,53 @@ function WarningIcon() {
   );
 }
 
-/** Nota de uno de los dos lados, con su etiqueta. */
-function ScoreSide({ label, score }: { label: string; score: number | null }) {
+/**
+ * Una de las tres notas. La global se destaca porque es la conclusión; las
+ * otras dos son las mitades de las que sale.
+ */
+function ScoreSide({
+  label,
+  score,
+  hint,
+  emphasis = false,
+}: {
+  label: string;
+  score: number | null;
+  hint: string;
+  emphasis?: boolean;
+}) {
   return (
-    <div className="flex flex-1 flex-col items-center gap-[3px] py-[14px]">
-      <span className="text-[11.5px] uppercase tracking-[0.05em] text-faint">{label}</span>
+    <div
+      className={`flex flex-1 flex-col items-center gap-[3px] px-[10px] py-[16px] ${
+        emphasis ? "bg-surface2" : ""
+      }`}
+    >
       <span
-        className={`font-mono text-[28px] font-semibold leading-none ${
-          score === null ? "text-faint" : scoreColor(score)
+        className={`text-[11.5px] uppercase tracking-[0.05em] ${
+          emphasis ? "text-muted" : "text-faint"
         }`}
+      >
+        {label}
+      </span>
+      <span
+        className={`font-mono font-semibold leading-none ${
+          emphasis ? "text-[34px]" : "text-[26px]"
+        } ${score === null ? "text-faint" : scoreColor(score)}`}
       >
         {score === null ? "—" : Math.round(score)}
       </span>
+      <span className="mt-[2px] text-center text-[10.5px] leading-[1.4] text-faint">{hint}</span>
     </div>
   );
 }
 
-export function CombinedPanel({ combined }: { combined: Combined }) {
+export function CombinedPanel({
+  combined,
+  overallScore,
+}: {
+  combined: Combined;
+  overallScore: number | null;
+}) {
   const { correspondence: correspondencia } = combined;
   const delta = combined.delta;
 
@@ -110,8 +140,17 @@ export function CombinedPanel({ combined }: { combined: Combined }) {
       {/* Comparación de las dos notas. */}
       <div className="rounded-[8px] border border-border bg-surface">
         <div className="flex items-stretch divide-x divide-border">
-          <ScoreSide label="Código" score={combined.repository_score} />
-          <ScoreSide label="Producción" score={combined.url_score} />
+          <ScoreSide
+            label="Repositorio"
+            score={combined.repository_score}
+            hint="6 dimensiones del código"
+          />
+          <ScoreSide
+            label="Producción"
+            score={combined.url_score}
+            hint="5 dimensiones del despliegue"
+          />
+          <ScoreSide label="Global" score={overallScore} hint="Las once, ponderadas" emphasis />
         </div>
         {delta !== null && (
           <div className="border-t border-border px-[16px] py-[9px] text-center text-[12px] text-faint">
