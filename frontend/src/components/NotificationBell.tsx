@@ -14,6 +14,8 @@ import { getToken } from "@/lib/auth";
 function severityColor(severity: string): string {
   if (severity === "critical" || severity === "high") return "bg-[oklch(0.68_0.19_25)]";
   if (severity === "medium") return "bg-[oklch(0.80_0.14_85)]";
+  // Las mejoras también son noticia: con un punto gris no se leen como buenas.
+  if (severity === "good") return "bg-[oklch(0.72_0.15_150)]";
   return "bg-border";
 }
 

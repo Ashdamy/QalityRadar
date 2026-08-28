@@ -168,6 +168,22 @@ export default function AnalyzePage() {
           })}
         </div>
 
+        <button
+          type="button"
+          onClick={() => router.push("/monitors")}
+          className="mt-7 flex items-center gap-[9px] rounded-[8px] border border-border bg-surface px-[16px] py-[11px] text-left transition-colors hover:border-accent focus:outline-none focus:ring-[3px] focus:ring-accentDim"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" className="stroke-accent" strokeWidth={1.5} aria-hidden="true">
+            <circle cx="12" cy="12" r="9.2" />
+            <circle cx="12" cy="12" r="4" />
+            <path d="M12 12 L19 8.5" strokeLinecap="round" />
+          </svg>
+          <span className="text-[13px]">
+            <span className="font-medium">Seguimiento</span>
+            <span className="text-muted"> — deja un proyecto enganchado y se analiza solo</span>
+          </span>
+        </button>
+
         <p className="mt-8 max-w-[560px] text-center text-[12px] leading-[1.6] text-faint">
           Las puntuaciones son una aproximación al modelo de calidad ISO/IEC 25010. No constituyen
           una certificación oficial.

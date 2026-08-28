@@ -58,7 +58,7 @@ def contexto():
         _limpiar()
 
 
-def _analisis(db, user_id, repo_id, score, *, minutos_atras=0):
+def _analisis(db, user_id, repo_id, score, *, minutos_atras=0, origen="manual"):
     fila = Analysis(
         id=uuid.uuid4(),
         user_id=user_id,
@@ -66,6 +66,7 @@ def _analisis(db, user_id, repo_id, score, *, minutos_atras=0):
         analysis_type="repository",
         status="completed",
         overall_score=score,
+        triggered_by=origen,
         created_at=datetime.now(timezone.utc) - timedelta(minutes=minutos_atras),
     )
     db.add(fila)
@@ -268,3 +269,77 @@ def test_reintentar_no_duplica_los_avisos(contexto):
         select(Notification).where(Notification.analysis_id == actual.id)
     ).all()
     assert len(guardados) == 1
+
+
+# --------------------------------------------------------------------------
+# Analisis lanzados por la vigilancia
+# --------------------------------------------------------------------------
+
+
+def test_un_analisis_automatico_cuenta_como_fue_aunque_mejore(contexto):
+    """El usuario no lo pidio ni estaba delante: si no se le cuenta, la
+    vigilancia es un proceso invisible."""
+    db, user_id, repo_id = contexto
+    _analisis(db, user_id, repo_id, 50, minutos_atras=10)
+    actual = _analisis(db, user_id, repo_id, 59, origen="monitor")
+
+    avisos = build_notifications(db, actual)
+    assert "monitor_result" in _tipos(avisos)
+    resultado = next(a for a in avisos if a["kind"] == "monitor_result")
+    assert resultado["severity"] == "good"
+    assert "subido" in resultado["title"].lower()
+
+
+def test_un_analisis_manual_que_mejora_no_genera_aviso(contexto):
+    """Ese resultado ya lo tiene en pantalla."""
+    db, user_id, repo_id = contexto
+    _analisis(db, user_id, repo_id, 50, minutos_atras=10)
+    actual = _analisis(db, user_id, repo_id, 59, origen="manual")
+    assert build_notifications(db, actual) == []
+
+
+def test_un_analisis_automatico_sin_cambio_de_nota_no_avisa(contexto):
+    """Un aviso de "sigue igual" ensena a ignorar la campana."""
+    db, user_id, repo_id = contexto
+    _analisis(db, user_id, repo_id, 60, minutos_atras=10)
+    actual = _analisis(db, user_id, repo_id, 60, origen="monitor")
+    assert "monitor_result" not in _tipos(build_notifications(db, actual))
+
+
+def test_una_caida_grande_no_se_cuenta_dos_veces(contexto):
+    """Ya existe un aviso propio y mas explicito para eso."""
+    db, user_id, repo_id = contexto
+    _analisis(db, user_id, repo_id, 90, minutos_atras=10)
+    actual = _analisis(db, user_id, repo_id, 40, origen="monitor")
+
+    tipos = _tipos(build_notifications(db, actual))
+    assert "score_drop" in tipos
+    assert "monitor_result" not in tipos
+
+
+def test_una_caida_pequena_automatica_si_se_cuenta(contexto):
+    """Por debajo del umbral no hay aviso de caida, asi que sin esto el usuario
+    no se enteraria de nada."""
+    db, user_id, repo_id = contexto
+    _analisis(db, user_id, repo_id, 60, minutos_atras=10)
+    actual = _analisis(db, user_id, repo_id, 55, origen="monitor")
+
+    avisos = build_notifications(db, actual)
+    resultado = next(a for a in avisos if a["kind"] == "monitor_result")
+    assert resultado["severity"] == "medium"
+    assert "bajado" in resultado["title"].lower()
+
+
+def test_el_primer_analisis_vigilado_confirma_el_punto_de_partida(contexto):
+    db, user_id, repo_id = contexto
+    primero = _analisis(db, user_id, repo_id, 43, origen="monitor")
+
+    avisos = build_notifications(db, primero)
+    assert _tipos(avisos) == {"monitor_baseline"}
+    assert "43" in avisos[0]["title"]
+
+
+def test_el_primer_analisis_manual_sigue_sin_avisar(contexto):
+    db, user_id, repo_id = contexto
+    primero = _analisis(db, user_id, repo_id, 43, origen="manual")
+    assert build_notifications(db, primero) == []

@@ -445,3 +445,58 @@ export function getUsage(token: string): Promise<Usage> {
     headers: { Authorization: `Bearer ${token}` },
   });
 }
+
+// --- Seguimiento ----------------------------------------------------------
+
+export interface MonitorItem {
+  id: string;
+  target_type: "repository" | "url";
+  target_name: string;
+  repository_id: string | null;
+  app_id: string | null;
+  is_active: boolean;
+  interval_minutes: number;
+  last_checked_at: string | null;
+  last_commit_sha: string | null;
+  latest_analysis_id: string | null;
+  latest_score: number | null;
+  latest_at: string | null;
+}
+
+export interface MonitorList {
+  monitors: MonitorItem[];
+  active: number;
+  max_monitors: number;
+  allowed_intervals: number[];
+}
+
+export function listMonitors(token: string): Promise<MonitorList> {
+  return request<MonitorList>("/api/monitors", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function createMonitor(
+  token: string,
+  target: { repositoryId?: string; appId?: string; intervalMinutes: number },
+): Promise<{ id: string; is_active: boolean }> {
+  return request<{ id: string; is_active: boolean }>("/api/monitors", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      repository_id: target.repositoryId ?? null,
+      app_id: target.appId ?? null,
+      interval_minutes: target.intervalMinutes,
+    }),
+  });
+}
+
+export async function deleteMonitor(token: string, monitorId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/monitors/${monitorId}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    throw new ApiError(response.status, await parseErrorMessage(response));
+  }
+}

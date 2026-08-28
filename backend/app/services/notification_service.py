@@ -13,6 +13,12 @@ Las cuatro condiciones salen del spec:
 Todas comparan con el analisis anterior **del mismo objetivo**. Sin ese
 anterior no hay nada que comparar y no se avisa: el primer analisis de un
 proyecto no es un empeoramiento, por mala que sea la nota.
+
+Hay una excepcion a lo de avisar solo de lo malo: los analisis que lanza la
+vigilancia. El usuario no los pidio y no estaba delante, asi que se le cuenta
+como fue aunque haya ido bien; es lo unico que convierte la vigilancia en algo
+util en vez de en un proceso invisible. Los que pide a mano no llevan ese
+aviso: el resultado ya lo tiene en pantalla.
 """
 
 import uuid
@@ -34,12 +40,17 @@ def build_notifications(db: Session, analysis: Analysis) -> list[dict]:
     """Compara con el analisis anterior y devuelve los avisos que procedan."""
     anterior = _analisis_anterior(db, analysis)
     if anterior is None:
-        return []
+        # No hay con que comparar. Solo se dice algo si el analisis lo lanzo la
+        # vigilancia: es la confirmacion de que el proyecto quedo enganchado y
+        # cual es el punto de partida.
+        return _aviso_de_punto_de_partida(analysis)
 
     avisos: list[dict] = []
     _avisar_por_caida_de_nota(analysis, anterior, avisos)
     _avisar_por_hallazgos_nuevos(db, analysis, anterior, avisos)
     _avisar_por_caida_de_cobertura(db, analysis, anterior, avisos)
+    if analysis.triggered_by == "monitor":
+        _avisar_del_analisis_automatico(analysis, anterior, avisos)
     return avisos
 
 
@@ -69,6 +80,65 @@ def persist_notifications(db: Session, analysis: Analysis) -> int:
             # la tarea se reintenta. No es un error: ya estaba.
             db.rollback()
     return creados
+
+
+def _aviso_de_punto_de_partida(analysis: Analysis) -> list[dict]:
+    if analysis.triggered_by != "monitor" or analysis.overall_score is None:
+        return []
+    return [
+        {
+            "kind": "monitor_baseline",
+            "severity": "info",
+            "title": f"Vigilancia activa: partes de {float(analysis.overall_score):.0f}",
+            "body": (
+                "Este es el punto de partida. A partir de ahora se analizara solo cada "
+                "vez que subas cambios, y te contaremos como evoluciona."
+            ),
+        }
+    ]
+
+
+def _avisar_del_analisis_automatico(
+    actual: Analysis, anterior: Analysis, avisos: list[dict]
+) -> None:
+    """Cuenta como fue un analisis que el usuario no pidio.
+
+    Si la nota no se movio no se dice nada: un aviso diario de "sigue igual"
+    ensena a ignorar la campana, y entonces tampoco se lee el dia que importa.
+    """
+    if actual.overall_score is None or anterior.overall_score is None:
+        return
+
+    ahora = float(actual.overall_score)
+    antes = float(anterior.overall_score)
+    diferencia = round(ahora - antes, 1)
+    if abs(diferencia) < 1:
+        return
+
+    subio = diferencia > 0
+    # Una caida grande ya genera su propio aviso, mas explicito; repetirla aqui
+    # seria contar dos veces lo mismo.
+    if not subio and abs(diferencia) > SCORE_DROP_THRESHOLD:
+        return
+
+    avisos.append(
+        {
+            "kind": "monitor_result",
+            "severity": "good" if subio else "medium",
+            "title": (
+                f"{'Ha subido' if subio else 'Ha bajado'} {abs(diferencia):.0f} "
+                f"punto{'s' if abs(diferencia) >= 2 else ''}: ahora {ahora:.0f}"
+            ),
+            "body": (
+                "Se ha analizado solo al detectar cambios. "
+                + (
+                    "Lo que has tocado ha mejorado la calidad del proyecto."
+                    if subio
+                    else "Merece la pena mirar que ha cambiado."
+                )
+            ),
+        }
+    )
 
 
 def _analisis_anterior(db: Session, analysis: Analysis) -> Analysis | None:

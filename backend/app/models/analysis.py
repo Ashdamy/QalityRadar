@@ -57,6 +57,8 @@ class Analysis(Base):
         UUID(as_uuid=True), ForeignKey("deployed_apps.id", ondelete="CASCADE"), nullable=True
     )
     analysis_type: Mapped[str] = mapped_column(analysis_type_enum, nullable=False)
+    # "manual" o "monitor": decide si al terminar hay que avisar al usuario.
+    triggered_by: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
     status: Mapped[str] = mapped_column(analysis_status_enum, nullable=False, server_default="pending")
     overall_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     confidence_level: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)

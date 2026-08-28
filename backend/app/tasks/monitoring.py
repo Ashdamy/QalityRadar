@@ -62,6 +62,7 @@ def _encolar(db, monitor) -> bool:
         app_id=monitor.app_id,
         analysis_type="repository" if monitor.repository_id else "url",
         status="pending",
+        triggered_by="monitor",
     )
     db.add(analysis)
     db.flush()
