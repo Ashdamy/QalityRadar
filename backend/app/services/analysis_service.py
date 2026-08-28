@@ -11,11 +11,15 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from app.analyzers.base import AnalyzerResult, FindingData
+from app.analyzers.repository.activity import ActivityAnalyzer
+from app.analyzers.repository.cicd import CicdAnalyzer
 from app.analyzers.repository.code_quality import CodeQualityAnalyzer
+from app.analyzers.repository.dependencies import DependenciesAnalyzer
 from app.analyzers.repository.completeness import CompletenessAnalyzer
 from app.analyzers.repository.documentation import DocumentationAnalyzer
 from app.analyzers.repository.error_handling import ErrorHandlingAnalyzer
 from app.analyzers.repository.portability import PortabilityAnalyzer
+from app.analyzers.repository.secrets_scan import SecretsScanAnalyzer
 from app.analyzers.repository.security_basics import SecurityBasicsAnalyzer
 from app.analyzers.repository.structure import StructureAnalyzer
 from app.analyzers.repository.tests_analyzer import TestsAnalyzer
@@ -39,6 +43,9 @@ ANALYZERS = (
     ErrorHandlingAnalyzer(),    # fiabilidad: tolerancia a fallos
     SecurityBasicsAnalyzer(),   # seguridad: confidencialidad e integridad
     PortabilityAnalyzer(),      # portabilidad: adaptabilidad e instalabilidad
+    CicdAnalyzer(),             # portabilidad: automatizacion de integracion
+    SecretsScanAnalyzer(),      # seguridad: Gitleaks dentro del sandbox
+    DependenciesAnalyzer(),     # seguridad: vulnerabilidades conocidas
 )
 
 
@@ -65,6 +72,10 @@ def run_repository_analysis(analysis_id: str) -> None:
 
                 commit_hash, commit_message = read_head_commit(repo_dir)
                 results = [analyzer.analyze(repo_dir) for analyzer in ANALYZERS]
+                # La actividad no esta en un clon superficial: se consulta a
+                # GitHub, y por eso este analizador necesita el nombre del
+                # repositorio y se construye aqui.
+                results.append(ActivityAnalyzer(repository.full_name).analyze())
         except Exception as exc:  # noqa: BLE001 - se guarda un mensaje seguro
             _mark_failed(db, analysis, _safe_error_message(exc))
             return

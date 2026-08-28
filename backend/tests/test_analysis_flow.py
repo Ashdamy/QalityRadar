@@ -144,6 +144,7 @@ def test_full_pipeline_produces_a_real_score(user_with_repo):
             "reliability",
             "security",
             "portability",
+            "project_activity",
         }
         # Cada dimension se guarda una sola vez aunque varios analizadores la
         # alimenten (estructura y calidad de codigo aportan ambos a
@@ -227,7 +228,7 @@ def test_get_analysis_returns_the_result(user_with_repo):
     body = response.json()
     assert body["status"] == "completed"
     assert 0 <= body["overall_score"] <= 100
-    assert len(body["dimensions"]) == 5
+    assert len(body["dimensions"]) == 6
     assert body["findings"]
     # Los hallazgos llegan ordenados por gravedad, lo mas grave primero.
     orden = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}

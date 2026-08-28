@@ -177,17 +177,28 @@ def _score_security(m: dict) -> float:
     """
     if m.get("code_files_scanned", 0) == 0:
         return 0.0
-    # -- Confidencialidad (55 pts) -------------------------------------------
+    # -- Confidencialidad (50 pts) -------------------------------------------
     confidencialidad = (
-        _award(not m.get("committed_secret_files"), 25)
-        + _award(m.get("hardcoded_secret_file_count", 0) == 0, 20)
-        + _award(m.get("gitignore_covers_env", False), 10)
+        _award(not m.get("committed_secret_files"), 14)
+        + _award(m.get("hardcoded_secret_file_count", 0) == 0, 10)
+        + _award(m.get("gitignore_covers_env", False), 6)
+        # Gitleaks solo acredita si de verdad llego a ejecutarse: si fallo o
+        # se agoto el tiempo, no se puede afirmar que no haya secretos.
+        + _award(
+            m.get("secret_scan_available", False) and m.get("leaked_secret_count", 1) == 0,
+            20,
+        )
     )
-    # -- Integridad (45 pts) --------------------------------------------------
+    # -- Integridad (50 pts) --------------------------------------------------
     integridad = (
-        _award(m.get("dangerous_eval_file_count", 0) == 0, 18)
-        + _award(m.get("sql_concatenation_file_count", 0) == 0, 17)
-        + _award(m.get("has_dependency_lockfile", False), 10)
+        _award(m.get("dangerous_eval_file_count", 0) == 0, 12)
+        + _award(m.get("sql_concatenation_file_count", 0) == 0, 12)
+        + _award(m.get("has_dependency_lockfile", False), 8)
+        + _award(
+            m.get("vulnerability_scan_status") in {"ok", "sin dependencias declaradas"}
+            and m.get("vulnerable_dependency_count", 1) == 0,
+            18,
+        )
     )
     return confidencialidad + integridad
 
@@ -204,14 +215,48 @@ def _score_portability(m: dict) -> float:
         _award(m.get("has_container_definition", False), 25)
         + _award(m.get("has_dependency_lockfile", False), 25)
     )
-    # -- Adaptabilidad (50 pts) ----------------------------------------------
+    # -- Adaptabilidad (30 pts) ----------------------------------------------
     adaptabilidad = (
-        _award(m.get("uses_environment_config", False), 20)
-        + _award(m.get("has_env_example", False), 12)
-        + _award(m.get("hardcoded_absolute_path_count", 0) == 0, 10)
-        + _award(m.get("has_infrastructure_as_code", False), 8)
+        _award(m.get("uses_environment_config", False), 12)
+        + _award(m.get("has_env_example", False), 8)
+        + _award(m.get("hardcoded_absolute_path_count", 0) == 0, 6)
+        + _award(m.get("has_infrastructure_as_code", False), 4)
     )
-    return instalabilidad + adaptabilidad
+    # -- Automatizacion: CI/CD (20 pts) --------------------------------------
+    automatizacion = (
+        _award(m.get("has_ci", False), 8)
+        + _award(m.get("ci_runs_tests", False), 7)
+        + _award(m.get("ci_runs_lint", False), 3)
+        + _award(m.get("ci_has_deploy_stage", False), 2)
+    )
+    return instalabilidad + adaptabilidad + automatizacion
+
+
+def _score_activity(m: dict) -> float:
+    """Actividad del proyecto.
+
+    OJO: esta dimension NO pertenece a ISO/IEC 25010. Es un anadido del spec
+    de QalitiRadar, util para juzgar si un proyecto esta vivo, pero no forma
+    parte de la norma. Ver docs/ISO_25010_MAPPING.md.
+    """
+    if m.get("activity_scan_status") != "ok":
+        return 0.0
+    if m.get("is_archived"):
+        return 0.0
+
+    dias = m.get("days_since_last_push")
+    frescura = 0.0 if dias is None else _tiered(-dias, [(-365, 10), (-180, 25), (-90, 40), (-30, 55)])
+    # Senales de que el proyecto se cuida y se presenta.
+    cuidado = (
+        _award(m.get("has_description", False), 12)
+        + _award(m.get("has_topics", False), 8)
+    )
+    # Interes de terceros: no es calidad por si mismo, pero si senal de uso
+    # real y de que hay ojos encima del codigo.
+    interes = _tiered(m.get("stars", 0), [(1, 5), (10, 12), (100, 18)]) + _tiered(
+        m.get("forks", 0), [(1, 3), (10, 7)]
+    )
+    return frescura + cuidado + interes
 
 
 DIMENSION_RUBRICS = {
@@ -220,6 +265,7 @@ DIMENSION_RUBRICS = {
     "maintainability": _score_maintainability,
     "security": _score_security,
     "portability": _score_portability,
+    "project_activity": _score_activity,
 }
 
 
