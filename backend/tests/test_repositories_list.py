@@ -130,3 +130,48 @@ def test_list_repositories_for_user_without_github_token_returns_400():
         assert response.json()["detail"] == "GitHub account not connected"
     finally:
         _delete_no_github_token_user()
+
+
+def test_an_expired_github_token_asks_to_reconnect_not_github_unavailable(
+    monkeypatch, db_session_with_github_user
+):
+    """GitHub invalida los tokens al regenerar el client secret o al revocar
+    la autorizacion. Eso no es una caida de GitHub: decir "no disponible"
+    dejaria al usuario sin saber que hacer, cuando la salida es reconectar.
+    """
+    import httpx
+
+    from app.services import github_service
+
+    def _token_invalido(method, url, **kwargs):
+        return httpx.Response(
+            401,
+            json={"message": "Bad credentials"},
+            request=httpx.Request(method, url),
+        )
+
+    monkeypatch.setattr(github_service.httpx, "request", _token_invalido)
+
+    token = create_access_token(db_session_with_github_user.id)
+    response = client.get("/api/repositories", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "GitHub account not connected"
+
+
+def test_a_real_github_outage_is_still_reported_as_unavailable(
+    monkeypatch, db_session_with_github_user
+):
+    import httpx
+
+    from app.services import github_service
+
+    def _caido(method, url, **kwargs):
+        return httpx.Response(503, text="down", request=httpx.Request(method, url))
+
+    monkeypatch.setattr(github_service.httpx, "request", _caido)
+
+    token = create_access_token(db_session_with_github_user.id)
+    response = client.get("/api/repositories", headers={"Authorization": f"Bearer {token}"})
+
+    assert response.status_code == 502

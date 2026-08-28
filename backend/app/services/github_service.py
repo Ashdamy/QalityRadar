@@ -12,8 +12,24 @@ def _github_request(method: str, url: str, **kwargs) -> httpx.Response:
 
     try:
         response = httpx.request(method, url, timeout=10, **kwargs)
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail="GitHub is unavailable"
+        ) from exc
+
+    # Un 401 significa que el token guardado ya no vale: GitHub lo invalida al
+    # regenerar el client secret, al revocar la autorizacion o al caducar. No
+    # es una caida de GitHub, y decir "GitHub no disponible" deja al usuario
+    # sin saber que hacer. Se traduce al mismo mensaje que cuando no hay token,
+    # para que el cliente ofrezca reconectar la cuenta.
+    if response.status_code == 401:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="GitHub account not connected"
+        )
+
+    try:
         response.raise_for_status()
-    except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+    except httpx.HTTPStatusError as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY, detail="GitHub is unavailable"
         ) from exc
