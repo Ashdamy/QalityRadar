@@ -50,10 +50,16 @@ def test_list_repositories_maps_is_private_field_through_faithfully(monkeypatch,
     assert response.status_code == 200
     body = response.json()
     assert len(body) == 3
-    by_id = {repo["id"]: repo for repo in body}
-    assert by_id["1"]["is_private"] is False
-    assert by_id["2"]["is_private"] is False
-    assert by_id["3"]["is_private"] is True
+    # El endpoint devuelve NUESTRO identificador (el repositorio se persiste al
+    # listarlo, para poder analizarlo despues), no el numerico de GitHub, asi
+    # que la correspondencia se comprueba por full_name.
+    by_full_name = {repo["full_name"]: repo for repo in body}
+    assert by_full_name["juan/qaliti-radar"]["is_private"] is False
+    assert by_full_name["juan/side-project"]["is_private"] is False
+    assert by_full_name["juan/secret-project"]["is_private"] is True
+    # Cada id devuelto debe ser un UUID nuestro, utilizable en /analyze.
+    for repo in body:
+        uuid.UUID(repo["id"])
 
 
 def test_list_repositories_without_token_returns_401():
