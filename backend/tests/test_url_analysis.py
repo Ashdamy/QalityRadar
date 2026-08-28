@@ -9,8 +9,9 @@ from sqlalchemy import delete, select
 
 from app.analyzers.url.page_quality import (
     AccessibilityAnalyzer,
+    CompatibilityAnalyzer,
     PerformanceAnalyzer,
-    SeoCompatibilityAnalyzer,
+    UsabilityAnalyzer,
 )
 from app.analyzers.url.security_headers import SecurityHeadersAnalyzer
 from app.core.database import SessionLocal
@@ -71,15 +72,92 @@ def test_http_without_tls_is_critical():
 def test_a_fully_hardened_site_scores_full_security():
     headers = {
         "strict-transport-security": "max-age=31536000; includeSubDomains",
-        "content-security-policy": "default-src 'self'; frame-ancestors 'none'",
+        "content-security-policy": (
+            "default-src 'self'; object-src 'none'; base-uri 'self'; "
+            "frame-ancestors 'none'; form-action 'self'"
+        ),
         "x-frame-options": "DENY",
         "x-content-type-options": "nosniff",
         "referrer-policy": "no-referrer",
         "permissions-policy": "geolocation=()",
+        "cross-origin-opener-policy": "same-origin",
     }
     r = SecurityHeadersAnalyzer().analyze(_fetched(headers=headers))
     assert r.findings == []
     assert score_url_dimension("security", r.metrics) == 100.0
+
+
+def test_a_partial_csp_is_flagged_without_being_treated_as_missing():
+    r = SecurityHeadersAnalyzer().analyze(
+        _fetched(headers={"content-security-policy": "script-src 'self'"})
+    )
+    assert r.metrics["has_csp"] is True
+    titulos = [f.title for f in r.findings]
+    assert any("directivas importantes" in x for x in titulos)
+    assert not any("Falta la pol" in x for x in titulos)
+
+
+def test_a_report_only_csp_does_not_count_as_protection():
+    r = SecurityHeadersAnalyzer().analyze(
+        _fetched(headers={"content-security-policy-report-only": "default-src 'self'"})
+    )
+    assert r.metrics["csp_is_report_only"] is True
+    assert any("solo informe" in f.title for f in r.findings)
+
+
+def test_cookies_without_protective_flags_are_reported():
+    r = SecurityHeadersAnalyzer().analyze(
+        _fetched(headers={"set-cookie": "sesion=abc123; Path=/"})
+    )
+    assert r.metrics["cookie_count"] == 1
+    assert r.metrics["cookies_without_httponly"] == 1
+    assert r.metrics["cookies_without_secure"] == 1
+    assert r.metrics["cookies_without_samesite"] == 1
+    titulos = " ".join(f.title for f in r.findings)
+    assert "JavaScript" in titulos
+    assert "SameSite" in titulos
+
+
+def test_fully_protected_cookies_produce_no_cookie_findings():
+    r = SecurityHeadersAnalyzer().analyze(
+        _fetched(headers={"set-cookie": "sesion=abc; Secure; HttpOnly; SameSite=Lax"})
+    )
+    assert r.metrics["cookies_without_httponly"] == 0
+    assert not any("cookies" in f.title.lower() for f in r.findings)
+
+
+def test_mixed_content_on_an_https_page_is_reported():
+    html = '<html><body><img src="http://inseguro.test/a.png"></body></html>'
+    r = SecurityHeadersAnalyzer().analyze(_fetched(html=html))
+    assert r.metrics["mixed_content_count"] == 1
+    assert any("HTTP en una p" in f.title for f in r.findings)
+
+
+def test_external_scripts_without_integrity_are_reported():
+    html = (
+        '<html><head>'
+        '<script src="https://cdn.ajeno.test/a.js"></script>'
+        '<script src="https://cdn.ajeno.test/b.js" integrity="sha384-x"></script>'
+        '<script src="/propio.js"></script>'
+        "</head></html>"
+    )
+    r = SecurityHeadersAnalyzer().analyze(_fetched(html=html))
+    assert r.metrics["external_script_count"] == 2
+    assert r.metrics["external_scripts_without_sri"] == 1
+
+
+def test_a_form_posting_over_http_is_critical():
+    html = '<html><body><form action="http://inseguro.test/login"></form></body></html>'
+    r = SecurityHeadersAnalyzer().analyze(_fetched(html=html))
+    assert r.metrics["form_posts_over_http"] is True
+    assert any(f.severity == "critical" for f in r.findings)
+
+
+def test_a_wildcard_cors_header_is_reported():
+    r = SecurityHeadersAnalyzer().analyze(
+        _fetched(headers={"access-control-allow-origin": "*"})
+    )
+    assert r.metrics["cors_allows_any_origin"] is True
 
 
 def test_unsafe_inline_in_the_csp_is_reported():
@@ -87,7 +165,7 @@ def test_unsafe_inline_in_the_csp_is_reported():
         _fetched(headers={"content-security-policy": "script-src 'unsafe-inline'"})
     )
     assert r.metrics["csp_allows_unsafe_inline"] is True
-    assert any("linea" in f.title for f in r.findings)
+    assert any("línea" in f.title for f in r.findings)
 
 
 def test_a_short_hsts_is_flagged_but_not_as_missing():
@@ -96,7 +174,7 @@ def test_a_short_hsts_is_flagged_but_not_as_missing():
     )
     assert r.metrics["hsts_max_age"] == 3600
     titulos = [f.title for f in r.findings]
-    assert any("duracion corta" in t for t in titulos)
+    assert any("duración corta" in t for t in titulos)
     assert not any("Falta la cabecera HSTS" in t for t in titulos)
 
 
@@ -166,20 +244,130 @@ def test_a_missing_lang_attribute_is_reported():
 
 
 def test_a_page_without_viewport_is_flagged_as_high():
-    r = SeoCompatibilityAnalyzer().analyze(_fetched(html="<html><title>t</title></html>"))
+    r = CompatibilityAnalyzer().analyze(_fetched(html="<html><title>t</title></html>"))
     assert r.metrics["has_viewport"] is False
     assert any(f.severity == "high" for f in r.findings)
 
 
-def test_a_complete_page_produces_no_seo_findings():
-    html = (
-        "<html><head><title>Un titulo razonable</title>"
-        '<meta name="description" content="d"><meta name="viewport" content="width=device-width">'
-        "</head><body><main><h1>t</h1></main></body></html>"
+def test_a_page_without_doctype_or_charset_is_reported():
+    r = CompatibilityAnalyzer().analyze(
+        _fetched(html='<html><meta name="viewport" content="width=device-width"></html>')
     )
-    r = SeoCompatibilityAnalyzer().analyze(_fetched(html=html))
+    assert r.metrics["has_doctype"] is False
+    assert r.metrics["declares_charset"] is False
+    titulos = " ".join(f.title for f in r.findings)
+    assert "tipo de documento" in titulos
+    assert "codificaci" in titulos
+
+
+def test_deprecated_html_tags_are_reported():
+    r = CompatibilityAnalyzer().analyze(
+        _fetched(html="<html><body><center><font>hola</font></center></body></html>")
+    )
+    assert set(r.metrics["deprecated_tags"]) == {"center", "font"}
+    assert any("obsoletas" in f.title for f in r.findings)
+
+
+def test_a_standards_compliant_page_scores_full_compatibility():
+    html = (
+        '<!doctype html><html lang="es"><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width, initial-scale=1">'
+        '<link rel="manifest" href="/m.json"></head>'
+        "<body><picture><img src=a.png alt=a></picture></body></html>"
+    )
+    r = CompatibilityAnalyzer().analyze(_fetched(html=html))
     assert r.findings == []
     assert score_url_dimension("compatibility", r.metrics) == 100.0
+
+
+# --- Usabilidad --------------------------------------------------------------
+
+
+def test_a_page_without_favicon_or_social_metadata_is_reported():
+    r = UsabilityAnalyzer().analyze(_fetched(html="<html><title>Un titulo valido</title></html>"))
+    assert r.metrics["has_favicon"] is False
+    assert r.metrics["has_open_graph"] is False
+    titulos = " ".join(f.title for f in r.findings)
+    assert "icono" in titulos
+    assert "redes" in titulos
+
+
+def test_a_well_presented_page_scores_full_usability():
+    html = (
+        "<html><head><title>Un titulo perfectamente razonable</title>"
+        '<meta name="description" content="d"><meta name="theme-color" content="#000">'
+        '<link rel="icon" href="/f.ico"><link rel="canonical" href="https://x.test/">'
+        '<meta property="og:title" content="t"></head>'
+        "<body><nav></nav><main><h1>t</h1></main></body></html>"
+    )
+    r = UsabilityAnalyzer().analyze(_fetched(html=html))
+    assert r.findings == []
+    assert score_url_dimension("usability", r.metrics) == 100.0
+
+
+# --- Accesibilidad ampliada --------------------------------------------------
+
+
+def test_blocking_zoom_is_reported_as_high():
+    html = '<html lang="es"><head><meta name="viewport" content="width=device-width, user-scalable=no"></head><body><h1>t</h1></body></html>'
+    r = AccessibilityAnalyzer().analyze(_fetched(html=html))
+    assert r.metrics["blocks_zoom"] is True
+    assert any(f.severity == "high" and "ampliar" in f.title for f in r.findings)
+
+
+def test_skipping_heading_levels_is_reported():
+    html = '<html lang="es"><body><h1>a</h1><h4>b</h4></body></html>'
+    r = AccessibilityAnalyzer().analyze(_fetched(html=html))
+    assert r.metrics["heading_level_skips"] == 1
+    assert any("jerarqu" in f.title for f in r.findings)
+
+
+def test_duplicate_ids_are_reported():
+    html = '<html lang="es"><body><h1>t</h1><div id="x"></div><span id="x"></span></body></html>'
+    r = AccessibilityAnalyzer().analyze(_fetched(html=html))
+    assert r.metrics["duplicate_id_count"] == 1
+    assert any("duplicados" in f.title for f in r.findings)
+
+
+def test_iframes_without_a_title_are_reported():
+    html = '<html lang="es"><body><h1>t</h1><iframe src="/a"></iframe></body></html>'
+    r = AccessibilityAnalyzer().analyze(_fetched(html=html))
+    assert r.metrics["iframes_without_title"] == 1
+
+
+def test_positive_tabindex_is_reported():
+    html = '<html lang="es"><body><h1>t</h1><div tabindex="3"></div></body></html>'
+    r = AccessibilityAnalyzer().analyze(_fetched(html=html))
+    assert r.metrics["positive_tabindex_count"] == 1
+
+
+def test_autoplay_media_is_reported():
+    html = '<html lang="es"><body><h1>t</h1><video autoplay src="a.mp4"></video></body></html>'
+    r = AccessibilityAnalyzer().analyze(_fetched(html=html))
+    assert r.metrics["has_autoplay_media"] is True
+
+
+# --- Rendimiento ampliado ----------------------------------------------------
+
+
+def test_render_blocking_scripts_are_reported():
+    html = "<html><head><script src=\"/a.js\"></script></head><body></body></html>"
+    r = PerformanceAnalyzer().analyze(_fetched(html=html))
+    assert r.metrics["render_blocking_scripts"] == 1
+    assert any("bloquean el dibujado" in f.title for f in r.findings)
+
+
+def test_deferred_scripts_do_not_block_rendering():
+    html = "<html><head><script src=\"/a.js\" defer></script></head><body></body></html>"
+    r = PerformanceAnalyzer().analyze(_fetched(html=html))
+    assert r.metrics["render_blocking_scripts"] == 0
+
+
+def test_images_without_dimensions_are_reported():
+    imgs = "".join(f'<img src="{i}.png" alt="a">' for i in range(6))
+    r = PerformanceAnalyzer().analyze(_fetched(html=f"<html><body>{imgs}</body></html>"))
+    assert r.metrics["images_without_dimensions"] == 6
+    assert any("dimensiones" in f.title for f in r.findings)
 
 
 # --- Pesos -------------------------------------------------------------------

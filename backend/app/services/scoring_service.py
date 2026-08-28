@@ -40,87 +40,193 @@ URL_WEIGHTS: dict[str, float] = {
 
 
 def _score_url_security(m: dict) -> float:
-    """Seguridad de una app desplegada (ISO 25010: confidencialidad,
-    integridad). Sin HTTPS la nota se hunde: todo lo demas depende de que el
-    canal este cifrado."""
+    """Seguridad de una app desplegada (ISO 25010).
+
+    Sub-caracteristicas: confidencialidad (cifrado y cookies), integridad
+    (CSP, SRI, sin contenido mixto) y resistencia (aislamiento de origen).
+    Sin HTTPS la nota se hunde: todo lo demas depende del canal cifrado.
+    """
+    if "uses_https" not in m:
+        return 0.0
     if not m.get("uses_https", False):
-        # Sin cifrado, ninguna cabecera compensa: el trafico va en claro.
         return 5.0
-    return (
-        30.0  # usa HTTPS
-        + _award(m.get("has_hsts", False), 14)
+
+    # -- Confidencialidad del canal (26 pts) ---------------------------------
+    canal = (
+        14.0
+        + _award(m.get("has_hsts", False), 6)
         + _award((m.get("hsts_max_age") or 0) >= 15768000, 4)
-        + _award(m.get("has_csp", False), 18)
-        + _award(m.get("has_csp", False) and not m.get("csp_allows_unsafe_inline", True), 8)
-        + _award(m.get("has_x_frame_options", False), 10)
-        + _award(m.get("has_x_content_type_options", False), 6)
-        + _award(m.get("has_referrer_policy", False), 4)
-        + _award(m.get("has_permissions_policy", False), 3)
-        + _award(not m.get("leaks_server_version", True) and not m.get("leaks_powered_by", True), 3)
+        + _award(m.get("hsts_includes_subdomains", False), 2)
     )
+    # -- Cookies (14 pts). Sin cookies no se acredita ni se penaliza. --------
+    if m.get("cookie_count", 0) == 0:
+        cookies = 14.0
+    else:
+        cookies = (
+            _award(m.get("cookies_without_httponly", 1) == 0, 6)
+            + _award(m.get("cookies_without_secure", 1) == 0, 4)
+            + _award(m.get("cookies_without_samesite", 1) == 0, 4)
+        )
+    # -- Integridad del contenido (34 pts) -----------------------------------
+    integridad = (
+        _award(m.get("has_csp", False) and not m.get("csp_is_report_only", False), 12)
+        + _award(m.get("has_csp", False) and not m.get("csp_allows_unsafe_inline", True), 5)
+        + _award(m.get("has_csp", False) and not m.get("csp_allows_unsafe_eval", True), 4)
+        + _tiered(len(m.get("csp_directives_present", [])), [(2, 2), (4, 4)])
+        + _award(m.get("mixed_content_count", 1) == 0, 5)
+        + _award(m.get("external_scripts_without_sri", 1) == 0, 4)
+    )
+    # -- Resistencia y exposicion (26 pts) -----------------------------------
+    resistencia = (
+        _award(m.get("has_x_frame_options", False) or m.get("has_frame_ancestors", False), 8)
+        + _award(m.get("has_x_content_type_options", False), 4)
+        + _award(m.get("has_referrer_policy", False), 3)
+        + _award(m.get("has_permissions_policy", False), 3)
+        + _award(m.get("has_coop", False) or m.get("has_corp", False), 2)
+        + _award(not m.get("cors_allows_any_origin", False), 3)
+        + _award(not m.get("form_posts_over_http", False), 1)
+        + _award(
+            not m.get("leaks_server_version", True) and not m.get("leaks_powered_by", True), 2
+        )
+    )
+    return canal + cookies + integridad + resistencia
 
 
 def _score_url_performance(m: dict) -> float:
-    """Eficiencia de desempeno (ISO 25010: comportamiento temporal).
+    """Eficiencia de desempeno (ISO 25010: comportamiento temporal y uso de
+    recursos).
 
-    Cobertura parcial declarada: mide el tiempo de respuesta del servidor, no
-    el renderizado. Lighthouse llega mas adelante.
+    Cobertura parcial declarada: mide la respuesta del servidor y como esta
+    construida la pagina, no el renderizado. Lighthouse llega mas adelante.
     """
     if "response_seconds" not in m:
         return 0.0
-    return (
-        _tiered(-m.get("response_seconds", 99), [(-2.0, 12), (-1.2, 24), (-0.6, 36), (-0.3, 45)])
-        + _award(m.get("uses_compression", False), 25)
-        + _award(m.get("has_cache_control", False), 15)
-        + _tiered(-m.get("html_bytes", 10**9), [(-500_000, 4), (-250_000, 8), (-100_000, 10)])
-        + _tiered(-m.get("redirect_count", 99), [(-3, 2), (-1, 5)])
+
+    # -- Comportamiento temporal (34 pts) ------------------------------------
+    temporal = _tiered(
+        -m.get("response_seconds", 99), [(-2.0, 8), (-1.2, 17), (-0.6, 27), (-0.3, 34)]
     )
+    # -- Transferencia (28 pts) ----------------------------------------------
+    transferencia = (
+        _award(m.get("uses_compression", False), 14)
+        + _award(m.get("has_cache_control", False), 8)
+        + _award(m.get("has_etag", False), 3)
+        + _tiered(-m.get("redirect_count", 99), [(-3, 1), (-1, 3)])
+    )
+    # -- Construccion de la pagina (38 pts) ----------------------------------
+    imagenes = m.get("image_count", 0)
+    sin_lazy = m.get("images_without_lazy_loading", 0)
+    sin_dim = m.get("images_without_dimensions", 0)
+    construccion = (
+        _award(m.get("render_blocking_scripts", 1) == 0, 12)
+        + _tiered(-m.get("render_blocking_styles", 99), [(-8, 2), (-4, 5), (-2, 7)])
+        + _tiered(-m.get("third_party_origin_count", 99), [(-8, 2), (-4, 4), (-1, 6)])
+        + _tiered(-m.get("html_bytes", 10**9), [(-500_000, 2), (-250_000, 4), (-100_000, 6)])
+        + (4.0 if imagenes == 0 else _tiered(-(sin_lazy / imagenes), [(-0.7, 1), (-0.3, 4)]))
+        + (3.0 if imagenes == 0 else _tiered(-(sin_dim / imagenes), [(-0.7, 1), (-0.3, 3)]))
+    )
+    return temporal + transferencia + construccion
 
 
 def _score_url_accessibility(m: dict) -> float:
     """Accesibilidad (ISO 25010). Comprobaciones estaticas del HTML."""
     if "image_count" not in m:
         return 0.0
+
     imagenes = m.get("image_count", 0)
     entradas = m.get("form_inputs", 0)
-    sin_alt = m.get("images_without_alt", 0)
-    sin_label = m.get("inputs_without_label", 0)
-    return (
-        _award(m.get("declares_language", False), 20)
-        # Si no hay imagenes no se acredita ni se penaliza: no hay nada que juzgar.
-        + (25.0 if imagenes == 0 else _tiered(-(sin_alt / imagenes), [(-0.5, 8), (-0.2, 17), (-0.001, 25)]))
-        + (25.0 if entradas == 0 else _tiered(-(sin_label / entradas), [(-0.5, 8), (-0.2, 17), (-0.001, 25)]))
-        + _award(m.get("has_h1", False), 15)
-        + _award(m.get("uses_semantic_html", False), 15)
+    iframes = m.get("iframe_count", 0)
+
+    # -- Percepcion: se puede leer y entender el contenido (40 pts) ----------
+    percepcion = (
+        _award(m.get("declares_language", False), 10)
+        + _award(not m.get("blocks_zoom", False), 12)
+        + (
+            10.0
+            if imagenes == 0
+            else _tiered(
+                -(m.get("images_without_alt", 0) / imagenes),
+                [(-0.5, 3), (-0.2, 7), (-0.001, 10)],
+            )
+        )
+        + _award(m.get("tables_without_headers", 1) == 0, 4)
+        + _award(not m.get("has_autoplay_media", False), 4)
     )
+    # -- Operabilidad: se puede usar sin raton (28 pts) ----------------------
+    operabilidad = (
+        (
+            12.0
+            if entradas == 0
+            else _tiered(
+                -(m.get("inputs_without_label", 0) / entradas),
+                [(-0.5, 4), (-0.2, 8), (-0.001, 12)],
+            )
+        )
+        + _award(m.get("positive_tabindex_count", 1) == 0, 6)
+        + (5.0 if iframes == 0 else _award(m.get("iframes_without_title", 1) == 0, 5))
+        + _tiered(-m.get("generic_link_text_count", 99), [(-6, 2), (-2, 5)])
+    )
+    # -- Estructura: se puede navegar por encabezados y regiones (32 pts) ----
+    estructura = (
+        _award(m.get("has_h1", False), 9)
+        + _award(m.get("h1_count", 0) == 1, 4)
+        + _tiered(-m.get("heading_level_skips", 99), [(-3, 2), (-1, 5)])
+        + _award(m.get("uses_semantic_html", False), 5)
+        + _award(m.get("has_main_landmark", False), 5)
+        + _award(m.get("duplicate_id_count", 1) == 0, 4)
+    )
+    return percepcion + operabilidad + estructura
 
 
 def _score_url_compatibility(m: dict) -> float:
-    """Compatibilidad (ISO 25010): que funcione fuera del escritorio."""
+    """Compatibilidad (ISO 25010): interoperabilidad y adaptacion."""
     if "has_viewport" not in m:
         return 0.0
+
+    imagenes = m.get("image_count", 0)
+    responsivas = m.get("responsive_image_count", 0)
     return (
-        _award(m.get("has_viewport", False), 55)
-        + _award(m.get("uses_semantic_html", False), 25)
-        + _award(m.get("has_title", False), 20)
+        # -- Adaptacion a dispositivos (46 pts)
+        _award(m.get("has_viewport", False), 30)
+        + (
+            16.0
+            if imagenes == 0 or m.get("uses_picture_element", False)
+            else _tiered(
+                responsivas / imagenes if imagenes else 0, [(0.1, 6), (0.5, 11), (0.9, 16)]
+            )
+        )
+        # -- Interoperabilidad: estandares bien declarados (40 pts)
+        + _award(m.get("has_doctype", False), 16)
+        + _award(m.get("declares_charset", False), 14)
+        + _award(m.get("declares_content_language", False), 10)
+        # -- Ausencia de tecnologia retirada (14 pts)
+        + _award(not m.get("deprecated_tags"), 10)
+        + _award(m.get("has_web_manifest", False), 4)
     )
 
 
 def _score_url_usability(m: dict) -> float:
-    """Usabilidad (ISO 25010: reconocibilidad, aprendizaje).
+    """Usabilidad (ISO 25010: reconocibilidad y facilidad de uso).
 
-    Sin navegador solo se puede juzgar si la pagina se presenta de forma
-    comprensible: titulo, descripcion, encabezado y estructura semantica.
+    Sin navegador solo se juzga si la pagina se presenta e identifica de forma
+    comprensible; la operabilidad real requiere interaccion.
     """
     if "has_title" not in m:
         return 0.0
     titulo_util = 10 <= m.get("title_length", 0) <= 70
     return (
-        _award(m.get("has_title", False), 25)
-        + _award(titulo_util, 15)
-        + _award(m.get("has_meta_description", False), 20)
-        + _award(m.get("has_h1", False), 20)
-        + _award(m.get("uses_semantic_html", False), 20)
+        # -- Reconocibilidad: se sabe que es y de quien (58 pts)
+        _award(m.get("has_title", False), 18)
+        + _award(titulo_util, 10)
+        + _award(m.get("has_meta_description", False), 12)
+        + _award(m.get("has_favicon", False), 8)
+        + _award(m.get("has_open_graph", False), 6)
+        + _award(m.get("has_canonical", False), 4)
+        # -- Estructura comprensible (42 pts)
+        + _award(m.get("has_main_landmark", False), 14)
+        + _award(m.get("uses_semantic_html", False), 12)
+        + _award(m.get("has_nav", False), 10)
+        + _award(m.get("has_theme_color", False), 6)
     )
 
 

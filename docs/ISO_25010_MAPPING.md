@@ -17,9 +17,9 @@ Por tanto:
 | Característica ISO | ¿La cubrimos? | Dónde |
 |---|---|---|
 | Adecuación funcional | ✅ Parcial | Análisis de repositorio |
-| Eficiencia de desempeño | ⏳ Pendiente | Análisis de URL (Semana 3) |
-| Compatibilidad | ⏳ Pendiente | Análisis de URL (Semana 3) |
-| Usabilidad | ⏳ Pendiente | Análisis de URL (Semana 3) |
+| Eficiencia de desempeño | ✅ Parcial | Análisis de URL |
+| Compatibilidad | ✅ Parcial | Análisis de URL |
+| Usabilidad | ✅ Parcial | Análisis de URL |
 | Fiabilidad | ✅ Parcial | Análisis de repositorio |
 | Seguridad | ✅ Parcial | Análisis de repositorio + URL |
 | Mantenibilidad | ✅ Parcial | Análisis de repositorio |
@@ -155,3 +155,64 @@ Cada dimensión parte de **cero**. Nunca se acredita calidad que no se haya comp
 - La *ausencia* de un problema solo suma si de verdad se escanearon archivos. "No tiene credenciales expuestas" sin haber leído ningún archivo no es un mérito, es desconocimiento.
 
 Esto corrige el modelo original, que restaba penalizaciones desde 100 y por tanto premiaba la ausencia de evidencia: un repositorio con un solo archivo y sin nada más sacaba 87/100.
+
+
+---
+
+# Análisis de URL (Modo 2)
+
+Cinco dimensiones con los pesos del spec. **84 señales medidas** sobre el HTML
+y las cabeceras HTTP, sin ejecutar un navegador.
+
+## Rendimiento — 25%
+
+| Sub-característica ISO | Qué observamos |
+|---|---|
+| **Comportamiento temporal** | Tiempo de respuesta del servidor, por tramos |
+| **Uso de recursos** | Compresión, `Cache-Control`, `ETag`, redirecciones, peso del HTML |
+| | Scripts que bloquean el dibujado (sin `defer`/`async` en la cabecera) |
+| | Hojas de estilo bloqueantes, dominios de terceros |
+| | Imágenes sin carga diferida y sin dimensiones declaradas |
+
+*Limitación declarada:* se mide la respuesta del servidor y cómo está construida la página, **no el renderizado**. El tiempo hasta que la página es usable requiere Lighthouse.
+
+## Seguridad — 25%
+
+| Sub-característica ISO | Qué observamos |
+|---|---|
+| **Confidencialidad** | HTTPS, HSTS (duración y subdominios) |
+| | Cookies: `HttpOnly`, `Secure`, `SameSite` |
+| **Integridad** | CSP: presencia, modo informe, `unsafe-inline`, `unsafe-eval`, directivas clave |
+| | Contenido mixto, integridad de scripts externos (SRI) |
+| **Resistencia** | `X-Frame-Options`/`frame-ancestors`, `nosniff`, `Referrer-Policy` |
+| | `Permissions-Policy`, COOP/CORP, CORS restrictivo |
+| | Formularios que envían por HTTP, filtración de versión del servidor |
+
+## Usabilidad — 20%
+
+| Sub-característica ISO | Qué observamos |
+|---|---|
+| **Reconocibilidad** | Título y su longitud, meta descripción, favicon, Open Graph, canonical |
+| **Facilidad de uso** | Región `main`, HTML semántico, navegación, `theme-color` |
+
+*Limitación declarada:* la operabilidad real requiere interacción; aquí solo se juzga cómo se presenta e identifica la página.
+
+## Accesibilidad — 15%
+
+| Sub-característica ISO | Qué observamos |
+|---|---|
+| **Percepción** | Idioma declarado, **zoom no bloqueado**, texto alternativo |
+| | Tablas con cabeceras, ausencia de reproducción automática |
+| **Operabilidad** | Etiquetas de formulario, `tabindex` positivo, títulos de iframe |
+| | Texto de enlace descriptivo |
+| **Estructura** | Un solo `h1`, jerarquía sin saltos, HTML semántico, `main`, ids únicos |
+
+*Limitación declarada:* son comprobaciones estáticas del HTML. **No sustituyen a axe-core**: el contraste de color efectivo y el árbol de accesibilidad final solo se pueden evaluar con renderizado real.
+
+## Compatibilidad — 15%
+
+| Sub-característica ISO | Qué observamos |
+|---|---|
+| **Adaptabilidad** | Etiqueta viewport, imágenes responsivas (`srcset`/`picture`) |
+| **Interoperabilidad** | `<!DOCTYPE html>`, codificación declarada, idioma del contenido |
+| | Ausencia de etiquetas HTML obsoletas, manifiesto web |

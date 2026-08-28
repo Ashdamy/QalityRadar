@@ -17,8 +17,9 @@ from sqlalchemy.orm import Session
 
 from app.analyzers.url.page_quality import (
     AccessibilityAnalyzer,
+    CompatibilityAnalyzer,
     PerformanceAnalyzer,
-    SeoCompatibilityAnalyzer,
+    UsabilityAnalyzer,
 )
 from app.analyzers.url.security_headers import SecurityHeadersAnalyzer
 from app.core.database import SessionLocal
@@ -37,7 +38,8 @@ ANALYZERS = (
     SecurityHeadersAnalyzer(),
     PerformanceAnalyzer(),
     AccessibilityAnalyzer(),
-    SeoCompatibilityAnalyzer(),
+    UsabilityAnalyzer(),
+    CompatibilityAnalyzer(),
 )
 
 
@@ -79,15 +81,8 @@ def run_url_analysis(analysis_id: str) -> None:
         analysis.status = "scoring"
         db.commit()
 
-        # La usabilidad se puntua con las mismas senales que recoge el
-        # analizador de SEO (titulo, descripcion, encabezado, semantica), asi
-        # que se alimenta de ahi en vez de descargar la pagina otra vez.
+        # Cada analizador cubre ya su propia dimension, incluida usabilidad.
         metricas_por_dimension = {r.dimension: r.metrics for r in results}
-        seo_y_accesibilidad = {
-            **metricas_por_dimension.get("compatibility", {}),
-            **metricas_por_dimension.get("accessibility", {}),
-        }
-        metricas_por_dimension["usability"] = seo_y_accesibilidad
 
         todos_los_hallazgos = [f for r in results for f in r.findings]
 
