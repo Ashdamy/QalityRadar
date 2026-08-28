@@ -53,64 +53,173 @@ def _tiered(value: float, tiers: list[tuple[float, float]]) -> float:
 
 
 def _score_documentation(m: dict) -> float:
-    """Adecuacion funcional: puede alguien entender y usar este proyecto."""
-    return (
-        _award(m.get("has_readme", False), 12)
-        + _tiered(
-            m.get("readme_length", 0),
-            [(300, 8), (1000, 16), (3000, 22)],
-        )
-        + _award(m.get("readme_has_install_instructions", False), 16)
-        + _award(m.get("readme_has_usage_section", False), 12)
-        + _award(m.get("readme_has_code_examples", False), 10)
-        + _award(m.get("has_license", False), 14)
-        + _award(m.get("has_contributing", False), 6)
-        + _award(m.get("has_changelog", False), 4)
-        + _award(m.get("has_architecture_docs", False), 4)
+    """Adecuacion funcional (ISO 25010).
+
+    Sub-caracteristicas cubiertas:
+    - Pertinencia funcional: el proyecto explica que hace y como usarlo.
+    - Completitud funcional: cuanto queda declaradamente sin terminar.
+    """
+    # -- Pertinencia funcional: documentacion utilizable (60 pts) ------------
+    pertinencia = (
+        _award(m.get("has_readme", False), 8)
+        + _tiered(m.get("readme_length", 0), [(300, 5), (1000, 10), (3000, 14)])
+        + _award(m.get("readme_has_install_instructions", False), 12)
+        + _award(m.get("readme_has_usage_section", False), 10)
+        + _award(m.get("readme_has_code_examples", False), 8)
+        + _award(m.get("has_examples", False), 8)
     )
+    # -- Gobernanza y evaluabilidad del proyecto (22 pts) --------------------
+    gobernanza = (
+        _award(m.get("has_license", False), 10)
+        + _award(m.get("has_contributing", False), 4)
+        + _award(m.get("has_changelog", False), 3)
+        + _award(m.get("has_architecture_docs", False), 3)
+        + _award(m.get("has_api_docs", False), 2)
+    )
+    # -- Completitud funcional: lo que falta por hacer (18 pts) --------------
+    # Solo se acredita si de verdad se escaneo codigo: sin archivos mirados,
+    # "no tiene funciones sin implementar" no es un merito, es desconocimiento.
+    if m.get("completeness_files_scanned", 0) > 0:
+        completitud = _award(m.get("unimplemented_stub_count", 0) == 0, 10) + _tiered(
+            -m.get("pending_markers_per_file", 0.0), [(-2.0, 3), (-1.0, 6), (-0.3, 8)]
+        )
+    else:
+        completitud = 0.0
+    return pertinencia + gobernanza + completitud
 
 
 def _score_reliability(m: dict) -> float:
-    """Fiabilidad: hay red de seguridad automatica contra regresiones."""
-    if m.get("test_file_count", 0) == 0:
+    """Fiabilidad (ISO 25010).
+
+    Sub-caracteristicas cubiertas:
+    - Madurez: existencia y densidad de pruebas automaticas.
+    - Tolerancia a fallos: el codigo contempla que las cosas fallen.
+    - Recuperabilidad: deja rastro y sus cambios de estado son reversibles.
+    """
+    # Sin nada escaneado no se puede acreditar nada: premiar la AUSENCIA de
+    # problemas cuando no se ha mirado ningun archivo es el mismo error que
+    # este modulo corrige, colado por la puerta de atras.
+    if m.get("code_files_scanned", 0) == 0 and m.get("test_file_count", 0) == 0:
         return 0.0
-    return (
-        20.0  # existir tests ya vale, pero solo una quinta parte
-        + _tiered(
-            m.get("test_ratio", 0.0),
-            [(0.05, 8), (0.10, 16), (0.20, 26), (0.35, 34), (0.50, 40)],
+
+    # -- Madurez: pruebas automaticas (55 pts) -------------------------------
+    if m.get("test_file_count", 0) == 0:
+        madurez = 0.0
+    else:
+        madurez = (
+            12.0
+            + _tiered(m.get("test_ratio", 0.0), [(0.05, 4), (0.10, 9), (0.20, 14), (0.35, 18), (0.50, 21)])
+            + _award(m.get("has_integration_tests", False), 12)
+            + _award(m.get("has_e2e_tests", False), 10)
         )
-        + _award(m.get("has_integration_tests", False), 22)
-        + _award(m.get("has_e2e_tests", False), 18)
+    # -- Tolerancia a fallos (30 pts) ----------------------------------------
+    tolerancia = (
+        _tiered(m.get("error_handling_ratio", 0.0), [(0.10, 5), (0.25, 10), (0.40, 14)])
+        + _award(m.get("silent_catch_count", 0) == 0, 8)
+        + _award(m.get("bare_except_count", 0) == 0, 4)
+        + _award(m.get("uses_timeouts", False), 2)
+        + _award(m.get("uses_retries", False), 2)
     )
+    # -- Recuperabilidad (15 pts) --------------------------------------------
+    recuperabilidad = (
+        _tiered(m.get("logging_ratio", 0.0), [(0.05, 4), (0.15, 8), (0.30, 10)])
+        + _award(m.get("has_migrations", False), 5)
+    )
+    return madurez + tolerancia + recuperabilidad
 
 
 def _score_maintainability(m: dict) -> float:
-    """Mantenibilidad: se puede entender, revisar y cambiar sin miedo."""
-    code_files = m.get("code_file_count", 0)
-    if code_files == 0:
+    """Mantenibilidad (ISO 25010).
+
+    Sub-caracteristicas cubiertas:
+    - Modularidad: tamano de archivos y funciones, estructura de carpetas.
+    - Analizabilidad: comentarios, documentacion de funciones, anidamiento.
+    - Modificabilidad: linter, tipos, ausencia de duplicacion.
+    """
+    if m.get("code_file_count", 0) == 0 and m.get("analyzed_code_files", 0) == 0:
         return 0.0
 
-    average_lines = m.get("average_file_lines", 0.0)
-    largest = m.get("largest_file_lines", 0)
-    return (
-        _award(m.get("has_gitignore", False), 14)
-        + _award(m.get("has_dependency_manifest", False), 14)
-        + _award(m.get("has_linter_config", False), 18)
-        # Codigo descompuesto: media de lineas por archivo.
-        + _tiered(-average_lines, [(-400, 6), (-250, 14), (-150, 22)])
-        # Ausencia de archivos monstruo.
-        + _tiered(-largest, [(-1500, 6), (-800, 14), (-400, 18)])
-        # Estructura real de carpetas, no un volcado plano de archivos.
-        + _award(m.get("top_level_directory_count", 0) >= 2, 8)
-        + _award(m.get("project_shape", "unknown") != "unknown", 6)
+    # -- Modularidad (38 pts) -------------------------------------------------
+    modularidad = (
+        _tiered(-m.get("average_file_lines", 0.0), [(-400, 4), (-250, 8), (-150, 12)])
+        + _tiered(-m.get("largest_file_lines", 0), [(-1500, 3), (-800, 7), (-400, 10)])
+        + _tiered(-m.get("average_function_lines", 0.0), [(-60, 3), (-35, 6), (-20, 8)])
+        + _award(m.get("top_level_directory_count", 0) >= 2, 5)
+        + _award(m.get("project_shape", "unknown") != "unknown", 3)
     )
+    # -- Analizabilidad (30 pts) ---------------------------------------------
+    analizabilidad = (
+        _tiered(m.get("comment_ratio", 0.0), [(0.02, 4), (0.05, 8), (0.10, 11)])
+        + _tiered(m.get("function_documentation_ratio", 0.0), [(0.10, 3), (0.30, 6), (0.60, 9)])
+        + _tiered(-m.get("max_nesting_depth", 0), [(-8, 3), (-6, 6), (-4, 10)])
+    )
+    # -- Modificabilidad (32 pts) --------------------------------------------
+    modificabilidad = (
+        _award(m.get("has_linter_config", False), 10)
+        + _award(m.get("has_gitignore", False), 5)
+        + _award(m.get("has_dependency_manifest", False), 5)
+        + _tiered(m.get("type_annotation_ratio", 0.0), [(0.20, 3), (0.50, 6), (0.80, 8)])
+        + _award(m.get("duplicated_file_count", 0) == 0, 4)
+    )
+    return modularidad + analizabilidad + modificabilidad
+
+
+def _score_security(m: dict) -> float:
+    """Seguridad (ISO 25010).
+
+    Sub-caracteristicas cubiertas de forma estatica:
+    - Confidencialidad: no hay credenciales expuestas.
+    - Integridad: dependencias fijadas, sin ejecucion de codigo dinamico ni
+      SQL construido por concatenacion.
+
+    Nota: es una cobertura parcial hasta que Gitleaks y Semgrep entren en el
+    sandbox; por eso el techo alcanzable aqui refleja solo lo comprobado.
+    """
+    if m.get("code_files_scanned", 0) == 0:
+        return 0.0
+    # -- Confidencialidad (55 pts) -------------------------------------------
+    confidencialidad = (
+        _award(not m.get("committed_secret_files"), 25)
+        + _award(m.get("hardcoded_secret_file_count", 0) == 0, 20)
+        + _award(m.get("gitignore_covers_env", False), 10)
+    )
+    # -- Integridad (45 pts) --------------------------------------------------
+    integridad = (
+        _award(m.get("dangerous_eval_file_count", 0) == 0, 18)
+        + _award(m.get("sql_concatenation_file_count", 0) == 0, 17)
+        + _award(m.get("has_dependency_lockfile", False), 10)
+    )
+    return confidencialidad + integridad
+
+
+def _score_portability(m: dict) -> float:
+    """Portabilidad (ISO 25010).
+
+    Sub-caracteristicas cubiertas:
+    - Instalabilidad: contenedor, dependencias fijadas.
+    - Adaptabilidad: configuracion por entorno, sin rutas de una maquina.
+    """
+    # -- Instalabilidad (50 pts) ---------------------------------------------
+    instalabilidad = (
+        _award(m.get("has_container_definition", False), 25)
+        + _award(m.get("has_dependency_lockfile", False), 25)
+    )
+    # -- Adaptabilidad (50 pts) ----------------------------------------------
+    adaptabilidad = (
+        _award(m.get("uses_environment_config", False), 20)
+        + _award(m.get("has_env_example", False), 12)
+        + _award(m.get("hardcoded_absolute_path_count", 0) == 0, 10)
+        + _award(m.get("has_infrastructure_as_code", False), 8)
+    )
+    return instalabilidad + adaptabilidad
 
 
 DIMENSION_RUBRICS = {
     "functional_suitability": _score_documentation,
     "reliability": _score_reliability,
     "maintainability": _score_maintainability,
+    "security": _score_security,
+    "portability": _score_portability,
 }
 
 

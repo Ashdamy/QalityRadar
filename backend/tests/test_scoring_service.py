@@ -37,23 +37,44 @@ def test_an_empty_dimension_scores_zero_not_one_hundred():
 
 
 def test_a_dimension_without_a_rubric_yet_scores_zero():
-    # Seguridad, portabilidad y actividad aun no se miden: no se acredita
-    # calidad no comprobada.
-    assert score_dimension("security", {"lo que sea": 1}, []) == 0.0
-    assert score_dimension("portability", {}, []) == 0.0
+    # La actividad del proyecto aun no se mide: no se acredita calidad no
+    # comprobada.
+    assert score_dimension("project_activity", {"lo que sea": 1}, []) == 0.0
 
 
-def test_a_repository_with_no_tests_scores_zero_in_reliability():
-    assert score_dimension("reliability", {"test_file_count": 0, "test_ratio": 0.0}, []) == 0.0
+def test_absence_of_problems_earns_nothing_when_nothing_was_scanned():
+    # Sin archivos escaneados no se puede premiar "no tiene capturas
+    # silenciosas" ni "no tiene secretos": no se ha mirado.
+    assert score_dimension("reliability", {}, []) == 0.0
+    assert score_dimension("security", {}, []) == 0.0
+    assert score_dimension("security", {"code_files_scanned": 0}, []) == 0.0
+
+
+def test_a_repository_with_no_tests_loses_the_whole_maturity_block():
+    con_tests = score_dimension(
+        "reliability",
+        {"code_files_scanned": 20, "test_file_count": 10, "test_ratio": 0.5},
+        [],
+    )
+    sin_tests = score_dimension(
+        "reliability",
+        {"code_files_scanned": 20, "test_file_count": 0, "test_ratio": 0.0},
+        [],
+    )
+    # La madurez es el bloque mas grande de la dimension: sin pruebas se
+    # pierde entero, y eso debe notarse con claridad en la nota.
+    assert con_tests - sin_tests >= 30
+    assert sin_tests < 20
 
 
 def test_more_tests_earn_a_higher_reliability_score():
     pocos = score_dimension(
-        "reliability", {"test_file_count": 1, "test_ratio": 0.02}, []
+        "reliability", {"code_files_scanned": 20, "test_file_count": 1, "test_ratio": 0.02}, []
     )
     muchos = score_dimension(
         "reliability",
         {
+            "code_files_scanned": 20,
             "test_file_count": 40,
             "test_ratio": 0.6,
             "has_integration_tests": True,
@@ -78,6 +99,11 @@ def test_a_one_line_readme_earns_far_less_than_a_real_one():
             "has_contributing": True,
             "has_changelog": True,
             "has_architecture_docs": True,
+            "has_api_docs": True,
+            "has_examples": True,
+            "completeness_files_scanned": 30,
+            "unimplemented_stub_count": 0,
+            "pending_markers_per_file": 0.1,
         },
         [],
     )
@@ -98,10 +124,16 @@ def test_maintainability_rewards_real_signals_not_mere_existence():
             "has_linter_config": True,
             "top_level_directory_count": 4,
             "project_shape": "fullstack",
+            "average_function_lines": 18,
+            "comment_ratio": 0.12,
+            "function_documentation_ratio": 0.7,
+            "max_nesting_depth": 3,
+            "type_annotation_ratio": 0.9,
+            "duplicated_file_count": 0,
         },
         [],
     )
-    assert desnudo < 20
+    assert desnudo < 25
     assert cuidado == 100.0
 
 

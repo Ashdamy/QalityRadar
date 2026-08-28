@@ -10,7 +10,13 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from app.analyzers.base import AnalyzerResult, FindingData
+from app.analyzers.repository.code_quality import CodeQualityAnalyzer
+from app.analyzers.repository.completeness import CompletenessAnalyzer
 from app.analyzers.repository.documentation import DocumentationAnalyzer
+from app.analyzers.repository.error_handling import ErrorHandlingAnalyzer
+from app.analyzers.repository.portability import PortabilityAnalyzer
+from app.analyzers.repository.security_basics import SecurityBasicsAnalyzer
 from app.analyzers.repository.structure import StructureAnalyzer
 from app.analyzers.repository.tests_analyzer import TestsAnalyzer
 from app.core.database import SessionLocal
@@ -24,7 +30,16 @@ from app.services.scoring_service import (
     score_dimension,
 )
 
-ANALYZERS = (StructureAnalyzer(), DocumentationAnalyzer(), TestsAnalyzer())
+ANALYZERS = (
+    StructureAnalyzer(),        # mantenibilidad: estructura
+    CodeQualityAnalyzer(),      # mantenibilidad: legibilidad y modularidad
+    DocumentationAnalyzer(),    # adecuacion funcional: documentacion
+    CompletenessAnalyzer(),     # adecuacion funcional: completitud
+    TestsAnalyzer(),            # fiabilidad: cobertura de pruebas
+    ErrorHandlingAnalyzer(),    # fiabilidad: tolerancia a fallos
+    SecurityBasicsAnalyzer(),   # seguridad: confidencialidad e integridad
+    PortabilityAnalyzer(),      # portabilidad: adaptabilidad e instalabilidad
+)
 
 
 def run_repository_analysis(analysis_id: str) -> None:
@@ -57,21 +72,28 @@ def run_repository_analysis(analysis_id: str) -> None:
         analysis.status = "scoring"
         db.commit()
 
+        # Varios analizadores pueden alimentar la misma dimension (por ejemplo
+        # estructura y calidad de codigo aportan ambos a mantenibilidad), asi
+        # que primero se fusionan sus metricas y hallazgos y luego se puntua
+        # la dimension una sola vez: `dimensions` es unica por analisis y
+        # nombre.
+        merged = _merge_by_dimension(results)
+
         dimension_scores: dict[str, float] = {}
-        for result in results:
-            score = score_dimension(result.dimension, result.metrics, result.findings)
-            dimension_scores[result.dimension] = score
+        for dimension, (metrics, findings) in merged.items():
+            score = score_dimension(dimension, metrics, findings)
+            dimension_scores[dimension] = score
             db.add(
                 Dimension(
                     id=uuid.uuid4(),
                     analysis_id=analysis.id,
-                    name=result.dimension,
+                    name=dimension,
                     score=score,
-                    weight=REPOSITORY_WEIGHTS[result.dimension],
-                    raw_metrics=result.metrics,
+                    weight=REPOSITORY_WEIGHTS[dimension],
+                    raw_metrics=metrics,
                 )
             )
-            for finding in result.findings:
+            for finding in findings:
                 db.add(
                     Finding(
                         id=uuid.uuid4(),
@@ -85,13 +107,13 @@ def run_repository_analysis(analysis_id: str) -> None:
                     )
                 )
 
-        all_findings = [finding for result in results for finding in result.findings]
+        all_findings = [finding for _, findings in merged.values() for finding in findings]
         analysis.overall_score = calculate_overall_score(dimension_scores, all_findings)
         analysis.confidence_level = calculate_confidence(results)
         analysis.commit_hash = commit_hash
         analysis.commit_message = commit_message
         analysis.branch = repository.default_branch
-        analysis.raw_data = {result.dimension: result.metrics for result in results}
+        analysis.raw_data = {dim: metrics for dim, (metrics, _) in merged.items()}
         analysis.status = "completed"
         analysis.completed_at = datetime.now(timezone.utc)
 
@@ -99,6 +121,18 @@ def run_repository_analysis(analysis_id: str) -> None:
         db.commit()
     finally:
         db.close()
+
+
+def _merge_by_dimension(
+    results: list[AnalyzerResult],
+) -> dict[str, tuple[dict, list[FindingData]]]:
+    """Agrupa los resultados de varios analizadores por dimension."""
+    merged: dict[str, tuple[dict, list[FindingData]]] = {}
+    for result in results:
+        metrics, findings = merged.setdefault(result.dimension, ({}, []))
+        metrics.update(result.metrics)
+        findings.extend(result.findings)
+    return merged
 
 
 def _mark_failed(db: Session, analysis: Analysis, message: str) -> None:
