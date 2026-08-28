@@ -169,3 +169,36 @@ def test_report_of_another_users_analysis_returns_404(analisis_completo):
 def test_report_without_a_token_is_rejected(analisis_completo):
     _, analysis_id = analisis_completo
     assert client.get(f"/api/analyses/{analysis_id}/report.pdf").status_code == 401
+
+
+# --------------------------------------------------------------------------
+# Nombres de dimension en el informe
+# --------------------------------------------------------------------------
+
+
+def test_las_dimensiones_de_url_tienen_traduccion():
+    """Faltaban desde el Modo 2: el PDF imprimia "performance" en crudo."""
+    from app.services.report_service import dimension_label
+
+    for tecnico, esperado in [
+        ("performance", "Rendimiento"),
+        ("usability", "Usabilidad"),
+        ("accessibility", "Accesibilidad"),
+        ("compatibility", "Compatibilidad"),
+    ]:
+        assert dimension_label(tecnico) == esperado
+
+
+def test_el_modo_combinado_conserva_el_origen_en_la_etiqueta():
+    from app.services.report_service import dimension_label
+
+    assert dimension_label("codigo:security") == "Seguridad (código)"
+    assert dimension_label("produccion:security") == "Seguridad (producción)"
+
+
+def test_una_dimension_desconocida_se_imprime_tal_cual():
+    """Mejor un nombre tecnico que una celda vacia si se anade una dimension
+    y se olvida traducirla."""
+    from app.services.report_service import dimension_label
+
+    assert dimension_label("dimension_nueva") == "dimension_nueva"

@@ -34,7 +34,24 @@ DIMENSION_LABELS = {
     "maintainability": "Mantenibilidad",
     "portability": "Portabilidad",
     "project_activity": "Actividad del proyecto",
+    # Dimensiones del analisis de URL (Modo 2).
+    "performance": "Rendimiento",
+    "usability": "Usabilidad",
+    "accessibility": "Accesibilidad",
+    "compatibility": "Compatibilidad",
 }
+
+# En el modo combinado las dimensiones llegan como "origen:nombre", porque
+# codigo y produccion miden ambos "security" sin ser lo mismo.
+ORIGIN_LABELS = {"codigo": "código", "produccion": "producción"}
+
+
+def dimension_label(name: str) -> str:
+    origen, separador, base = name.partition(":")
+    if not separador:
+        return DIMENSION_LABELS.get(name, name)
+    etiqueta = DIMENSION_LABELS.get(base, base)
+    return f"{etiqueta} ({ORIGIN_LABELS.get(origen, origen)})"
 
 SEVERITY_LABELS = {
     "critical": "Crítico",
@@ -179,7 +196,7 @@ def build_analysis_report(
         valor = float(d.score)
         filas.append(
             [
-                DIMENSION_LABELS.get(d.name, d.name),
+                dimension_label(d.name),
                 f"{valor:.0f}/100",
                 f"{float(d.weight) * 100:.0f}%",
             ]
