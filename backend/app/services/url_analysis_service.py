@@ -24,6 +24,7 @@ from app.analyzers.url.page_quality import (
 from app.analyzers.url.security_headers import SecurityHeadersAnalyzer
 from app.core.config import get_settings
 from app.core.database import SessionLocal
+from app.services.notification_service import persist_notifications
 from app.services.rate_limit_service import release
 from app.models.analysis import Analysis, Dimension, Finding
 from app.models.deployed_app import DeployedApp
@@ -135,6 +136,8 @@ def run_url_analysis(analysis_id: str) -> None:
         analysis.completed_at = datetime.now(timezone.utc)
         app_row.last_analyzed_at = analysis.completed_at
         db.commit()
+
+        _avisar_de_cambios(db, analysis)
     finally:
         # Se libera el hueco de analisis simultaneos pase lo que pase: si no,
         # un fallo dejaria la cuenta bloqueada hasta que caducara el TTL.
@@ -158,3 +161,15 @@ def _liberar_hueco(db, analysis_id: str) -> None:
     except Exception:  # noqa: BLE001
         # Nunca debe tapar el resultado real del analisis.
         pass
+
+
+def _avisar_de_cambios(db, analysis) -> None:
+    """Deja avisos si el proyecto ha empeorado respecto al analisis anterior.
+
+    Nunca debe tumbar el analisis: el resultado ya esta guardado y es lo que
+    le importa al usuario.
+    """
+    try:
+        persist_notifications(db, analysis)
+    except Exception:  # noqa: BLE001
+        db.rollback()

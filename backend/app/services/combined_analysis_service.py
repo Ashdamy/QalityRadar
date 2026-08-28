@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.database import SessionLocal
+from app.services.notification_service import persist_notifications
 from app.services.rate_limit_service import release
 from app.models.analysis import Analysis, Finding
 from app.utils.safe_http import fetch_public_page
@@ -181,6 +182,8 @@ def run_combined_analysis(analysis_id: str) -> None:
         repository.last_analyzed_at = analysis.completed_at
         app_row.last_analyzed_at = analysis.completed_at
         db.commit()
+
+        _avisar_de_cambios(db, analysis)
     except Exception as exc:  # noqa: BLE001
         # Sin esto un fallo inesperado deja el analisis en "scoring" para
         # siempre y el cliente lo sondea hasta agotar los reintentos. Se marca
@@ -249,3 +252,15 @@ def _liberar_hueco(db, analysis_id: str) -> None:
     except Exception:  # noqa: BLE001
         # Nunca debe tapar el resultado real del analisis.
         pass
+
+
+def _avisar_de_cambios(db, analysis) -> None:
+    """Deja avisos si el proyecto ha empeorado respecto al analisis anterior.
+
+    Nunca debe tumbar el analisis: el resultado ya esta guardado y es lo que
+    le importa al usuario.
+    """
+    try:
+        persist_notifications(db, analysis)
+    except Exception:  # noqa: BLE001
+        db.rollback()

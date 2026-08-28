@@ -24,6 +24,7 @@ from app.analyzers.repository.security_basics import SecurityBasicsAnalyzer
 from app.analyzers.repository.structure import StructureAnalyzer
 from app.analyzers.repository.tests_analyzer import TestsAnalyzer
 from app.core.database import SessionLocal
+from app.services.notification_service import persist_notifications
 from app.services.rate_limit_service import release
 from app.models.analysis import Analysis, Dimension, Finding
 from app.models.repository import Repository
@@ -157,6 +158,8 @@ def run_repository_analysis(analysis_id: str) -> None:
                 compare_analyses(db, previous, analysis)
             except Exception:  # noqa: BLE001
                 db.rollback()
+
+        _avisar_de_cambios(db, analysis)
     finally:
         # Se libera el hueco de analisis simultaneos pase lo que pase: si no,
         # un fallo dejaria la cuenta bloqueada hasta que caducara el TTL.
@@ -200,3 +203,15 @@ def _liberar_hueco(db, analysis_id: str) -> None:
     except Exception:  # noqa: BLE001
         # Nunca debe tapar el resultado real del analisis.
         pass
+
+
+def _avisar_de_cambios(db, analysis) -> None:
+    """Deja avisos si el proyecto ha empeorado respecto al analisis anterior.
+
+    Nunca debe tumbar el analisis: el resultado ya esta guardado y es lo que
+    le importa al usuario.
+    """
+    try:
+        persist_notifications(db, analysis)
+    except Exception:  # noqa: BLE001
+        db.rollback()
