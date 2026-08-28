@@ -207,7 +207,13 @@ export default function AnalyzeCombinedPage() {
 
         {analysis && (
           <div className="mt-4">
-            <AnalysisPanel analysis={analysis} onClose={() => setAnalysis(null)} />
+            <AnalysisPanel
+              analysis={analysis}
+              onClose={() => setAnalysis(null)}
+              // CombinedPanel ya muestra las notas y el plan; aqui se
+              // repetirian.
+              embedded={analysis.combined !== null}
+            />
           </div>
         )}
 

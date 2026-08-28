@@ -56,7 +56,21 @@ function severityColor(severity: AnalysisFinding["severity"]): string {
   return "border-border text-faint";
 }
 
-export function AnalysisPanel({ analysis, onClose }: { analysis: Analysis; onClose: () => void }) {
+/**
+ * `embedded` lo usa el modo combinado, donde CombinedPanel ya presenta la
+ * puntuacion (las tres notas) y los hallazgos (como plan priorizado). Aqui
+ * solo quedaria repetirlos, asi que se omiten y este panel aporta lo que el
+ * otro no tiene: el radar, el detalle por dimension y el resumen.
+ */
+export function AnalysisPanel({
+  analysis,
+  onClose,
+  embedded = false,
+}: {
+  analysis: Analysis;
+  onClose: () => void;
+  embedded?: boolean;
+}) {
   const running = !["completed", "failed", "timeout"].includes(analysis.status);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
@@ -131,6 +145,7 @@ export function AnalysisPanel({ analysis, onClose }: { analysis: Analysis; onClo
 
       {analysis.status === "completed" && (
         <>
+          {!embedded && (
           <div className="mt-6 flex flex-wrap items-end gap-8">
             <div>
               <div className="text-[12px] uppercase tracking-wide text-faint">Puntuación</div>
@@ -144,6 +159,7 @@ export function AnalysisPanel({ analysis, onClose }: { analysis: Analysis; onClo
               <div className="font-mono text-[20px]">{analysis.confidence_level?.toFixed(0)}%</div>
             </div>
           </div>
+          )}
 
           <p className="mt-4 rounded-[6px] border border-border bg-bg px-3 py-2 text-[12.5px] text-faint">
             Puntuación sobre {analysis.dimensions.length} dimensiones del modelo ISO/IEC 25010. Es una
@@ -193,6 +209,7 @@ export function AnalysisPanel({ analysis, onClose }: { analysis: Analysis; onClo
             </div>
           </div>
 
+          {!embedded && (
           <div className="mt-7">
             <h3 className="text-[13px] font-semibold text-muted">
               Hallazgos ({analysis.findings.length})
@@ -228,6 +245,7 @@ export function AnalysisPanel({ analysis, onClose }: { analysis: Analysis; onClo
               </ul>
             )}
           </div>
+          )}
         </>
       )}
     </section>
