@@ -276,3 +276,57 @@ def test_summary_falls_back_to_template_when_the_model_fails(monkeypatch):
     )
     assert origen == "plantilla"
     assert texto.strip()
+
+
+def test_the_model_summary_is_used_when_the_api_answers(monkeypatch):
+    """Con clave configurada y respuesta valida, se usa el texto del modelo."""
+    import app.services.summary_service as modulo
+
+    monkeypatch.setattr(
+        modulo,
+        "_try_model",
+        lambda **kwargs: "Un resumen redactado por el modelo con longitud suficiente para pasar el umbral.",
+    )
+    texto, origen = build_summary(
+        repository_name="a/b", previous_score=60, current_score=68, days_between=5,
+        improvements=[], regressions=[], api_key="clave-valida",
+    )
+    assert origen == "modelo"
+    assert "redactado por el modelo" in texto
+
+
+def test_a_too_short_model_answer_falls_back_to_the_template(monkeypatch):
+    """Una respuesta de dos palabras no es un resumen: mejor la plantilla."""
+    import app.services.summary_service as modulo
+    import httpx
+
+    def _respuesta_corta(method_or_url, *args, **kwargs):
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": "Vale."}}]},
+            request=httpx.Request("POST", modulo.HF_URL),
+        )
+
+    monkeypatch.setattr(modulo.httpx, "post", _respuesta_corta)
+    texto, origen = build_summary(
+        repository_name="a/b", previous_score=60, current_score=68, days_between=5,
+        improvements=[], regressions=[], api_key="clave-valida",
+    )
+    assert origen == "plantilla"
+    assert len(texto) > 40
+
+
+def test_an_http_error_from_the_model_falls_back_to_the_template(monkeypatch):
+    import app.services.summary_service as modulo
+    import httpx
+
+    def _explota(*args, **kwargs):
+        raise httpx.ConnectError("sin conexion")
+
+    monkeypatch.setattr(modulo.httpx, "post", _explota)
+    texto, origen = build_summary(
+        repository_name="a/b", previous_score=70, current_score=70, days_between=1,
+        improvements=[], regressions=[], api_key="clave-valida",
+    )
+    assert origen == "plantilla"
+    assert texto.strip()
