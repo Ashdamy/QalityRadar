@@ -7,16 +7,24 @@
 
 ## ¿En qué etapa va el proyecto?
 
-**Fase actual: Semana 1 — Setup + Autenticación (backend), en ejecución.**
+**Fase actual: los tres modos de análisis funcionan de punta a punta. Queda la Semana 5 (compartir, límites de uso y despliegue).**
 
 | Etapa | Estado |
 |---|---|
 | Fase 0 — Arquitectura y diseño | ✅ Completada |
 | Diseño visual (mockup de pantallas Semana 1) | ✅ Aprobado |
-| Semana 1 — Setup + Auth (backend) | ✅ 9/9 tareas implementadas, 27/27 tests |
+| Semana 1 — Setup + Auth (backend) | ✅ 9/9 tareas implementadas |
 | Semana 1 — Frontend (3 pantallas reales) | ✅ Implementado y funcionando |
-| Semana 2A — Motor de análisis (sandbox + primer resultado) | ✅ Completada — primer análisis real funcionando |
-| Semanas 2B-5 | ⏸️ No iniciadas |
+| Semana 2A — Motor de análisis (sandbox + primer resultado) | ✅ Completada |
+| Semana 2B — Las seis dimensiones ISO 25010 | ✅ Completada |
+| Histórico, comparación y resumen ejecutivo | ✅ Completado |
+| Exportación del informe a PDF | ✅ Completada |
+| Modo 2 — Análisis de aplicaciones desplegadas (URL) | ✅ Completado |
+| Resúmenes con IA (Hugging Face) | ✅ Activados en los tres modos |
+| Modo 3 — Código frente a producción (combinado) | ✅ Completado |
+| Semana 5 — Compartir, límites de uso y despliegue | ⏸️ No iniciada |
+
+**235 pruebas en verde** en el backend; el frontend compila y pasa lint.
 
 ---
 
@@ -164,13 +172,51 @@ Prueba real sobre `axios/axios`: 466 archivos analizados, 126 tests frente a 91 
 
 ---
 
+### 12. Semana 2B y la exigencia de la puntuación
+
+Se completaron las seis dimensiones (dependencias, CI/CD, seguridad con Gitleaks y Semgrep, actividad del proyecto).
+
+Aquí llegó una crítica tuya que cambió el motor de raíz: *"por más malo que sea el repositorio siempre da una calificación muy alta"*. Tenías razón, y el fallo era conceptual: la puntuación **premiaba la ausencia de evidencia**. Un repositorio vacío no tenía problemas detectados, así que puntuaba alto.
+
+El modelo se invirtió: **los puntos se ganan, no se regalan**. Cada dimensión parte de 0 y sube solo con evidencia real. El mismo error apareció dos veces más en rúbricas nuevas (un diccionario vacío puntuaba 12 y 18); ahora hay guardas que lo impiden.
+
+También se añadieron topes por gravedad: un hallazgo crítico limita la nota a 40, uno alto a 70. Y a petición tuya se profundizó en las sub-características de la ISO 25010 para medir más aspectos dentro de cada dimensión, en lugar de calificar siempre sobre las mismas señales.
+
+### 13. Histórico, comparación, PDF y resúmenes con IA
+
+- **Histórico y comparación** entre dos análisis, con evolución por dimensión.
+- **Informe en PDF** (ReportLab, Python puro).
+- **Resúmenes con IA** vía Hugging Face. El dominio `api-inference` fue retirado, así que se migró al router (`router.huggingface.co`) con Llama 3.1 8B. Hay plantilla de respaldo: si la IA no responde, el resumen se genera igual y se marca su origen.
+
+### 14. Modo 2 — Aplicaciones desplegadas
+
+Análisis de una URL pública en cinco dimensiones (rendimiento, seguridad, usabilidad, accesibilidad, compatibilidad), con **84 señales** en total tras ampliarlo a petición tuya.
+
+Defensa contra SSRF: se resuelve el DNS y se valida la IP **en cada salto de redirección**, no solo en la dirección inicial.
+
+### 15. Modo 3 — Código frente a producción
+
+Analiza el repositorio y su despliegue y explica **por qué no puntúan igual**, que es lo que de verdad aporta información:
+
+- *Código malo, producción buena:* la plataforma regala HTTPS, compresión y cabeceras. Esa ventaja no es tuya y desaparece si migras de proveedor.
+- *Código bueno, producción mala:* el esfuerzo no le está llegando a quien usa la aplicación.
+
+Cada mitad se ejecuta como un análisis propio y completo, así que entra en el histórico y se puede abrir por separado.
+
+**Comprobación de correspondencia:** es fácil pegar la URL de otra aplicación, y entonces la comparación no significa nada. El sistema **avisa, nunca bloquea** — un dominio propio, un monorepo o un proyecto renombrado son casos legítimos donde los nombres no coinciden. La página de error de la plataforma advierte por sí sola (es un hecho comprobable: ahí no hay despliegue); las señales heurísticas solo advierten cuando coinciden las dos.
+
+Dos fallos que salieron al escribir las pruebas:
+
+- `consolidate_score` decía ponderar por evidencia pero era una media simple: los pesos de cada modo están normalizados a 1.0 por separado, así que sumarlos no distingue un modo de otro.
+- La comprobación de correspondencia volvía a clonar el repositorio solo para saber si genera una web; esa información ya estaba en las métricas del analizador de estructura.
+
+---
+
 ## Lo que sigue
 
-1. **Semana 2B:** los 4 analizadores restantes (dependencias, CI/CD, seguridad con Gitleaks/Semgrep, actividad) para completar las 6 dimensiones.
-2. Conectar el botón "Analizar" del frontend con el nuevo endpoint y mostrar los resultados.
-2. Prueba end-to-end real del flujo de GitHub con las credenciales OAuth ya configuradas.
-3. Implementar el frontend real de la Semana 1, usando el prototipo aprobado como referencia exacta de estilos.
-4. Semana 2: sandbox de análisis + los 7 analizadores de repositorio.
+1. **Semana 5:** enlaces para compartir un informe, límites de uso (rate limiting) y despliegue.
+2. **Cerrar la deuda de seguridad** de la sección anterior antes de exponer el servicio: el parámetro `state` del OAuth es el bloqueante real.
+3. Para el despliegue, la recomendación es **Vercel para el frontend y Oracle Cloud Always Free para el backend**: Render y Railway no dan acceso al demonio de Docker, que el sandbox necesita.
 
 ---
 
