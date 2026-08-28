@@ -12,6 +12,7 @@ from sqlalchemy import select
 
 from app.core.config import get_settings
 from app.core.database import SessionLocal
+from app.services.rate_limit_service import release
 from app.models.analysis import Analysis, Finding
 from app.utils.safe_http import fetch_public_page
 from app.models.deployed_app import DeployedApp
@@ -190,6 +191,9 @@ def run_combined_analysis(analysis_id: str) -> None:
             _fallar(db, analisis, f"error inesperado: {exc}")
         raise
     finally:
+        # Se libera el hueco de analisis simultaneos pase lo que pase: si no,
+        # un fallo dejaria la cuenta bloqueada hasta que caducara el TTL.
+        _liberar_hueco(db, analysis_id)
         db.close()
 
 
@@ -234,3 +238,14 @@ def _comprobar_correspondencia(repository_full_name: str, url: str, repo_raw_dat
         html=fetched.text,
         structure_metrics=(repo_raw_data or {}).get("structure"),
     )
+
+
+def _liberar_hueco(db, analysis_id: str) -> None:
+    """Devuelve el hueco de simultaneos al terminar (bien o mal)."""
+    try:
+        fila = db.get(Analysis, uuid.UUID(analysis_id))
+        if fila is not None:
+            release(fila.user_id, analysis_id)
+    except Exception:  # noqa: BLE001
+        # Nunca debe tapar el resultado real del analisis.
+        pass

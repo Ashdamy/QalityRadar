@@ -11,6 +11,7 @@ from app.models.repository import Repository
 from app.models.user import User
 from app.schemas.repository import RepositoryOut
 from app.services import github_service
+from app.services.rate_limit_service import RateLimitExceeded, check_and_reserve
 from app.tasks import queue_repository_analysis
 from app.utils.crypto import decrypt_token
 
@@ -107,8 +108,11 @@ def analyze_repository(
             detail="solo se analizan repositorios publicos",
         )
 
+    analysis_id = uuid.uuid4()
+    reservar_o_429(current_user.id, analysis_id)
+
     analysis = Analysis(
-        id=uuid.uuid4(),
+        id=analysis_id,
         user_id=current_user.id,
         repository_id=repository.id,
         analysis_type="repository",
@@ -119,3 +123,19 @@ def analyze_repository(
 
     queue_repository_analysis(str(analysis.id))
     return {"analysis_id": str(analysis.id)}
+
+
+def reservar_o_429(user_id, analysis_id) -> None:
+    """Comprueba los limites de uso antes de crear y encolar nada.
+
+    Va aqui y no en el worker porque un 202 para algo que despues se descarta
+    en silencio seria mentir al cliente.
+    """
+    try:
+        check_and_reserve(user_id, str(analysis_id))
+    except RateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=exc.message,
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc

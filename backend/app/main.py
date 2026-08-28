@@ -6,6 +6,7 @@ from app.api.apps import router as apps_router
 from app.api.auth import router as auth_router
 from app.api.history import router as history_router
 from app.api.repositories import router as repositories_router
+from app.api.share import router as share_router
 from app.core.config import get_settings
 
 app = FastAPI(title="QalitiRadar API")
@@ -26,6 +27,7 @@ app.include_router(repositories_router)
 app.include_router(analyses_router)
 app.include_router(history_router)
 app.include_router(apps_router)
+app.include_router(share_router)
 
 
 @app.get("/health")

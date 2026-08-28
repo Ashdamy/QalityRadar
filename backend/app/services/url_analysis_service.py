@@ -24,6 +24,7 @@ from app.analyzers.url.page_quality import (
 from app.analyzers.url.security_headers import SecurityHeadersAnalyzer
 from app.core.config import get_settings
 from app.core.database import SessionLocal
+from app.services.rate_limit_service import release
 from app.models.analysis import Analysis, Dimension, Finding
 from app.models.deployed_app import DeployedApp
 from app.services.scoring_service import (
@@ -135,6 +136,9 @@ def run_url_analysis(analysis_id: str) -> None:
         app_row.last_analyzed_at = analysis.completed_at
         db.commit()
     finally:
+        # Se libera el hueco de analisis simultaneos pase lo que pase: si no,
+        # un fallo dejaria la cuenta bloqueada hasta que caducara el TTL.
+        _liberar_hueco(db, analysis_id)
         db.close()
 
 
@@ -143,3 +147,14 @@ def _mark_failed(db: Session, analysis: Analysis, message: str) -> None:
     analysis.error_message = message[:300]
     analysis.completed_at = datetime.now(timezone.utc)
     db.commit()
+
+
+def _liberar_hueco(db, analysis_id: str) -> None:
+    """Devuelve el hueco de simultaneos al terminar (bien o mal)."""
+    try:
+        fila = db.get(Analysis, uuid.UUID(analysis_id))
+        if fila is not None:
+            release(fila.user_id, analysis_id)
+    except Exception:  # noqa: BLE001
+        # Nunca debe tapar el resultado real del analisis.
+        pass

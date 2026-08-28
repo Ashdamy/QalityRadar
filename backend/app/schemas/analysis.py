@@ -58,6 +58,8 @@ class AnalysisOut(BaseModel):
     summary_text: str | None = None
     summary_source: str | None = None
     analysis_type: str = "repository"
+    # Ausente en los analisis de URL, que no parten de un repositorio.
+    repository_full_name: str | None = None
     dimensions: list[DimensionOut] = []
     findings: list[FindingOut] = []
     # Solo se rellena cuando analysis_type == "combined".
@@ -105,3 +107,8 @@ class ComparisonOut(BaseModel):
     summary_source: str | None = None
     improvements: list[ChangeOut] = []
     regressions: list[ChangeOut] = []
+
+
+class ShareLinkOut(BaseModel):
+    token: str
+    expires_at: str

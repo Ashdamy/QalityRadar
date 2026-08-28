@@ -24,6 +24,7 @@ from app.analyzers.repository.security_basics import SecurityBasicsAnalyzer
 from app.analyzers.repository.structure import StructureAnalyzer
 from app.analyzers.repository.tests_analyzer import TestsAnalyzer
 from app.core.database import SessionLocal
+from app.services.rate_limit_service import release
 from app.models.analysis import Analysis, Dimension, Finding
 from app.models.repository import Repository
 from app.core.config import get_settings
@@ -157,6 +158,9 @@ def run_repository_analysis(analysis_id: str) -> None:
             except Exception:  # noqa: BLE001
                 db.rollback()
     finally:
+        # Se libera el hueco de analisis simultaneos pase lo que pase: si no,
+        # un fallo dejaria la cuenta bloqueada hasta que caducara el TTL.
+        _liberar_hueco(db, analysis_id)
         db.close()
 
 
@@ -185,3 +189,14 @@ def _safe_error_message(exc: Exception) -> str:
     if "/tmp/" in text or "\\Temp\\" in text or "qaliti-clone-" in text:
         return "el analisis fallo al preparar el repositorio"
     return text[:300] or "el analisis fallo por un error inesperado"
+
+
+def _liberar_hueco(db, analysis_id: str) -> None:
+    """Devuelve el hueco de simultaneos al terminar (bien o mal)."""
+    try:
+        fila = db.get(Analysis, uuid.UUID(analysis_id))
+        if fila is not None:
+            release(fila.user_id, analysis_id)
+    except Exception:  # noqa: BLE001
+        # Nunca debe tapar el resultado real del analisis.
+        pass

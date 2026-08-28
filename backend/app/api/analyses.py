@@ -37,8 +37,15 @@ def get_analysis(
     if analysis is None or analysis.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="analisis no encontrado")
 
+    return serialize_analysis(db, analysis)
+
+
+def serialize_analysis(db: Session, analysis: Analysis) -> AnalysisOut:
     dimensions = db.scalars(select(Dimension).where(Dimension.analysis_id == analysis.id)).all()
     findings = db.scalars(select(Finding).where(Finding.analysis_id == analysis.id)).all()
+    repository = (
+        db.get(Repository, analysis.repository_id) if analysis.repository_id else None
+    )
 
     return AnalysisOut(
         id=str(analysis.id),
@@ -53,6 +60,7 @@ def get_analysis(
         summary_text=analysis.summary_text,
         summary_source=analysis.summary_source,
         analysis_type=analysis.analysis_type,
+        repository_full_name=repository.full_name if repository else None,
         combined=_combined_block(db, analysis),
         dimensions=[
             DimensionOut(name=d.name, score=float(d.score), weight=float(d.weight))

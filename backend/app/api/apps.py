@@ -11,6 +11,7 @@ from app.models.analysis import Analysis
 from app.models.deployed_app import DeployedApp
 from app.models.user import User
 from app.models.repository import Repository
+from app.services.rate_limit_service import RateLimitExceeded, check_and_reserve
 from app.tasks import queue_combined_analysis, queue_url_analysis
 from app.utils.url_validation import UnsafeUrlError, validate_public_url
 
@@ -42,6 +43,9 @@ def analyze_url(
     except UnsafeUrlError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
+    analysis_id = uuid.uuid4()
+    reservar_o_429(current_user.id, analysis_id)
+
     app_row = DeployedApp(
         id=uuid.uuid4(),
         user_id=current_user.id,
@@ -52,7 +56,7 @@ def analyze_url(
     db.flush()
 
     analysis = Analysis(
-        id=uuid.uuid4(),
+        id=analysis_id,
         user_id=current_user.id,
         app_id=app_row.id,
         analysis_type="url",
@@ -93,6 +97,9 @@ def analyze_combined(
     except UnsafeUrlError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
+    analysis_id = uuid.uuid4()
+    reservar_o_429(current_user.id, analysis_id)
+
     app_row = DeployedApp(
         id=uuid.uuid4(),
         user_id=current_user.id,
@@ -103,7 +110,7 @@ def analyze_combined(
     db.flush()
 
     analysis = Analysis(
-        id=uuid.uuid4(),
+        id=analysis_id,
         user_id=current_user.id,
         repository_id=repository.id,
         app_id=app_row.id,
@@ -115,3 +122,19 @@ def analyze_combined(
 
     queue_combined_analysis(str(analysis.id))
     return {"analysis_id": str(analysis.id)}
+
+
+def reservar_o_429(user_id, analysis_id) -> None:
+    """Comprueba los limites de uso antes de crear y encolar nada.
+
+    Va aqui y no en el worker porque un 202 para algo que despues se descarta
+    en silencio seria mentir al cliente.
+    """
+    try:
+        check_and_reserve(user_id, str(analysis_id))
+    except RateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=exc.message,
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
