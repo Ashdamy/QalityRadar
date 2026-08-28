@@ -15,7 +15,7 @@
 | Diseño visual (mockup de pantallas Semana 1) | ✅ Aprobado |
 | Semana 1 — Setup + Auth (backend) | ✅ 9/9 tareas implementadas, 27/27 tests |
 | Semana 1 — Frontend (3 pantallas reales) | ✅ Implementado y funcionando |
-| Semana 2A — Motor de análisis (sandbox + primer resultado) | 🔄 En curso |
+| Semana 2A — Motor de análisis (sandbox + primer resultado) | ✅ Completada — primer análisis real funcionando |
 | Semanas 2B-5 | ⏸️ No iniciadas |
 
 ---
@@ -146,9 +146,28 @@ Estas quedan documentadas en el código y **deben cerrarse antes de exponer el s
 
 ---
 
+### 11. Semana 2A — El motor de análisis funciona
+
+Ya se puede analizar un repositorio real de punta a punta. Piezas construidas:
+
+- **Sandbox aislado** — contenedor efímero sin red, sistema de archivos en solo lectura, sin capacidades del kernel, 512 MB y medio núcleo. El aislamiento está **verificado con pruebas reales contra Docker**, no solo declarado: un contenedor que intenta salir a internet falla, y uno que intenta escribir en el repositorio montado es rechazado.
+- **Clonado efímero** — clon superficial que se borra siempre, incluso cuando el análisis falla. Aquí apareció un bug real de Windows: `shutil.rmtree(ignore_errors=True)` fallaba en silencio porque git deja archivos en solo-lectura, dejando código ajeno en disco. Corregido.
+- **Tres analizadores estáticos** — estructura (lenguajes, forma del proyecto), documentación (README, licencia, arquitectura) y tests (detección y clasificación, sin ejecutarlos nunca).
+- **Motor de puntuación ISO 25010** — nota 0-100 por dimensión, ponderada según el estándar.
+- **Endpoints** `POST /api/repositories/{id}/analyze` y `GET /api/analyses/{id}`.
+
+Prueba real sobre `axios/axios`: 466 archivos analizados, 126 tests frente a 91 fuentes, puntuación 100/100 sin hallazgos — coherente con un proyecto ejemplarmente mantenido. Sobre `octocat/Hello-World` sí detecta hallazgos reales (sin licencia, sin tests).
+
+**Hueco cerrado:** el listado de repositorios consultaba GitHub pero no guardaba nada, así que no había contra qué lanzar un análisis. Ahora se persisten al listarlos.
+
+**Ojo con la puntuación:** hoy se calcula sobre 3 de las 6 dimensiones. Faltan seguridad, portabilidad y actividad (Semana 2B), así que todavía no es la nota definitiva.
+
+---
+
 ## Lo que sigue
 
-1. Revisión final de toda la rama antes de integrarla a `main`.
+1. **Semana 2B:** los 4 analizadores restantes (dependencias, CI/CD, seguridad con Gitleaks/Semgrep, actividad) para completar las 6 dimensiones.
+2. Conectar el botón "Analizar" del frontend con el nuevo endpoint y mostrar los resultados.
 2. Prueba end-to-end real del flujo de GitHub con las credenciales OAuth ya configuradas.
 3. Implementar el frontend real de la Semana 1, usando el prototipo aprobado como referencia exacta de estilos.
 4. Semana 2: sandbox de análisis + los 7 analizadores de repositorio.
