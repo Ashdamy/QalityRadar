@@ -29,6 +29,135 @@ REPOSITORY_WEIGHTS: dict[str, float] = {
     "project_activity": 0.15,
 }
 
+# Pesos de context/claude.md seccion 6, tabla "Para analisis de URL".
+URL_WEIGHTS: dict[str, float] = {
+    "performance": 0.25,
+    "security": 0.25,
+    "usability": 0.20,
+    "accessibility": 0.15,
+    "compatibility": 0.15,
+}
+
+
+def _score_url_security(m: dict) -> float:
+    """Seguridad de una app desplegada (ISO 25010: confidencialidad,
+    integridad). Sin HTTPS la nota se hunde: todo lo demas depende de que el
+    canal este cifrado."""
+    if not m.get("uses_https", False):
+        # Sin cifrado, ninguna cabecera compensa: el trafico va en claro.
+        return 5.0
+    return (
+        30.0  # usa HTTPS
+        + _award(m.get("has_hsts", False), 14)
+        + _award((m.get("hsts_max_age") or 0) >= 15768000, 4)
+        + _award(m.get("has_csp", False), 18)
+        + _award(m.get("has_csp", False) and not m.get("csp_allows_unsafe_inline", True), 8)
+        + _award(m.get("has_x_frame_options", False), 10)
+        + _award(m.get("has_x_content_type_options", False), 6)
+        + _award(m.get("has_referrer_policy", False), 4)
+        + _award(m.get("has_permissions_policy", False), 3)
+        + _award(not m.get("leaks_server_version", True) and not m.get("leaks_powered_by", True), 3)
+    )
+
+
+def _score_url_performance(m: dict) -> float:
+    """Eficiencia de desempeno (ISO 25010: comportamiento temporal).
+
+    Cobertura parcial declarada: mide el tiempo de respuesta del servidor, no
+    el renderizado. Lighthouse llega mas adelante.
+    """
+    if "response_seconds" not in m:
+        return 0.0
+    return (
+        _tiered(-m.get("response_seconds", 99), [(-2.0, 12), (-1.2, 24), (-0.6, 36), (-0.3, 45)])
+        + _award(m.get("uses_compression", False), 25)
+        + _award(m.get("has_cache_control", False), 15)
+        + _tiered(-m.get("html_bytes", 10**9), [(-500_000, 4), (-250_000, 8), (-100_000, 10)])
+        + _tiered(-m.get("redirect_count", 99), [(-3, 2), (-1, 5)])
+    )
+
+
+def _score_url_accessibility(m: dict) -> float:
+    """Accesibilidad (ISO 25010). Comprobaciones estaticas del HTML."""
+    if "image_count" not in m:
+        return 0.0
+    imagenes = m.get("image_count", 0)
+    entradas = m.get("form_inputs", 0)
+    sin_alt = m.get("images_without_alt", 0)
+    sin_label = m.get("inputs_without_label", 0)
+    return (
+        _award(m.get("declares_language", False), 20)
+        # Si no hay imagenes no se acredita ni se penaliza: no hay nada que juzgar.
+        + (25.0 if imagenes == 0 else _tiered(-(sin_alt / imagenes), [(-0.5, 8), (-0.2, 17), (-0.001, 25)]))
+        + (25.0 if entradas == 0 else _tiered(-(sin_label / entradas), [(-0.5, 8), (-0.2, 17), (-0.001, 25)]))
+        + _award(m.get("has_h1", False), 15)
+        + _award(m.get("uses_semantic_html", False), 15)
+    )
+
+
+def _score_url_compatibility(m: dict) -> float:
+    """Compatibilidad (ISO 25010): que funcione fuera del escritorio."""
+    if "has_viewport" not in m:
+        return 0.0
+    return (
+        _award(m.get("has_viewport", False), 55)
+        + _award(m.get("uses_semantic_html", False), 25)
+        + _award(m.get("has_title", False), 20)
+    )
+
+
+def _score_url_usability(m: dict) -> float:
+    """Usabilidad (ISO 25010: reconocibilidad, aprendizaje).
+
+    Sin navegador solo se puede juzgar si la pagina se presenta de forma
+    comprensible: titulo, descripcion, encabezado y estructura semantica.
+    """
+    if "has_title" not in m:
+        return 0.0
+    titulo_util = 10 <= m.get("title_length", 0) <= 70
+    return (
+        _award(m.get("has_title", False), 25)
+        + _award(titulo_util, 15)
+        + _award(m.get("has_meta_description", False), 20)
+        + _award(m.get("has_h1", False), 20)
+        + _award(m.get("uses_semantic_html", False), 20)
+    )
+
+
+URL_RUBRICS = {
+    "security": _score_url_security,
+    "performance": _score_url_performance,
+    "accessibility": _score_url_accessibility,
+    "compatibility": _score_url_compatibility,
+    "usability": _score_url_usability,
+}
+
+
+def score_url_dimension(dimension: str, metrics: dict) -> float:
+    rubrica = URL_RUBRICS.get(dimension)
+    if rubrica is None:
+        return 0.0
+    return round(max(0.0, min(100.0, rubrica(metrics))), 2)
+
+
+def calculate_url_overall_score(
+    dimension_scores: dict[str, float],
+    findings: list[FindingData] | None = None,
+) -> float:
+    present = {d: s for d, s in dimension_scores.items() if d in URL_WEIGHTS}
+    if not present:
+        return 0.0
+    total_weight = sum(URL_WEIGHTS[d] for d in present)
+    score = sum(URL_WEIGHTS[d] * s for d, s in present.items()) / total_weight
+
+    severities = {f.severity for f in (findings or [])}
+    if "critical" in severities:
+        score = min(score, CRITICAL_FINDING_SCORE_CAP)
+    elif "high" in severities:
+        score = min(score, HIGH_FINDING_SCORE_CAP)
+    return round(score, 2)
+
+
 # Techos que impone la presencia de hallazgos graves. Sin esto, un proyecto
 # con un secreto expuesto podria seguir sacando notable por lo demas.
 CRITICAL_FINDING_SCORE_CAP = 40.0

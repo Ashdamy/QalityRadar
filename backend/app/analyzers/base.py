@@ -17,6 +17,8 @@ class FindingData:
     title: str
     description: str
     file_path: str | None = None
+    # Los analizadores de URL ubican el hallazgo por direccion, no por archivo.
+    url: str | None = None
     recommendation: str | None = None
 
 
