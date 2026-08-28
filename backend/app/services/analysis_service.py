@@ -26,7 +26,9 @@ from app.analyzers.repository.tests_analyzer import TestsAnalyzer
 from app.core.database import SessionLocal
 from app.models.analysis import Analysis, Dimension, Finding
 from app.models.repository import Repository
+from app.core.config import get_settings
 from app.services.comparison_service import compare_analyses, find_previous_analysis
+from app.services.summary_service import build_analysis_summary
 from app.services.repo_service import clone_repository, read_head_commit
 from app.services.scoring_service import (
     REPOSITORY_WEIGHTS,
@@ -128,6 +130,19 @@ def run_repository_analysis(analysis_id: str) -> None:
         analysis.raw_data = {dim: metrics for dim, (metrics, _) in merged.items()}
         analysis.status = "completed"
         analysis.completed_at = datetime.now(timezone.utc)
+
+        # Resumen en prosa del analisis. Se genera aqui, no al consultarlo,
+        # porque depende de datos que ya no cambian y asi la primera vista no
+        # espera por el modelo. Un fallo cae a la plantilla, nunca deja el
+        # analisis sin resumen.
+        analysis.summary_text, analysis.summary_source = build_analysis_summary(
+            target_name=repository.full_name,
+            is_url=False,
+            overall_score=float(analysis.overall_score or 0),
+            dimensions=[(dim, score) for dim, score in dimension_scores.items()],
+            findings=[(f.severity, f.title) for f in all_findings],
+            api_key=get_settings().huggingface_api_key or None,
+        )
 
         repository.last_analyzed_at = analysis.completed_at
         db.commit()

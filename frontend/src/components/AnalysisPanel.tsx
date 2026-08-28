@@ -150,6 +150,20 @@ export function AnalysisPanel({ analysis, onClose }: { analysis: Analysis; onClo
             aproximación al estándar, no una certificación oficial.
           </p>
 
+          {analysis.summary_text && (
+            <div className="mt-5 rounded-[8px] border border-border bg-bg p-5">
+              <div className="mb-2 flex items-center gap-2">
+                <h3 className="text-[13px] font-semibold">Resumen ejecutivo</h3>
+                <span className="rounded-[4px] border border-border px-2 py-[1px] text-[11px] text-faint">
+                  {analysis.summary_source === "modelo"
+                    ? "generado con IA"
+                    : "generado automáticamente"}
+                </span>
+              </div>
+              <p className="text-[13.5px] leading-relaxed text-muted">{analysis.summary_text}</p>
+            </div>
+          )}
+
           <div className="mt-6">
             <h3 className="text-[13px] font-semibold text-muted">Dimensiones</h3>
             <div className="mt-3 flex flex-wrap items-center gap-8">

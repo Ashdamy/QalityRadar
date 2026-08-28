@@ -64,6 +64,10 @@ class Analysis(Base):
     commit_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     branch: Mapped[str | None] = mapped_column(String(255), nullable=True)
     raw_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Resumen en prosa de este analisis. 'summary_source' distingue si lo
+    # escribio el modelo o la plantilla de respaldo.
+    summary_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    summary_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

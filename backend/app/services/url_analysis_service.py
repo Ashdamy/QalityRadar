@@ -22,6 +22,7 @@ from app.analyzers.url.page_quality import (
     UsabilityAnalyzer,
 )
 from app.analyzers.url.security_headers import SecurityHeadersAnalyzer
+from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models.analysis import Analysis, Dimension, Finding
 from app.models.deployed_app import DeployedApp
@@ -31,6 +32,7 @@ from app.services.scoring_service import (
     calculate_url_overall_score,
     score_url_dimension,
 )
+from app.services.summary_service import build_analysis_summary
 from app.utils.safe_http import fetch_public_page
 from app.utils.url_validation import UnsafeUrlError
 
@@ -120,6 +122,14 @@ def run_url_analysis(analysis_id: str) -> None:
         analysis.overall_score = calculate_url_overall_score(dimension_scores, todos_los_hallazgos)
         analysis.confidence_level = calculate_confidence(results)
         analysis.raw_data = metricas_por_dimension
+        analysis.summary_text, analysis.summary_source = build_analysis_summary(
+            target_name=app_row.url,
+            is_url=True,
+            overall_score=float(analysis.overall_score or 0),
+            dimensions=[(dim, score) for dim, score in dimension_scores.items()],
+            findings=[(f.severity, f.title) for f in todos_los_hallazgos],
+            api_key=get_settings().huggingface_api_key or None,
+        )
         analysis.status = "completed"
         analysis.completed_at = datetime.now(timezone.utc)
         app_row.last_analyzed_at = analysis.completed_at

@@ -165,6 +165,11 @@ def build_analysis_report(
             )
         )
 
+    # -- Resumen ejecutivo ---------------------------------------------------
+    if getattr(analysis, "summary_text", None):
+        story.append(Paragraph("Resumen ejecutivo", estilo_h2))
+        story.append(Paragraph(_escape(analysis.summary_text), estilo_cuerpo))
+
     # -- Dimensiones ---------------------------------------------------------
     story.append(Paragraph("Dimensiones ISO/IEC 25010", estilo_h2))
 

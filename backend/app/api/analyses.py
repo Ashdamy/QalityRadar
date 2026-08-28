@@ -43,6 +43,8 @@ def get_analysis(
         commit_hash=analysis.commit_hash,
         commit_message=analysis.commit_message,
         error_message=analysis.error_message,
+        summary_text=analysis.summary_text,
+        summary_source=analysis.summary_source,
         dimensions=[
             DimensionOut(name=d.name, score=float(d.score), weight=float(d.weight))
             for d in dimensions

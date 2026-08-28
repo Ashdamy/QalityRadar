@@ -132,6 +132,8 @@ export interface Analysis {
   commit_hash: string | null;
   commit_message: string | null;
   error_message: string | null;
+  summary_text: string | null;
+  summary_source: string | null;
   dimensions: AnalysisDimension[];
   findings: AnalysisFinding[];
 }

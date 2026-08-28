@@ -26,6 +26,8 @@ class AnalysisOut(BaseModel):
     commit_hash: str | None = None
     commit_message: str | None = None
     error_message: str | None = None
+    summary_text: str | None = None
+    summary_source: str | None = None
     dimensions: list[DimensionOut] = []
     findings: list[FindingOut] = []
 

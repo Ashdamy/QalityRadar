@@ -160,3 +160,166 @@ def _try_model(
         return None
 
     return texto if len(texto) >= MIN_USEFUL_SUMMARY_CHARS else None
+
+
+# --- Resumen de un analisis individual --------------------------------------
+
+DIMENSION_LABELS = {
+    "functional_suitability": "adecuacion funcional",
+    "reliability": "fiabilidad",
+    "security": "seguridad",
+    "maintainability": "mantenibilidad",
+    "portability": "portabilidad",
+    "project_activity": "actividad del proyecto",
+    "performance": "rendimiento",
+    "usability": "usabilidad",
+    "accessibility": "accesibilidad",
+    "compatibility": "compatibilidad",
+}
+
+SEVERITY_LABELS = {
+    "critical": "criticos",
+    "high": "altos",
+    "medium": "medios",
+    "low": "bajos",
+    "info": "informativos",
+}
+
+
+def build_analysis_summary(
+    *,
+    target_name: str,
+    is_url: bool,
+    overall_score: float,
+    dimensions: list[tuple[str, float]],
+    findings: list[tuple[str, str]],
+    api_key: str | None = None,
+) -> tuple[str, str]:
+    """Resumen en prosa de un analisis suelto.
+
+    `dimensions` son pares (nombre, puntuacion) y `findings` pares
+    (gravedad, titulo). Devuelve (texto, origen).
+    """
+    if api_key:
+        texto = _try_analysis_model(
+            target_name=target_name,
+            is_url=is_url,
+            overall_score=overall_score,
+            dimensions=dimensions,
+            findings=findings,
+            api_key=api_key,
+        )
+        if texto:
+            return texto, "modelo"
+
+    return (
+        _analysis_template(
+            is_url=is_url,
+            overall_score=overall_score,
+            dimensions=dimensions,
+            findings=findings,
+        ),
+        "plantilla",
+    )
+
+
+def _analysis_template(
+    *,
+    is_url: bool,
+    overall_score: float,
+    dimensions: list[tuple[str, float]],
+    findings: list[tuple[str, str]],
+) -> str:
+    sujeto = "La aplicacion" if is_url else "El proyecto"
+    if overall_score >= 80:
+        valoracion = "esta en buen estado"
+    elif overall_score >= 50:
+        valoracion = "tiene margen de mejora"
+    else:
+        valoracion = "presenta carencias importantes"
+
+    partes = [f"{sujeto} obtiene {overall_score:g} sobre 100 y {valoracion}."]
+
+    ordenadas = sorted(dimensions, key=lambda par: par[1])
+    if ordenadas:
+        peor, peor_nota = ordenadas[0]
+        mejor, mejor_nota = ordenadas[-1]
+        partes.append(
+            f"Lo mas solido es la {DIMENSION_LABELS.get(mejor, mejor)} ({mejor_nota:g}/100); "
+            f"lo mas debil, la {DIMENSION_LABELS.get(peor, peor)} ({peor_nota:g}/100)."
+        )
+
+    graves = [t for s, t in findings if s in ("critical", "high")]
+    if graves:
+        partes.append(
+            f"Hay {len(graves)} hallazgo(s) de gravedad alta o critica. "
+            f"El primero a resolver: {graves[0].rstrip('.')}."
+        )
+    elif findings:
+        partes.append(
+            f"No hay hallazgos graves; los {len(findings)} detectados son de gravedad media o menor."
+        )
+    else:
+        partes.append("No se detecto ningun problema en las dimensiones analizadas.")
+
+    return " ".join(partes)
+
+
+def _try_analysis_model(
+    *,
+    target_name: str,
+    is_url: bool,
+    overall_score: float,
+    dimensions: list[tuple[str, float]],
+    findings: list[tuple[str, str]],
+    api_key: str,
+) -> str | None:
+    lineas_dim = "\n".join(
+        f"- {DIMENSION_LABELS.get(n, n)}: {v:g}/100"
+        for n, v in sorted(dimensions, key=lambda par: -par[1])
+    ) or "- ninguna"
+    lineas_hall = "\n".join(
+        f"- [{SEVERITY_LABELS.get(s, s)}] {t}" for s, t in findings[:10]
+    ) or "- ninguno"
+
+    tipo = "una aplicacion web desplegada" if is_url else "un repositorio de codigo"
+    prompt = (
+        f"Objetivo analizado: {target_name} ({tipo})\n"
+        f"Puntuacion global: {overall_score:g}/100\n\n"
+        f"Puntuacion por dimension:\n{lineas_dim}\n\n"
+        f"Hallazgos detectados:\n{lineas_hall}\n\n"
+        "Redacta el resumen ejecutivo."
+    )
+
+    try:
+        respuesta = httpx.post(
+            HF_URL,
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={
+                "model": HF_MODEL,
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": (
+                            "Eres un consultor tecnico. Escribes en espanol un resumen ejecutivo "
+                            "de maximo cuatro frases sobre la calidad de un software analizado. "
+                            "Explicas que significa la puntuacion, senalas la dimension mas fuerte "
+                            "y la mas debil, y terminas con la accion mas prioritaria. Tono "
+                            "profesional pero accesible. No inventas ningun dato que no aparezca "
+                            "en la informacion facilitada, y no afirmas que sea una certificacion. "
+                            "Respondes solo con el resumen, sin encabezados ni vinetas."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                "max_tokens": 280,
+                "temperature": 0.3,
+            },
+            timeout=HF_TIMEOUT_SECONDS,
+        )
+        respuesta.raise_for_status()
+        texto = (respuesta.json()["choices"][0]["message"]["content"] or "").strip()
+    except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError):
+        return None
+
+    return texto if len(texto) >= MIN_USEFUL_SUMMARY_CHARS else None
