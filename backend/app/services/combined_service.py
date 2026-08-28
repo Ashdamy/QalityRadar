@@ -154,14 +154,31 @@ def persist_discrepancy(
     return fila
 
 
+# Los dos modos comparten el nombre "security", pero no miden lo mismo: en el
+# codigo son secretos y dependencias; en produccion, cabeceras y HTTPS. Al
+# juntarlos en un unico analisis hay que distinguirlos, y ademas la tabla lo
+# exige (indice unico sobre analysis_id + name).
+ORIGIN_SEPARATOR = ":"
+
+
+def prefixed(origin: str, name: str) -> str:
+    return f"{origin}{ORIGIN_SEPARATOR}{name}"
+
+
 def copy_results_into(
-    db: Session, target: Analysis, source: Analysis, weights: dict[str, float]
+    db: Session,
+    target: Analysis,
+    source: Analysis,
+    weights: dict[str, float],
+    origin: str,
 ) -> tuple[dict[str, float], list[Finding]]:
     """Duplica dimensiones y hallazgos de un sub-analisis en el combinado.
 
     Se copian en vez de referenciarse para que el analisis combinado sea
     autocontenido: al consultarlo, exportarlo a PDF o compararlo con otro no
     hay que reconstruirlo desde sus dos mitades.
+
+    `origin` ("codigo" o "produccion") se antepone al nombre de cada dimension.
     """
     from sqlalchemy import select
 
@@ -175,7 +192,7 @@ def copy_results_into(
             Dimension(
                 id=uuid.uuid4(),
                 analysis_id=target.id,
-                name=dimension.name,
+                name=prefixed(origin, dimension.name),
                 score=dimension.score,
                 weight=weights.get(dimension.name, dimension.weight),
                 raw_metrics=dimension.raw_metrics,

@@ -35,9 +35,41 @@ export const DIMENSION_LABELS: Record<string, string> = {
   compatibility: "Compatibilidad",
 };
 
+// En el modo combinado las dimensiones llegan como "origen:nombre", porque
+// código y producción miden ambos "security" y no son lo mismo.
+const ORIGIN_LABELS: Record<string, string> = {
+  codigo: "código",
+  produccion: "producción",
+};
+
+export function splitDimensionName(name: string): { origin: string | null; base: string } {
+  const corte = name.indexOf(":");
+  if (corte === -1) return { origin: null, base: name };
+  return { origin: name.slice(0, corte), base: name.slice(corte + 1) };
+}
+
+/** Traduce el nombre técnico, conservando el origen cuando lo lleva. */
+export function dimensionLabel(name: string, labels: Record<string, string>): string {
+  const { origin, base } = splitDimensionName(name);
+  const etiqueta = labels[base] ?? base;
+  if (!origin) return etiqueta;
+  return `${etiqueta} (${ORIGIN_LABELS[origin] ?? origin})`;
+}
+
 /** Elige el orden de ejes según las dimensiones que traiga el análisis. */
 export function axisOrderFor(names: string[]): string[] {
   const presentes = new Set(names);
+
+  // El combinado trae las once dimensiones con origen: se dibujan primero las
+  // del código y después las de producción, cada grupo en su orden habitual.
+  const conOrigen = names.filter((n) => splitDimensionName(n).origin !== null);
+  if (conOrigen.length > 0) {
+    return [
+      ...REPOSITORY_ORDER.map((n) => `codigo:${n}`),
+      ...URL_ORDER.map((n) => `produccion:${n}`),
+    ].filter((n) => presentes.has(n));
+  }
+
   const coincidenciasUrl = URL_ORDER.filter((n) => presentes.has(n)).length;
   const coincidenciasRepo = REPOSITORY_ORDER.filter((n) => presentes.has(n)).length;
   const orden = coincidenciasUrl > coincidenciasRepo ? URL_ORDER : REPOSITORY_ORDER;
@@ -165,7 +197,7 @@ export function RadarChart({
             fontSize={11}
             className="fill-muted"
           >
-            {DIMENSION_LABELS[name] ?? name}
+            {dimensionLabel(name, DIMENSION_LABELS)}
           </text>
         );
       })}

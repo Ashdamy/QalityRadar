@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ApiError, downloadAnalysisReport, type Analysis, type AnalysisFinding } from "@/lib/api";
 import { getToken } from "@/lib/auth";
-import { RadarChart } from "@/components/RadarChart";
+import { RadarChart, dimensionLabel } from "@/components/RadarChart";
 
 // Nombres tecnicos de las dimensiones ISO 25010 traducidos para el usuario.
 const DIMENSION_LABELS: Record<string, string> = {
@@ -173,7 +173,7 @@ export function AnalysisPanel({ analysis, onClose }: { analysis: Analysis; onClo
                 {analysis.dimensions.map((d) => (
                   <div key={d.name} className="flex items-center gap-4">
                     <span className="w-[170px] shrink-0 text-[13px]">
-                      {DIMENSION_LABELS[d.name] ?? d.name}
+                      {dimensionLabel(d.name, DIMENSION_LABELS)}
                     </span>
                     <div className="h-[6px] flex-1 overflow-hidden rounded-full bg-surface2">
                       <div

@@ -84,8 +84,8 @@ def run_combined_analysis(analysis_id: str) -> None:
 
         # Se copian dimensiones y hallazgos para que el combinado sea
         # autocontenido: al exportarlo o compararlo no hay que reconstruirlo.
-        copy_results_into(db, analysis, repo_analysis, REPOSITORY_WEIGHTS)
-        copy_results_into(db, analysis, url_analysis, URL_WEIGHTS)
+        copy_results_into(db, analysis, repo_analysis, REPOSITORY_WEIGHTS, "codigo")
+        copy_results_into(db, analysis, url_analysis, URL_WEIGHTS, "produccion")
 
         hallazgos_repo = list(
             db.scalars(select(Finding).where(Finding.analysis_id == repo_analysis.id)).all()
@@ -177,6 +177,15 @@ def run_combined_analysis(analysis_id: str) -> None:
         repository.last_analyzed_at = analysis.completed_at
         app_row.last_analyzed_at = analysis.completed_at
         db.commit()
+    except Exception as exc:  # noqa: BLE001
+        # Sin esto un fallo inesperado deja el analisis en "scoring" para
+        # siempre y el cliente lo sondea hasta agotar los reintentos. Se marca
+        # como fallado y se deja que Celery registre la traza.
+        db.rollback()
+        analisis = db.get(Analysis, uuid.UUID(analysis_id))
+        if analisis is not None and analisis.status not in ("completed", "failed"):
+            _fallar(db, analisis, f"error inesperado: {exc}")
+        raise
     finally:
         db.close()
 

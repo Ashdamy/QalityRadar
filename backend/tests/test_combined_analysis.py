@@ -15,10 +15,13 @@ from app.services.combined_service import (
     consolidate_score,
     explain_discrepancy,
 )
+from app.services.combined_service import ORIGIN_SEPARATOR, prefixed
 from app.services.correspondence_service import check_correspondence
 from app.services.scoring_service import (
     CRITICAL_FINDING_SCORE_CAP,
     HIGH_FINDING_SCORE_CAP,
+    REPOSITORY_WEIGHTS,
+    URL_WEIGHTS,
 )
 
 
@@ -144,6 +147,33 @@ def test_el_techo_no_sube_una_nota_que_ya_estaba_por_debajo():
 
 def test_sin_hallazgos_graves_la_nota_no_se_toca():
     assert apply_severity_cap(88.4, [_finding("low")]) == 88.4
+
+
+# --------------------------------------------------------------------------
+# Nombres de dimension al fusionar los dos analisis
+# --------------------------------------------------------------------------
+
+
+def test_los_dos_modos_comparten_el_nombre_security():
+    """Da por sentado el conflicto que obliga a marcar el origen. Si algun dia
+    dejan de coincidir, esta prueba avisa de que la premisa cambio."""
+    assert set(REPOSITORY_WEIGHTS) & set(URL_WEIGHTS) == {"security"}
+
+
+def test_marcar_el_origen_evita_la_colision_de_nombres():
+    """La tabla tiene un indice unico sobre (analysis_id, name): sin prefijo,
+    copiar las dos mitades en el mismo analisis reventaba al insertar."""
+    nombres = [prefixed("codigo", n) for n in REPOSITORY_WEIGHTS] + [
+        prefixed("produccion", n) for n in URL_WEIGHTS
+    ]
+    assert len(nombres) == len(set(nombres))
+    assert len(nombres) == len(REPOSITORY_WEIGHTS) + len(URL_WEIGHTS)
+
+
+def test_el_nombre_original_se_puede_recuperar_del_prefijado():
+    marcado = prefixed("produccion", "security")
+    origen, base = marcado.split(ORIGIN_SEPARATOR, 1)
+    assert (origen, base) == ("produccion", "security")
 
 
 # --------------------------------------------------------------------------

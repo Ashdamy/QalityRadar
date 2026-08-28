@@ -10,7 +10,7 @@ import {
   type Analysis,
   type Repository,
 } from "@/lib/api";
-import { getToken } from "@/lib/auth";
+import { clearToken, getToken } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { AnalysisPanel } from "@/components/AnalysisPanel";
@@ -62,7 +62,22 @@ export default function AnalyzeCombinedPage() {
       // Solo los públicos: el backend rechaza los privados y es mejor no
       // ofrecer una opción que va a fallar.
       .then((lista) => setRepositorios(lista.filter((r) => !r.is_private)))
-      .catch(() => setRepositorios([]));
+      .catch((err: unknown) => {
+        // Sin distinguir el motivo, un fallo de carga se confundiria con "no
+        // tienes repositorios", que manda al usuario a buscar el problema
+        // donde no esta.
+        if (err instanceof ApiError && err.status === 401) {
+          clearToken();
+          router.replace("/");
+          return;
+        }
+        setRepositorios([]);
+        setError(
+          err instanceof ApiError
+            ? err.message
+            : "No se pudieron cargar tus repositorios.",
+        );
+      });
   }, [router]);
 
   async function handleSubmit(event: React.FormEvent) {
@@ -85,6 +100,11 @@ export default function AnalyzeCombinedPage() {
       }
       setError("El análisis está tardando más de lo esperado. Vuelve a intentarlo.");
     } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        clearToken();
+        router.replace("/");
+        return;
+      }
       setAnalysis(null);
       setError(err instanceof ApiError ? err.message : "No se pudo iniciar el análisis.");
     } finally {
@@ -92,7 +112,7 @@ export default function AnalyzeCombinedPage() {
     }
   }
 
-  const sinRepositorios = repositorios !== null && repositorios.length === 0;
+  const sinRepositorios = repositorios !== null && repositorios.length === 0 && !error;
 
   return (
     <main className="flex min-h-screen w-full flex-col bg-bg text-text">
@@ -139,7 +159,9 @@ export default function AnalyzeCombinedPage() {
                 ? "Cargando repositorios…"
                 : sinRepositorios
                   ? "No hay repositorios públicos disponibles"
-                  : "Elige un repositorio"}
+                  : repositorios.length === 0
+                    ? "No se pudieron cargar los repositorios"
+                    : "Elige un repositorio"}
             </option>
             {(repositorios ?? []).map((repositorio) => (
               <option key={repositorio.id} value={repositorio.id}>
