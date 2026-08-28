@@ -70,7 +70,7 @@ Creé y subí tres documentos:
 
 ### 5. Plan detallado de la Semana 1
 
-Escribí `docs/superpowers/plans/2026-08-27-week1-setup-auth.md`: 9 tareas paso a paso con metodología TDD (test primero, verificar que falla, implementar, verificar que pasa, commit). Cada tarea trae el código exacto a escribir, los comandos a correr, y el resultado esperado.
+Escribí `docs/plans/2026-08-27-week1-setup-auth.md`: 9 tareas paso a paso con metodología TDD (test primero, verificar que falla, implementar, verificar que pasa, commit). Cada tarea trae el código exacto a escribir, los comandos a correr, y el resultado esperado.
 
 Dejé explícitamente fuera del plan las páginas de frontend, para hablar primero de diseño.
 
@@ -278,4 +278,4 @@ Para direcciones no hay commit, así que se usa el `ETag` o el `Last-Modified` c
 - Arquitectura: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - Modelo de datos: [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md)
 - Roadmap: [`docs/ROADMAP.md`](docs/ROADMAP.md)
-- Plan de la Semana 1: [`docs/superpowers/plans/2026-08-27-week1-setup-auth.md`](docs/superpowers/plans/2026-08-27-week1-setup-auth.md)
+- Plan de la Semana 1: [`docs/plans/2026-08-27-week1-setup-auth.md`](docs/plans/2026-08-27-week1-setup-auth.md)

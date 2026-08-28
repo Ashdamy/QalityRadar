@@ -40,3 +40,6 @@ htmlcov/
 frontend/test-results/
 frontend/playwright-report/
 frontend/blob-report/
+
+# Estado del planificador de Celery Beat (se regenera al arrancar)
+celerybeat-schedule*

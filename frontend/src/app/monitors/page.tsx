@@ -314,6 +314,13 @@ export default function MonitorsPage() {
   }
 
   const sinHueco = datos !== null && datos.active >= datos.max_monitors;
+  // La fecha mas reciente entre todos los proyectos vigilados.
+  const ultimoAnalisis =
+    datos?.monitors
+      .map((m) => m.latest_at)
+      .filter((f): f is string => Boolean(f))
+      .sort()
+      .at(-1) ?? null;
 
   return (
     <main className="flex min-h-screen w-full flex-col bg-bg text-text">
@@ -348,6 +355,12 @@ export default function MonitorsPage() {
           detecta y vuelve a analizarlo: tú solo entras a ver cómo va.
         </p>
 
+        {!datos && !error && (
+          <p className="mb-7 text-[13px] text-faint" role="status">
+            Cargando tus proyectos…
+          </p>
+        )}
+
         {datos && (
           <section
             aria-label="Resumen de seguimiento"
@@ -367,18 +380,22 @@ export default function MonitorsPage() {
             </div>
             <div className="bg-surface p-[16px_20px]">
               <div className="mb-[6px] text-[10.5px] uppercase tracking-[0.06em] text-faint">
-                Avisos
+                Último análisis automático
               </div>
-              <div className="font-mono text-[22px] font-medium leading-none">Campana</div>
+              <div className="font-mono text-[22px] font-medium leading-none">
+                {ultimoAnalisis ? haceCuanto(ultimoAnalisis) : "—"}
+              </div>
               <div className="mt-[5px] text-[11.5px] text-faint">
-                Te contamos cada análisis automático
+                Te avisamos en la campana de cómo fue
               </div>
             </div>
             <div className="bg-surface p-[16px_20px]">
               <div className="mb-[6px] text-[10.5px] uppercase tracking-[0.06em] text-faint">
-                Cómo funciona
+                Se comprueba
               </div>
-              <div className="font-mono text-[22px] font-medium leading-none">5 min</div>
+              <div className="font-mono text-[22px] font-medium leading-none">
+                cada 5 min
+              </div>
               <div className="mt-[5px] text-[11.5px] text-faint">
                 Comprobar no analiza: solo mira si cambió
               </div>

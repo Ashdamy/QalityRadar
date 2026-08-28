@@ -4,7 +4,7 @@
 
 ## Cómo se ejecuta esto
 
-Este roadmap es de **nivel de milestone**, no de tarea bite-sized. Antes de empezar cada semana se generará un plan de implementación detallado (TDD, paso a paso, un archivo por semana bajo `docs/superpowers/plans/`) usando la skill `superpowers:writing-plans`, para que cada subsistema (auth, analizadores de repo, analizadores de URL, dashboard, features finales) tenga su propio plan ejecutable de forma independiente — en vez de un único plan gigante de 25 días.
+Este roadmap es de **nivel de milestone**, no de tarea bite-sized. Antes de empezar cada semana se generará un plan de implementación detallado (TDD, paso a paso, un archivo por semana bajo `docs/plans/`) usando la skill `superpowers:writing-plans`, para que cada subsistema (auth, analizadores de repo, analizadores de URL, dashboard, features finales) tenga su propio plan ejecutable de forma independiente — en vez de un único plan gigante de 25 días.
 
 **Regla dura de todas las semanas:** no se escribe código sin que la semana anterior tenga su milestone cumplido y verificado (tests pasando, funcionalidad demostrable). Esto es explícito porque el spec original marca fases por calendario, no por dependencias reales.
 

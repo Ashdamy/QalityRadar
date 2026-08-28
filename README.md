@@ -1,39 +1,236 @@
 # QalitiRadar
 
-Escáner automático de calidad de software basado en **ISO/IEC 25010**. Analiza un repositorio (GitHub), una URL de una app desplegada, o ambos, y genera una puntuación de calidad con hallazgos, riesgos y recomendaciones priorizadas — con histórico y comparación entre análisis a lo largo del tiempo.
+Escáner de calidad de software basado en **ISO/IEC 25010**. Analiza el código de un repositorio de GitHub, una aplicación ya desplegada, o ambos a la vez, y devuelve una puntuación por dimensiones con hallazgos, riesgos y un plan de mejora priorizado.
 
-> Backend de la Semana 1 completo: API de autenticación (registro/login con password + OAuth de GitHub), esquema de datos completo (10 migraciones) y suite de tests. El frontend y el pipeline de análisis todavía no existen.
+![Resultado de un análisis](docs/screenshots/04-resultado-del-analisis.png)
+
+---
+
+## Qué hace
+
+| Modo | Qué analiza | Dimensiones |
+|---|---|---|
+| **Repositorio** | El código fuente de un repositorio público de GitHub | 6 |
+| **URL** | Una aplicación ya desplegada, sin acceso al código | 5 |
+| **Combinado** | Ambos, y explica **por qué no puntúan igual** | 11 |
+
+El modo combinado es el que más información da. Cuando el código y la producción cuentan historias distintas, esa diferencia es accionable:
+
+- **Código malo, producción buena** → la plataforma de despliegue te está regalando HTTPS, compresión y cabeceras. Esa ventaja no es tuya: desaparece si cambias de proveedor.
+- **Código bueno, producción mala** → el proyecto está bien hecho pero mal desplegado, y esa calidad no le llega a quien usa la aplicación.
+
+Además: histórico y comparación entre análisis, exportación a PDF, enlaces públicos temporales para compartir un informe, avisos cuando la calidad empeora, y **seguimiento continuo** de proyectos enganchados.
+
+## La puntuación es exigente a propósito
+
+**Los puntos se ganan, no se regalan.** Cada dimensión parte de cero y solo sube con evidencia real. Un repositorio vacío no puntúa alto por no tener problemas detectados: puntúa bajo porque no demuestra nada.
+
+Además hay techos por gravedad: un hallazgo **crítico** limita la nota a 40 y uno **alto** la limita a 70, por buena que sea el resto del análisis. Un secreto filtrado no se compensa con buena documentación.
+
+> Las puntuaciones son una aproximación al modelo ISO/IEC 25010. **No constituyen una certificación oficial.** El mapeo completo, con sus límites declarados, está en [`docs/ISO_25010_MAPPING.md`](docs/ISO_25010_MAPPING.md).
+
+---
+
+## Cómo se usa
+
+### 1. Entrar
+
+Con email y contraseña, o conectando tu cuenta de GitHub.
+
+![Pantalla de inicio de sesión](docs/screenshots/01-inicio-sesion.png)
+
+### 2. Elegir qué analizar
+
+![Los tres modos de análisis](docs/screenshots/02-modos-de-analisis.png)
+
+### 3. Lanzar el análisis
+
+Para una aplicación desplegada basta con la dirección pública. No hace falta acceso al código.
+
+![Formulario de análisis de URL](docs/screenshots/03-analizar-url.png)
+
+### 4. Leer el resultado
+
+Puntuación global, radar por dimensiones, resumen generado y la lista de hallazgos ordenada por gravedad.
+
+![Resultado del análisis](docs/screenshots/04-resultado-del-analisis.png)
+
+El radar y el desglose por dimensión enseñan dónde está el problema, no solo cuánto duele:
+
+![Dimensiones del análisis](docs/screenshots/04b-dimensiones.png)
+
+### 5. Compartir el informe
+
+Genera un enlace público y temporal. Quien lo reciba no necesita cuenta.
+
+![Crear un enlace para compartir](docs/screenshots/05-compartir-informe.png)
+
+El enlace caduca a los 7 días (30 como máximo) y se puede revocar en cualquier momento.
+
+![Informe público](docs/screenshots/06-informe-publico.png)
+
+### 6. Dejar un proyecto vigilado
+
+Engancha un repositorio y se reanaliza solo cuando subes código. Recibes un aviso con cómo evolucionó.
+
+![Pantalla de seguimiento](docs/screenshots/07-seguimiento.png)
+
+Comprobar si algo cambió cuesta **una llamada a la API de GitHub y no descarga tu código**; el análisis completo solo se lanza cuando de verdad hay un commit nuevo. Sin esa distinción, vigilar tres proyectos serían decenas de análisis diarios inútiles.
+
+---
+
+## Puesta en marcha
+
+### Requisitos
+
+- Docker y Docker Compose
+- Python 3.11 o superior
+- Node.js 20 o superior
+
+### 1. Servicios de datos
+
+```bash
+docker compose up -d postgres redis
+```
+
+PostgreSQL queda en el puerto **5433** del host, no en el 5432, para no chocar con una instalación nativa.
+
+### 2. Configuración
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+Rellena `backend/.env`:
+
+| Variable | Cómo obtenerla |
+|---|---|
+| `JWT_SECRET` | Cualquier cadena larga y aleatoria |
+| `ENCRYPTION_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Crea una OAuth App en GitHub con callback `http://localhost:3000/auth/github/callback` |
+| `HUGGINGFACE_API_KEY` | Opcional. Sin ella los resúmenes se generan con plantilla en vez de con IA |
+
+Ejecutando fuera de Docker, apunta a `localhost`:
+
+```
+DATABASE_URL=postgresql+psycopg://qalitiradar:qalitiradar_dev@localhost:5433/qalitiradar
+REDIS_URL=redis://localhost:6379/0
+```
+
+### 3. Backend
+
+```bash
+cd backend
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload --port 8000
+```
+
+### 4. Worker
+
+En otra terminal. **Corre en el host, no en un contenedor**, para poder lanzar los contenedores de análisis sin montar el socket de Docker dentro de otro contenedor — que es una vía clásica de escalada a root.
+
+```bash
+cd backend
+celery -A app.worker.celery_app worker --loglevel=info --pool=solo
+```
+
+Y el planificador, para el seguimiento continuo y la purga:
+
+```bash
+celery -A app.worker.celery_app beat --loglevel=info
+```
+
+> En Windows tienen que ser dos procesos: la opción `-B` del worker no está soportada.
+
+### 5. Imagen del sandbox
+
+```bash
+docker build -t qalitiradar-analyzer ./analyzer
+```
+
+### 6. Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Abre **http://localhost:3000**.
+
+---
+
+## Cómo está construido
+
+```
+Navegador ──▶ Next.js ──▶ FastAPI ──▶ PostgreSQL
+                             │
+                             ▼
+                        Redis (cola)
+                             │
+                             ▼
+                      Worker de Celery ──▶ Contenedor de análisis
+                                             (aislado, sin red)
+```
+
+**Backend:** Python 3.11, FastAPI, SQLAlchemy 2.0, Alembic, PostgreSQL 16, Celery, Redis
+**Frontend:** Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4
+**Análisis:** Gitleaks y Semgrep en sandbox, OSV.dev para vulnerabilidades de dependencias
+**Informes:** ReportLab · **Resúmenes:** Hugging Face (con plantilla de respaldo)
+
+### Seguridad
+
+El código ajeno **nunca se ejecuta**. El análisis es estático y corre dentro de un contenedor efímero:
+
+```
+--network=none --read-only --cap-drop=ALL --security-opt=no-new-privileges
+--memory=512m --cpus=0.5 --pids-limit=100 --user 65534:65534
+```
+
+El aislamiento está **verificado con pruebas reales contra Docker**, no solo declarado: un contenedor que intenta salir a internet falla, y uno que intenta escribir en el repositorio montado es rechazado.
+
+Al analizar una URL se resuelve el DNS y se valida la IP **en cada salto de redirección**, no solo en la dirección inicial, para que una redirección no pueda apuntar a la red interna.
+
+---
+
+## Pruebas
+
+```bash
+cd backend && pytest              # 328 pruebas
+cd frontend && npx playwright test # 5 recorridos end-to-end
+```
+
+Las end-to-end usan un navegador real contra la aplicación en marcha. Requieren los servicios levantados y una base de datos cuyo nombre acabe en `_test`.
+
+---
 
 ## Documentación
 
-- [`context/claude.md`](context/claude.md) — especificación de producto original y decisiones de alcance del MVP
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — arquitectura técnica, flujos de datos, riesgos de seguridad
-- [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) — modelo de datos completo (tablas, relaciones, índices)
-- [`docs/ROADMAP.md`](docs/ROADMAP.md) — plan de implementación semana a semana
+| Documento | Contenido |
+|---|---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Componentes, flujos y riesgos de seguridad |
+| [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) | Esquema completo: tablas, relaciones e índices |
+| [`docs/ISO_25010_MAPPING.md`](docs/ISO_25010_MAPPING.md) | Qué señal alimenta cada característica del estándar |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | Plan por semanas con criterios de salida |
+| [`RESUME.md`](RESUME.md) | Bitácora del desarrollo y decisiones tomadas |
 
-## Stack
+---
 
-- **Backend:** Python 3.11+, FastAPI, PostgreSQL, SQLAlchemy + Alembic, Celery + Redis
-- **Frontend:** Next.js 14 (App Router), TypeScript, Tailwind CSS + shadcn/ui, Recharts
-- **Análisis:** Gitleaks, Semgrep, Lighthouse CI, axe-core
-- **Infraestructura:** Docker + Docker Compose
+## Límites conocidos
+
+Se declaran porque afectan a cómo hay que leer los resultados:
+
+- **Solo repositorios públicos.** Los privados quedan fuera del alcance actual.
+- **Se analiza una sola página** en el modo URL, la que se indique — no el sitio entero.
+- **El rendimiento medido es el tiempo de respuesta del servidor**, no el de carga completa en un navegador.
+- **Las comprobaciones de accesibilidad son estáticas** sobre el HTML y no sustituyen a una auditoría con axe-core.
+- **La actividad del proyecto no forma parte de ISO/IEC 25010.** Se incluye porque predice la mantenibilidad futura, pero está declarada como añadido propio.
+
+---
 
 ## Estado
 
-Ver [`docs/ROADMAP.md`](docs/ROADMAP.md) para el plan de fases. Semana 1 (backend: auth, esquema de datos, migraciones) completa; el resto del roadmap sigue pendiente.
+Los tres modos de análisis funcionan de principio a fin. Queda el despliegue en producción.
 
-## Desarrollo local
-
-1. Copiar `backend/.env.example` a `backend/.env` y completar los valores (`JWT_SECRET`, `ENCRYPTION_KEY` generada con Fernet, credenciales de GitHub OAuth, etc.).
-2. Levantar Postgres y Redis: `docker compose up -d postgres redis`. Postgres queda expuesto en `localhost:5433` (no 5432, que suele estar ocupado por una instalación nativa de PostgreSQL en Windows).
-3. Crear la base de datos de test, ya que las migraciones y la suite de tests usan una base separada de la de desarrollo (`qalitiradar_test` vs `qalitiradar`):
-   ```
-   psql -h localhost -p 5433 -U qalitiradar -c "CREATE DATABASE qalitiradar_test;"
-   ```
-4. Aplicar las migraciones contra AMBAS bases, apuntando `DATABASE_URL` a cada una:
-   ```
-   cd backend
-   DATABASE_URL=postgresql+psycopg://qalitiradar:qalitiradar_dev@localhost:5433/qalitiradar alembic upgrade head
-   DATABASE_URL=postgresql+psycopg://qalitiradar:qalitiradar_dev@localhost:5433/qalitiradar_test alembic upgrade head
-   ```
-5. Correr la suite de tests desde `backend/`: `python -m pytest -q`.
+Antes de exponerlo públicamente hay un cabo suelto documentado: la renovación de sesión es sin estado, así que cerrar sesión no invalida el token de refresco en el servidor.
