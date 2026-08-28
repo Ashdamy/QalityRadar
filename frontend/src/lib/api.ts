@@ -6,6 +6,8 @@
  * routing, or state-management logic.
  */
 
+import { getRefreshToken, saveToken } from "@/lib/auth";
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -17,6 +19,8 @@ export interface RegisterResponse {
 export interface TokenResponse {
   access_token: string;
   token_type: "bearer";
+  // Ausente en la respuesta de /refresh, que no lo rota.
+  refresh_token?: string | null;
 }
 
 export interface Repository {
@@ -57,9 +61,55 @@ async function parseErrorMessage(response: Response): Promise<string> {
   return `Request failed with status ${response.status}`;
 }
 
+/**
+ * Canjea el token de refresco por uno de acceso nuevo y lo guarda.
+ *
+ * Devuelve null si no hay refresco o ya no vale; en ese caso quien llame debe
+ * tratar el 401 como sesión terminada.
+ */
+async function renovarAcceso(): Promise<string | null> {
+  const refresco = getRefreshToken();
+  if (!refresco) return null;
+
+  const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refresco }),
+  });
+  if (!response.ok) return null;
+
+  const { access_token } = (await response.json()) as TokenResponse;
+  saveToken(access_token);
+  return access_token;
+}
+
+/**
+ * Varias peticiones en vuelo al caducar el token pedirían cada una su
+ * renovación. Se comparte la misma promesa para que solo salga una.
+ */
+let renovacionEnCurso: Promise<string | null> | null = null;
+
+function renovarAccesoUnaVez(): Promise<string | null> {
+  if (!renovacionEnCurso) {
+    renovacionEnCurso = renovarAcceso().finally(() => {
+      renovacionEnCurso = null;
+    });
+  }
+  return renovacionEnCurso;
+}
+
+function conAutorizacion(headers: HeadersInit | undefined, token: string): HeadersInit {
+  return { ...headers, Authorization: `Bearer ${token}` };
+}
+
+function llevaAutorizacion(headers: HeadersInit | undefined): boolean {
+  return Boolean((headers as Record<string, string> | undefined)?.Authorization);
+}
+
 async function request<T>(
   path: string,
   options: RequestInit = {},
+  reintentar = true,
 ): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
@@ -68,6 +118,15 @@ async function request<T>(
       ...options.headers,
     },
   });
+
+  // El token de acceso dura poco a propósito. Antes de dar la sesión por
+  // terminada se intenta renovarlo una vez, en silencio.
+  if (response.status === 401 && reintentar && llevaAutorizacion(options.headers)) {
+    const nuevo = await renovarAccesoUnaVez();
+    if (nuevo) {
+      return request<T>(path, { ...options, headers: conAutorizacion(options.headers, nuevo) }, false);
+    }
+  }
 
   if (!response.ok) {
     throw new ApiError(response.status, await parseErrorMessage(response));
@@ -97,10 +156,15 @@ export function getGithubAuthorizationUrl(): Promise<GithubAuthorizationUrlRespo
   return request<GithubAuthorizationUrlResponse>("/api/auth/github/login");
 }
 
-export function completeGithubCallback(code: string): Promise<TokenResponse> {
-  return request<TokenResponse>(
-    `/api/auth/github/callback?code=${encodeURIComponent(code)}`,
-  );
+export function completeGithubCallback(
+  code: string,
+  state: string | null,
+): Promise<TokenResponse> {
+  // El `state` viaja tal cual llegó de GitHub: el backend comprueba que sea
+  // uno que él emitió, y así la vuelta queda atada a la ida.
+  const query = new URLSearchParams({ code });
+  if (state) query.set("state", state);
+  return request<TokenResponse>(`/api/auth/github/callback?${query}`);
 }
 
 export function listRepositories(token: string): Promise<Repository[]> {
@@ -253,9 +317,17 @@ export function getComparison(
  * porque el endpoint exige la cabecera Authorization, que un <a href> no envía.
  */
 export async function downloadAnalysisReport(token: string, analysisId: string): Promise<void> {
-  const response = await fetch(`${API_BASE_URL}/api/analyses/${analysisId}/report.pdf`, {
+  let response = await fetch(`${API_BASE_URL}/api/analyses/${analysisId}/report.pdf`, {
     headers: { Authorization: `Bearer ${token}` },
   });
+  if (response.status === 401) {
+    const nuevo = await renovarAccesoUnaVez();
+    if (nuevo) {
+      response = await fetch(`${API_BASE_URL}/api/analyses/${analysisId}/report.pdf`, {
+        headers: { Authorization: `Bearer ${nuevo}` },
+      });
+    }
+  }
   if (!response.ok) {
     throw new ApiError(response.status, await parseErrorMessage(response));
   }

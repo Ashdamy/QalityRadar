@@ -10,6 +10,7 @@ from app.core.database import SessionLocal
 from app.main import app
 from app.models.user import User
 from app.services import github_service
+from app.services.oauth_state_service import issue_state
 
 client = TestClient(app)
 
@@ -51,7 +52,10 @@ def test_github_callback_creates_user_and_returns_token(monkeypatch):
     )
     monkeypatch.setattr(github_service, "fetch_github_primary_email", lambda token: "juan-dev@example.com")
 
-    response = client.get("/api/auth/github/callback", params={"code": "any-code"})
+    response = client.get(
+        "/api/auth/github/callback",
+        params={"code": "any-code", "state": issue_state()},
+    )
 
     assert response.status_code == 200
     assert "access_token" in response.json()
@@ -71,7 +75,10 @@ def test_github_callback_called_twice_updates_existing_user_without_duplicate(mo
     )
     monkeypatch.setattr(github_service, "fetch_github_primary_email", lambda token: "maria-dev@example.com")
 
-    first_response = client.get("/api/auth/github/callback", params={"code": "code-one"})
+    first_response = client.get(
+        "/api/auth/github/callback",
+        params={"code": "code-one", "state": issue_state()},
+    )
     assert first_response.status_code == 200
     assert "access_token" in first_response.json()
 
@@ -84,7 +91,10 @@ def test_github_callback_called_twice_updates_existing_user_without_duplicate(mo
         lambda token: {"id": 654321, "login": "maria-dev-renamed", "avatar_url": "https://avatars.example/maria2"},
     )
 
-    second_response = client.get("/api/auth/github/callback", params={"code": "code-two"})
+    second_response = client.get(
+        "/api/auth/github/callback",
+        params={"code": "code-two", "state": issue_state()},
+    )
     assert second_response.status_code == 200
     assert "access_token" in second_response.json()
 
@@ -121,7 +131,10 @@ def test_github_callback_links_existing_password_account_by_email(monkeypatch):
     )
     monkeypatch.setattr(github_service, "fetch_github_primary_email", lambda token: LINK_EMAIL)
 
-    response = client.get("/api/auth/github/callback", params={"code": "any-code"})
+    response = client.get(
+        "/api/auth/github/callback",
+        params={"code": "any-code", "state": issue_state()},
+    )
 
     assert response.status_code == 200
     assert "access_token" in response.json()
@@ -174,7 +187,10 @@ def test_github_callback_with_bad_verification_code_returns_400(monkeypatch):
 
     monkeypatch.setattr(github_service.httpx, "request", fake_request)
 
-    response = client.get("/api/auth/github/callback", params={"code": "already-used-code"})
+    response = client.get(
+        "/api/auth/github/callback",
+        params={"code": "already-used-code", "state": issue_state()},
+    )
 
     assert response.status_code == 400
     detail = response.json()["detail"]
@@ -202,7 +218,10 @@ def test_github_callback_with_no_emails_returns_400(monkeypatch):
 
     monkeypatch.setattr(github_service.httpx, "request", fake_request)
 
-    response = client.get("/api/auth/github/callback", params={"code": "any-code"})
+    response = client.get(
+        "/api/auth/github/callback",
+        params={"code": "any-code", "state": issue_state()},
+    )
 
     assert response.status_code == 400
     assert response.json()["detail"] == "GitHub account has no accessible email"
@@ -217,7 +236,10 @@ def test_github_callback_with_github_http_error_returns_502(monkeypatch):
 
     monkeypatch.setattr(github_service.httpx, "request", fake_request)
 
-    response = client.get("/api/auth/github/callback", params={"code": "any-code"})
+    response = client.get(
+        "/api/auth/github/callback",
+        params={"code": "any-code", "state": issue_state()},
+    )
 
     assert response.status_code == 502
     detail = response.json()["detail"]

@@ -17,3 +17,10 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    # El cliente lo guarda para renovar el acceso sin volver a pedir
+    # credenciales. Ausente en la respuesta de /refresh, que no lo rota.
+    refresh_token: str | None = None
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str

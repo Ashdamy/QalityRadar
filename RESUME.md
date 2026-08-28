@@ -22,9 +22,11 @@
 | Modo 2 — Análisis de aplicaciones desplegadas (URL) | ✅ Completado |
 | Resúmenes con IA (Hugging Face) | ✅ Activados en los tres modos |
 | Modo 3 — Código frente a producción (combinado) | ✅ Completado |
+| Deuda de seguridad (OAuth `state`, bcrypt, carrera) | ✅ Cerrada |
+| Sesiones con renovación automática | ✅ Implementadas |
 | Semana 5 — Compartir, límites de uso y despliegue | ⏸️ No iniciada |
 
-**235 pruebas en verde** en el backend; el frontend compila y pasa lint.
+**262 pruebas en verde** en el backend; el frontend compila y pasa lint.
 
 ---
 
@@ -146,11 +148,11 @@ Las revisiones independientes de cada tarea encontraron varios problemas reales 
 
 ### ⚠️ Deuda de seguridad pendiente (antes de producción)
 
-Estas quedan documentadas en el código y **deben cerrarse antes de exponer el servicio públicamente**:
+**Cerradas.** Las tres quedaron resueltas antes de plantear el despliegue (ver sección 16).
 
-1. **Falta la protección CSRF del flujo OAuth** (parámetro `state`). Sin ella, un atacante podría hacer que la cuenta de GitHub de otra persona quede vinculada a su sesión. Implementarla requiere almacenamiento de sesión, que está fuera del alcance de la Semana 1. Es seguro mientras esto corra solo en local.
-2. **Límite de 72 bytes de bcrypt**: contraseñas más largas provocan un error no manejado.
-3. **Condición de carrera en el registro**: dos registros simultáneos del mismo email podrían devolver un `500` en lugar de `409`.
+1. ~~Falta la protección CSRF del flujo OAuth~~ → implementada con `state` sobre Redis, de un solo uso.
+2. ~~Límite de 72 bytes de bcrypt~~ → el registro ya lo validaba; ahora el login tampoco falla.
+3. ~~Condición de carrera en el registro~~ → la restricción única de la tabla se traduce a `409`.
 
 ---
 
@@ -212,11 +214,26 @@ Dos fallos que salieron al escribir las pruebas:
 
 ---
 
+### 16. Deuda de seguridad cerrada y sesiones que ya no caducan solas
+
+**Protección CSRF del OAuth.** El flujo no generaba ni validaba el parámetro `state`, así que un tercero podía forzar el callback con un `code` propio y dejar **su** cuenta de GitHub vinculada a **tu** sesión. Ahora cada solicitud emite un `state` imposible de adivinar, guardado en Redis con 10 minutos de vida y **de un solo uso**: reproducir un callback capturado no sirve. Se eligió Redis y no memoria del proceso por dos razones concretas: sobrevive a un reinicio del backend, y funciona con varias instancias detrás de un balanceador, donde la ida y la vuelta pueden caer en procesos distintos.
+
+**Límite de bcrypt.** El registro ya rechazaba contraseñas de más de 72 bytes, pero el login no: bcrypt lanzaba `ValueError` y el cliente recibía un `500`. Ahora devuelve `401`, que es la respuesta correcta — una contraseña así no puede coincidir con ningún hash almacenado.
+
+**Carrera en el registro.** Comprobar si el email existe y después insertarlo deja una ventana: entre las dos operaciones otra petición puede haber insertado el mismo email. La única defensa real es la restricción única de la tabla, y ahora su error se traduce a `409` en vez de escaparse como `500`.
+
+**Sesiones.** El token de acceso dura 15 minutos y el frontend nunca usó el de refresco, así que había que iniciar sesión constantemente. Ahora el cliente guarda ambos y renueva el acceso **en silencio** al recibir un `401`, reintentando la petición original. Si varias peticiones caducan a la vez comparten una sola renovación.
+
+Los dos tipos de token se firman con el mismo secreto, así que llevan una marca de tipo: sin ella, un token de refresco robado valdría como token de acceso y daría 30 días en vez de un solo canje. Los emitidos antes de este cambio no la llevan y se tratan como de acceso, para no cerrar las sesiones abiertas al desplegar.
+
+**41 pruebas nuevas** (262 en total).
+
+---
+
 ## Lo que sigue
 
-1. **Semana 5:** enlaces para compartir un informe, límites de uso (rate limiting) y despliegue.
-2. **Cerrar la deuda de seguridad** de la sección anterior antes de exponer el servicio: el parámetro `state` del OAuth es el bloqueante real.
-3. Para el despliegue, la recomendación es **Vercel para el frontend y Oracle Cloud Always Free para el backend**: Render y Railway no dan acceso al demonio de Docker, que el sandbox necesita.
+1. **Semana 5:** enlaces para compartir un informe y límites de uso (rate limiting). El rate limiting además desbloquea analizar URLs sin sesión, que el spec permite y hoy se exige por prudencia.
+2. **Despliegue.** La recomendación es **Vercel para el frontend y Oracle Cloud Always Free para el backend**: Render y Railway no dan acceso al demonio de Docker, que el sandbox necesita.
 
 ---
 

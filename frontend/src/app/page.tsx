@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, getGithubAuthorizationUrl, login, register } from "@/lib/api";
-import { getToken, saveToken } from "@/lib/auth";
+import { getToken, saveRefreshToken, saveToken } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
 import { TextField } from "@/components/TextField";
 import { PrimaryButton } from "@/components/PrimaryButton";
@@ -70,6 +70,7 @@ export default function Home() {
       }
       const tokenResponse = await login(email, password);
       saveToken(tokenResponse.access_token);
+      if (tokenResponse.refresh_token) saveRefreshToken(tokenResponse.refresh_token);
       router.push("/analyze");
     } catch (err) {
       setError(genericErrorMessage(err));
