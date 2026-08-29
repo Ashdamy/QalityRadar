@@ -11,7 +11,7 @@ import {
   type Analysis,
   type Repository,
 } from "@/lib/api";
-import { clearToken, getToken } from "@/lib/auth";
+import { clearToken, endSession, getToken } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
 import { NotificationBell } from "@/components/NotificationBell";
 import { PrimaryButton } from "@/components/PrimaryButton";
@@ -121,8 +121,9 @@ export default function RepositoriesPage() {
     );
   }, [state, query]);
 
-  function handleLogout() {
-    clearToken();
+  async function handleLogout() {
+    // endSession y no clearToken: hay que invalidarlo tambien en el servidor.
+    await endSession();
     router.push("/");
   }
 

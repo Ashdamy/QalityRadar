@@ -43,6 +43,19 @@ _HISTORY_KEY = "ratelimit:analyses:{user_id}"
 _RUNNING_KEY = "ratelimit:running:{user_id}"
 _MONITOR_HISTORY_KEY = "ratelimit:monitor:analyses:{user_id}"
 _MONITOR_RUNNING_KEY = "ratelimit:monitor:running:{user_id}"
+
+# Tope para TODA la maquina, no por usuario. Los limites de arriba impiden que
+# una cuenta abuse, pero no que diez cuentas coincidan: cada analisis reserva
+# 512 MB, asi que treinta a la vez son quince gigas y el servidor se cae.
+#
+# Aqui no se protege al usuario del sistema, sino al sistema de sus usuarios.
+MAX_GLOBAL_CONCURRENT = 6
+_GLOBAL_RUNNING_KEY = "ratelimit:global:running"
+
+# Registros por hora desde una misma IP. Como los limites de uso son por
+# cuenta, sin esto basta con crear varias para saltarselos.
+MAX_REGISTRATIONS_PER_IP_HOUR = 5
+_REGISTRATION_KEY = "ratelimit:registrations:{ip}"
 # Si un analisis muere sin avisar, su marca de "en curso" caducaria sola en
 # vez de bloquear la cuenta para siempre.
 _RUNNING_TTL = 2400
@@ -100,6 +113,16 @@ def _reservar(
     # Los que ya salieron de la ventana no cuentan para nada.
     cliente.zremrangebyscore(historial, 0, ahora - DAY_SECONDS)
     cliente.zremrangebyscore(en_curso, 0, ahora - _RUNNING_TTL)
+    cliente.zremrangebyscore(_GLOBAL_RUNNING_KEY, 0, ahora - _RUNNING_TTL)
+
+    # El tope de la maquina se mira primero: da igual que al usuario le queden
+    # analisis si no hay memoria para atenderlos.
+    if cliente.zcard(_GLOBAL_RUNNING_KEY) >= MAX_GLOBAL_CONCURRENT:
+        raise RateLimitExceeded(
+            "El servicio esta atendiendo el maximo de analisis a la vez. "
+            "Vuelve a intentarlo en unos minutos.",
+            120,
+        )
 
     if cliente.zcard(en_curso) >= max_simultaneos:
         raise RateLimitExceeded(
@@ -126,6 +149,7 @@ def _reservar(
     cliente.expire(historial, DAY_SECONDS)
     cliente.zadd(en_curso, {reservation: ahora})
     cliente.expire(en_curso, _RUNNING_TTL)
+    cliente.zadd(_GLOBAL_RUNNING_KEY, {reservation: ahora})
 
 
 def check_and_reserve_monitor(user_id: uuid.UUID, reservation: str) -> None:
@@ -158,6 +182,7 @@ def release(user_id: uuid.UUID, reservation: str) -> None:
         # cuesta nada, asi que se limpian las dos.
         cliente.zrem(_RUNNING_KEY.format(user_id=user_id), reservation)
         cliente.zrem(_MONITOR_RUNNING_KEY.format(user_id=user_id), reservation)
+        cliente.zrem(_GLOBAL_RUNNING_KEY, reservation)
     except Exception:  # noqa: BLE001
         pass
 
@@ -175,3 +200,35 @@ def current_usage(user_id: uuid.UUID) -> dict:
         "running": cliente.zcard(_RUNNING_KEY.format(user_id=user_id)),
         "max_concurrent": MAX_CONCURRENT,
     }
+
+
+def check_registration_ip(ip: str | None) -> None:
+    """Limita cuantas cuentas se pueden crear desde una misma IP.
+
+    No sustituye a verificar el email, pero sube bastante el coste de crear
+    cuentas en cadena para saltarse los limites de uso.
+    """
+    if not ip:
+        return
+
+    cliente = _client()
+    clave = _REGISTRATION_KEY.format(ip=ip)
+    ahora = time.time()
+    cliente.zremrangebyscore(clave, 0, ahora - HOUR_SECONDS)
+
+    if cliente.zcard(clave) >= MAX_REGISTRATIONS_PER_IP_HOUR:
+        raise RateLimitExceeded(
+            "Se han creado demasiadas cuentas desde esta conexion. "
+            "Vuelve a intentarlo mas tarde.",
+            HOUR_SECONDS,
+        )
+
+    cliente.zadd(clave, {str(uuid.uuid4()): ahora})
+    cliente.expire(clave, HOUR_SECONDS)
+
+
+def global_running() -> int:
+    """Cuantos analisis hay en marcha en toda la maquina."""
+    cliente = _client()
+    cliente.zremrangebyscore(_GLOBAL_RUNNING_KEY, 0, time.time() - _RUNNING_TTL)
+    return cliente.zcard(_GLOBAL_RUNNING_KEY)

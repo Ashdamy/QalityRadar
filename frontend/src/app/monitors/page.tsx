@@ -13,7 +13,7 @@ import {
   type MonitorList,
   type Repository,
 } from "@/lib/api";
-import { clearToken, getToken } from "@/lib/auth";
+import { clearToken, endSession, getToken } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
 import { NotificationBell } from "@/components/NotificationBell";
 import { Sparkline } from "@/components/Sparkline";
@@ -337,8 +337,8 @@ export default function MonitorsPage() {
           <NotificationBell />
           <button
             type="button"
-            onClick={() => {
-              clearToken();
+            onClick={async () => {
+              await endSession();
               router.push("/");
             }}
             className="text-[13px] text-muted hover:text-text focus:outline-none focus:ring-[3px] focus:ring-accentDim"

@@ -73,3 +73,29 @@ def db_session_with_github_user():
     finally:
         db.close()
         _delete()
+
+
+@pytest.fixture(autouse=True)
+def _sin_limite_de_registros_por_ip():
+    """Todas las pruebas llegan desde la misma IP (`testclient`), asi que a
+    partir del sexto registro saltaria el limite y fallarian por un motivo que
+    no tiene nada que ver con lo que prueban.
+
+    Se limpia el contador antes de cada una. El limite sigue activo en
+    produccion, que es donde hace falta; ahi las IP son distintas de verdad.
+    """
+    from app.services import rate_limit_service as limites
+
+    def _vaciar():
+        try:
+            cliente = limites._client()
+            for clave in cliente.scan_iter("ratelimit:registrations:*"):
+                cliente.delete(clave)
+        except Exception:  # noqa: BLE001
+            # Sin Redis hay pruebas que igualmente no pueden correr; no es
+            # cosa de esta fixture decidirlo.
+            pass
+
+    _vaciar()
+    yield
+    _vaciar()

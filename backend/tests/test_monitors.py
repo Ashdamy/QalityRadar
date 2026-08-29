@@ -302,6 +302,7 @@ def _limpiar_cuotas(user_id):
         limites._MONITOR_RUNNING_KEY,
     ):
         cliente.delete(plantilla.format(user_id=user_id))
+    cliente.delete(limites._GLOBAL_RUNNING_KEY)
 
 
 def test_los_analisis_automaticos_no_gastan_la_cuota_manual():

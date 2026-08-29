@@ -500,3 +500,18 @@ export async function deleteMonitor(token: string, monitorId: string): Promise<v
     throw new ApiError(response.status, await parseErrorMessage(response));
   }
 }
+
+/**
+ * Cierra la sesión también en el servidor. Sin esta llamada, el token de
+ * refresco seguiría siendo válido 30 días aunque se borre del navegador.
+ */
+export async function logout(refreshToken: string): Promise<void> {
+  await fetch(`${API_BASE_URL}/api/auth/logout`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  }).catch(() => {
+    // Si la petición falla, el token local se borra igual: es preferible
+    // cerrar sesión aquí a dejar al usuario dentro por un fallo de red.
+  });
+}

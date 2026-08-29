@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { clearToken, getToken } from "@/lib/auth";
+import { clearToken, endSession, getToken } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
 import { NotificationBell } from "@/components/NotificationBell";
 
@@ -106,8 +106,8 @@ export default function AnalyzePage() {
           <NotificationBell />
           <button
             type="button"
-            onClick={() => {
-              clearToken();
+            onClick={async () => {
+              await endSession();
               router.push("/");
             }}
             className="text-[13px] text-muted hover:text-text focus:outline-none focus:ring-[3px] focus:ring-accentDim"

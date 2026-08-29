@@ -92,6 +92,9 @@ def _limpiar_limites(user_id):
     cliente = limites._client()
     cliente.delete(limites._HISTORY_KEY.format(user_id=user_id))
     cliente.delete(limites._RUNNING_KEY.format(user_id=user_id))
+    # El tope de la maquina es compartido: si no se vacia, lo que reserve una
+    # prueba hace fallar a la siguiente.
+    cliente.delete(limites._GLOBAL_RUNNING_KEY)
 
 
 # --------------------------------------------------------------------------

@@ -26,9 +26,23 @@ export function getRefreshToken(): string | null {
   return window.localStorage.getItem(REFRESH_KEY);
 }
 
-/** Cierra la sesión por completo: sin esto quedaría el de refresco vivo. */
+/** Borra los tokens del navegador. Para cerrar sesión de verdad, `endSession`. */
 export function clearToken(): void {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(REFRESH_KEY);
+}
+
+/**
+ * Cierra la sesión de verdad: la invalida en el servidor y luego borra los
+ * tokens locales. Debe usarse siempre en vez de `clearToken` a secas, porque
+ * borrar solo en el navegador deja el token de refresco vivo un mes.
+ */
+export async function endSession(): Promise<void> {
+  const refresco = getRefreshToken();
+  if (refresco) {
+    const { logout } = await import("@/lib/api");
+    await logout(refresco);
+  }
+  clearToken();
 }

@@ -1,7 +1,7 @@
 import uuid
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -18,11 +18,14 @@ from app.core.security import (
 from app.models.user import User
 from app.schemas.auth import (
     LoginRequest,
+    LogoutRequest,
     RefreshRequest,
     RegisterRequest,
     TokenResponse,
 )
 from app.services import github_service
+from app.services import session_service
+from app.services.rate_limit_service import RateLimitExceeded, check_registration_ip
 from app.services.oauth_state_service import consume_state, issue_state
 from app.utils.crypto import encrypt_token
 
@@ -38,7 +41,20 @@ _DUMMY_PASSWORD_HASH = hash_password("dummy-password-for-timing-equalization")
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
-def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> dict:
+def register(
+    payload: RegisterRequest, request: Request, db: Session = Depends(get_db)
+) -> dict:
+    # Los limites de uso son por cuenta, asi que sin esto basta con crear
+    # varias desde el mismo sitio para saltarselos.
+    try:
+        check_registration_ip(request.client.host if request.client else None)
+    except RateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=exc.message,
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+
     existing = db.scalar(select(User).where(User.email == payload.email))
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="email already registered")
@@ -70,10 +86,7 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
     if not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials")
 
-    return TokenResponse(
-        access_token=create_access_token(user.id),
-        refresh_token=create_refresh_token(user.id),
-    )
+    return _emitir_sesion(db, user.id)
 
 
 @router.get("/github/login")
@@ -130,16 +143,29 @@ def github_callback(
     db.commit()
     db.refresh(user)
 
-    return TokenResponse(access_token=create_access_token(user.id))
+    # Con GitHub tambien hace falta el token de refresco. Sin el, quien entraba
+    # por aqui se quedaba sin sesion a los 15 minutos y no habia forma de
+    # renovarla sin volver a pasar por GitHub.
+    return _emitir_sesion(db, user.id)
+
+
+def _emitir_sesion(db: Session, user_id: uuid.UUID) -> TokenResponse:
+    """Crea la pareja de tokens y anota el de refresco como activo."""
+    refresco = create_refresh_token(user_id)
+    session_service.register_refresh_token(db, user_id, refresco)
+    db.commit()
+    return TokenResponse(
+        access_token=create_access_token(user_id),
+        refresh_token=refresco,
+    )
 
 
 @router.post("/refresh", response_model=TokenResponse)
 def refresh(payload: RefreshRequest, db: Session = Depends(get_db)) -> TokenResponse:
     """Emite un token de acceso nuevo a partir del de refresco.
 
-    No se rota el token de refresco: rotarlo exige guardarlos y revocarlos en
-    servidor, y sin eso una rotacion a medias deja al usuario fuera cuando dos
-    pestanas renuevan a la vez.
+    No se rota el de refresco: rotarlo obliga a que dos pestanas renovando a la
+    vez no se pisen, y una rotacion a medias deja al usuario fuera.
     """
     try:
         user_id = decode_refresh_token(payload.refresh_token)
@@ -148,11 +174,30 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)) -> TokenResp
             status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh token invalido"
         ) from exc
 
-    # Que el token sea valido no basta: la cuenta pudo borrarse despues de
-    # emitirlo, y son 30 dias de margen.
+    # Que la firma sea valida no basta. Hay que comprobar que la sesion siga
+    # abierta: si se cerro sesion, el token no debe servir aunque no haya
+    # caducado.
+    if not session_service.is_active(db, payload.refresh_token):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="la sesion ya no esta activa"
+        )
+
+    # Y que la cuenta siga existiendo: son 30 dias de margen.
     if db.get(User, user_id) is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh token invalido"
         )
 
     return TokenResponse(access_token=create_access_token(user_id))
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(payload: LogoutRequest, db: Session = Depends(get_db)) -> None:
+    """Cierra la sesion de verdad, invalidando el token en el servidor.
+
+    No exige sesion valida a proposito: si el token de acceso ya caduco, cerrar
+    sesion tiene que seguir funcionando. Y no revela si el token existia, para
+    que no sirva de oraculo.
+    """
+    session_service.revoke(db, payload.refresh_token)
+    db.commit()

@@ -197,7 +197,7 @@ Al analizar una URL se resuelve el DNS y se valida la IP **en cada salto de redi
 ## Pruebas
 
 ```bash
-cd backend && pytest              # 328 pruebas
+cd backend && pytest              # 345 pruebas
 cd frontend && npx playwright test # 5 recorridos end-to-end
 ```
 
@@ -234,7 +234,9 @@ Se declaran porque afectan a cómo hay que leer los resultados:
 
 Los tres modos de análisis funcionan de principio a fin. Queda el despliegue en producción.
 
-Hay **tres cabos sueltos que solo importan al abrirlo al público**, y están documentados con su solución en [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): no hay tope global de análisis simultáneos, cualquiera puede crear cuentas sin verificar el email, y cerrar sesión no invalida el token de refresco en el servidor.
+Las defensas que hacen falta para abrirlo al público están implementadas: tope global de análisis simultáneos, límite de registros por IP, longitud mínima de contraseña, revocación real de sesión y `noindex` en los informes compartidos. Los detalles y qué ajustar según la máquina están en [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
+Queda pendiente la verificación por email, que exige infraestructura de correo.
 
 ## Licencia
 

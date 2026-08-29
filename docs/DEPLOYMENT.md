@@ -128,29 +128,21 @@ https://qalitiradar.vercel.app/auth/github/callback
 
 ---
 
-## Antes de abrirlo al público
+## Lo que ya está resuelto
 
-Estas tres cosas **no** son un problema mientras el proyecto corre en tu ordenador, pero sí lo son en cuanto haya una dirección pública. Se declaran porque son decisiones conscientes, no descuidos.
+Estas defensas no hacían falta mientras el proyecto corría en un ordenador propio, pero sí en cuanto hay una dirección pública. Están implementadas y probadas:
 
-### 1. No hay tope global de análisis simultáneos
+| Riesgo | Cómo se ataja |
+|---|---|
+| Diez cuentas coincidiendo tumban la máquina | **Tope global de 6 análisis simultáneos**, además de los límites por usuario |
+| Crear cuentas en cadena para saltarse los límites | **5 registros por hora y por IP** |
+| Contraseñas de un carácter | **Mínimo 8** en el registro |
+| Un token robado sirve 30 días | **Cerrar sesión lo invalida en el servidor**, no solo en el navegador |
+| Google indexando informes compartidos | **`noindex`** en `/r/[token]` |
 
-Los límites existentes son **por usuario**: 5 análisis por hora, 2 a la vez, más 1 automático de la vigilancia. No hay ningún tope para el conjunto del servidor.
+Sobre el tope global: `MAX_GLOBAL_CONCURRENT = 6` está pensado para una máquina de 4 GB. Cada análisis reserva 512 MB, así que en el peor caso son 3 GB más PostgreSQL. **Si despliegas en una máquina más pequeña, baja ese número** en `app/services/rate_limit_service.py`.
 
-Diez personas a la vez pueden pedir 30 contenedores. A 512 MB cada uno son 15 GB de RAM, y la máquina se cae.
-
-*Solución:* limitar la concurrencia del worker (`--concurrency=2`), que hace de tope real, y vigilar la memoria.
-
-### 2. Cualquiera puede crear cuentas sin límite
-
-No hay verificación de email. Como los límites de uso son por cuenta, alguien puede registrar diez cuentas y saltárselos.
-
-*Solución:* verificación por email, o límite por IP en el registro.
-
-### 3. Cerrar sesión no invalida el token de refresco
-
-La renovación de sesión es sin estado: el token de refresco es válido 30 días y el servidor no lleva registro de cuáles siguen vivos. Cerrar sesión lo borra del navegador, pero un token robado seguiría funcionando.
-
-*Solución:* guardar los tokens de refresco en la tabla `refresh_tokens`, que ya existe en el esquema, y marcarlos como revocados al cerrar sesión.
+Sobre el registro por IP: no sustituye a verificar el email, que sigue siendo lo suyo si esto llega a tener uso real. Sube el coste del abuso, no lo elimina — alguien con varias IP puede saltárselo.
 
 ---
 
