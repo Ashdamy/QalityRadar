@@ -55,7 +55,7 @@ sudo usermod -aG docker $USER   # cerrar sesión y volver a entrar
 ```bash
 git clone https://github.com/Ashdamy/QalityRadar.git
 cd QalityRadar
-docker build -t qalitiradar-analyzer ./analyzer
+docker build -t qaliti/analyzer:latest ./analyzer
 ```
 
 Sin esa imagen, **todos los análisis de repositorio fallan**. Es el paso que más se olvida.

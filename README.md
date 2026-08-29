@@ -146,7 +146,7 @@ celery -A app.worker.celery_app beat --loglevel=info
 ### 5. Imagen del sandbox
 
 ```bash
-docker build -t qalitiradar-analyzer ./analyzer
+docker build -t qaliti/analyzer:latest ./analyzer
 ```
 
 ### 6. Frontend
