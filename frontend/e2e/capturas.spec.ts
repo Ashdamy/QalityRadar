@@ -74,8 +74,12 @@ test("captura el recorrido completo", async ({ page }) => {
 
   // Segunda toma con el radar y las dimensiones a la vista: es lo que de
   // verdad enseña que el analisis mide algo.
-  await page.getByText("Dimensiones", { exact: true }).scrollIntoViewIfNeeded();
-  await page.waitForTimeout(400);
+  // scrollIntoViewIfNeeded no baja si considera que ya se ve un poco, y el
+  // radar quedaba fuera de cuadro. Se centra a mano.
+  await page
+    .getByText("Dimensiones", { exact: true })
+    .evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await page.waitForTimeout(500);
   await guardar(page, "04b-dimensiones");
 
   // 5. Enlace público

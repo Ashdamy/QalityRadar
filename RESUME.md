@@ -263,6 +263,20 @@ Para direcciones no hay commit, así que se usa el `ETag` o el `Last-Modified` c
 
 ---
 
+### 17. Publicación del repositorio
+
+README escrito para alguien de fuera, con capturas de cada paso. Las capturas **se generan recorriendo la aplicación con Playwright**, no son montajes: si una pantalla se rompe, la captura lo enseña.
+
+Hacerlas sirvió de revisión y sacó tres fallos:
+
+- La pantalla de seguimiento no mostraba nada mientras cargaba, así que parecía rota.
+- La celda «Avisos» del resumen enseñaba la palabra «Campana» con formato de cifra: un texto disfrazado de dato.
+- **El resumen de la IA presentaba los defectos como virtudes**: llegó a escribir *«se detectan algunos hallazgos positivos como la falta de la política de seguridad de contenido»*. La causa era del prompt: se le pasaba una lista bajo el rótulo «Hallazgos detectados» sin decir en ningún sitio que fueran problemas, y «hallazgo» en español es neutro. Ahora el rótulo dice que todos son defectos y el sistema lo prohíbe explícitamente. Verificado contra el modelo real.
+
+Se añadió licencia MIT y se documentó el despliegue en [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md), incluyendo los tres cabos sueltos que solo importan al abrirlo al público: falta un tope global de análisis simultáneos, no hay verificación de email (y los límites son por cuenta), y cerrar sesión no invalida el token de refresco.
+
+---
+
 ## Lo que sigue
 
 1. **Despliegue**, cuando tú lo digas. La recomendación sigue siendo **Vercel para el frontend y Oracle Cloud Always Free para el backend**: Render y Railway no dan acceso al demonio de Docker, que el sandbox necesita.

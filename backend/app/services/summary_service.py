@@ -120,8 +120,8 @@ def _try_model(
         f"Puntuacion anterior: {previous_score:g}/100\n"
         f"Puntuacion actual: {current_score:g}/100\n"
         f"Periodo entre analisis: {periodo}\n\n"
-        f"Mejoras detectadas:\n{mejoras}\n\n"
-        f"Regresiones detectadas:\n{regresiones}\n\n"
+        f"Aspectos que mejoraron:\n{mejoras}\n\n"
+        f"Aspectos que empeoraron (todos son defectos):\n{regresiones}\n\n"
         "Redacta el resumen ejecutivo."
     )
 
@@ -139,7 +139,9 @@ def _try_model(
                             "de maximo cinco frases sobre la evolucion de la calidad de un "
                             "proyecto de software. Incluyes: el cambio neto, lo mas relevante que "
                             "mejoro, lo que empeoro, y una unica recomendacion prioritaria para el "
-                            "proximo sprint. Tono profesional pero accesible. No inventas ningun "
+                            "proximo sprint. Tono profesional pero accesible. "
+                            "Los hallazgos y las regresiones que se te facilitan son SIEMPRE defectos: cada uno describe algo que falta o esta mal. Nunca los presentes como aspectos positivos, virtudes ni puntos fuertes. "
+                            "No inventas ningun "
                             "dato que no aparezca en la informacion facilitada. Respondes solo con "
                             "el resumen, sin encabezados ni vinetas."
                         ),
@@ -287,7 +289,7 @@ def _try_analysis_model(
         f"Objetivo analizado: {target_name} ({tipo})\n"
         f"Puntuacion global: {overall_score:g}/100\n\n"
         f"Puntuacion por dimension:\n{lineas_dim}\n\n"
-        f"Hallazgos detectados:\n{lineas_hall}\n\n"
+        f"Problemas detectados (todos son defectos):\n{lineas_hall}\n\n"
         "Redacta el resumen ejecutivo."
     )
 
@@ -305,7 +307,9 @@ def _try_analysis_model(
                             "de maximo cuatro frases sobre la calidad de un software analizado. "
                             "Explicas que significa la puntuacion, senalas la dimension mas fuerte "
                             "y la mas debil, y terminas con la accion mas prioritaria. Tono "
-                            "profesional pero accesible. No inventas ningun dato que no aparezca "
+                            "profesional pero accesible. "
+                            "Los hallazgos y las regresiones que se te facilitan son SIEMPRE defectos: cada uno describe algo que falta o esta mal. Nunca los presentes como aspectos positivos, virtudes ni puntos fuertes. "
+                            "No inventas ningun dato que no aparezca "
                             "en la informacion facilitada, y no afirmas que sea una certificacion. "
                             "Respondes solo con el resumen, sin encabezados ni vinetas."
                         ),
@@ -416,7 +420,7 @@ def _try_combined_model(
         f"Puntuacion en produccion: {url_score:g}/100\n"
         f"Puntuacion consolidada: {consolidated_score:g}/100\n\n"
         f"Analisis de la brecha:\n{brecha}\n\n"
-        f"Plan de mejora priorizado:\n{lineas_plan}\n\n"
+        f"Plan de mejora priorizado (cada punto es un defecto a corregir):\n{lineas_plan}\n\n"
         "Redacta el resumen ejecutivo."
     )
 
@@ -435,7 +439,9 @@ def _try_combined_model(
                             "proyecto con la de su aplicacion ya desplegada. Explicas que "
                             "significa la diferencia entre ambas notas y a que se debe, y "
                             "terminas con la accion mas prioritaria. Tono profesional pero "
-                            "accesible. No inventas ningun dato que no aparezca en la informacion "
+                            "accesible. "
+                            "Los hallazgos y las regresiones que se te facilitan son SIEMPRE defectos: cada uno describe algo que falta o esta mal. Nunca los presentes como aspectos positivos, virtudes ni puntos fuertes. "
+                            "No inventas ningun dato que no aparezca en la informacion "
                             "facilitada. Respondes solo con el resumen, sin encabezados ni "
                             "vinetas."
                         ),

@@ -212,6 +212,7 @@ Las end-to-end usan un navegador real contra la aplicación en marcha. Requieren
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Componentes, flujos y riesgos de seguridad |
 | [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) | Esquema completo: tablas, relaciones e índices |
 | [`docs/ISO_25010_MAPPING.md`](docs/ISO_25010_MAPPING.md) | Qué señal alimenta cada característica del estándar |
+| [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Cómo ponerlo en internet, y qué cerrar antes de abrirlo |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Plan por semanas con criterios de salida |
 | [`RESUME.md`](RESUME.md) | Bitácora del desarrollo y decisiones tomadas |
 
@@ -233,4 +234,8 @@ Se declaran porque afectan a cómo hay que leer los resultados:
 
 Los tres modos de análisis funcionan de principio a fin. Queda el despliegue en producción.
 
-Antes de exponerlo públicamente hay un cabo suelto documentado: la renovación de sesión es sin estado, así que cerrar sesión no invalida el token de refresco en el servidor.
+Hay **tres cabos sueltos que solo importan al abrirlo al público**, y están documentados con su solución en [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md): no hay tope global de análisis simultáneos, cualquiera puede crear cuentas sin verificar el email, y cerrar sesión no invalida el token de refresco en el servidor.
+
+## Licencia
+
+[MIT](LICENSE). Puedes usarlo, modificarlo y distribuirlo libremente, citando la autoría.
