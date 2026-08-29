@@ -15,6 +15,7 @@ Asi el sandbox conserva `--network=none` intacto.
 
 import json
 import re
+import tomllib
 from pathlib import Path
 
 import httpx
@@ -122,11 +123,77 @@ def _collect_packages(repo_dir: Path) -> list[dict]:
             if match:
                 packages.append({"ecosystem": "PyPI", "name": match.group(1), "version": match.group(2)})
             elif linea.strip() and not linea.startswith("-"):
-                nombre = re.split(r"[<>=!~\[ ]", linea.strip(), 1)[0]
+                nombre = re.split(r"[<>=!~\[ ]", linea.strip(), maxsplit=1)[0]
                 if nombre:
                     packages.append({"ecosystem": "PyPI", "name": nombre, "version": None})
 
+    packages.extend(_pyproject_packages(repo_dir))
     return packages
+
+
+def _pyproject_packages(repo_dir: Path) -> list[dict]:
+    """Lee las dependencias de `pyproject.toml`.
+
+    Es el estandar de Python desde PEP 621 y lo usa practicamente todo lo
+    moderno: Flask, FastAPI, Django. Sin esto, esos proyectos reportaban cero
+    dependencias declaradas, se quedaban **sin analisis de vulnerabilidades** y
+    encima perdian puntos por no declarar lo que si declaran.
+    """
+    pyproject = repo_dir / "pyproject.toml"
+    if not pyproject.is_file():
+        return []
+
+    try:
+        datos = tomllib.loads(pyproject.read_text(encoding="utf-8", errors="replace"))
+    except (tomllib.TOMLDecodeError, OSError):
+        return []
+
+    crudas: list[str] = []
+
+    # PEP 621: [project] dependencies y optional-dependencies.
+    proyecto = datos.get("project") or {}
+    crudas.extend(d for d in (proyecto.get("dependencies") or []) if isinstance(d, str))
+    for grupo in (proyecto.get("optional-dependencies") or {}).values():
+        crudas.extend(d for d in (grupo or []) if isinstance(d, str))
+
+    paquetes = [_parse_requirement(linea) for linea in crudas]
+
+    # Poetry no sigue PEP 621: declara las suyas como tabla nombre -> version.
+    poetry = ((datos.get("tool") or {}).get("poetry") or {})
+    for seccion in ("dependencies", "dev-dependencies"):
+        for nombre, especificacion in (poetry.get(seccion) or {}).items():
+            if nombre.lower() == "python":
+                continue  # es el interprete, no un paquete instalable
+            version = especificacion if isinstance(especificacion, str) else None
+            paquetes.append(
+                {"ecosystem": "PyPI", "name": nombre, "version": _exact_pypi_version(version)}
+            )
+
+    return [p for p in paquetes if p]
+
+
+def _parse_requirement(linea: str) -> dict | None:
+    """Convierte "flask>=3.0" o "werkzeug==3.0.1" en un paquete consultable."""
+    texto = linea.split(";", 1)[0].strip()  # fuera los marcadores de entorno
+    if not texto:
+        return None
+    match = _PY_REQUIREMENT.match(texto)
+    if match:
+        return {"ecosystem": "PyPI", "name": match.group(1), "version": match.group(2)}
+    nombre = re.split(r"[<>=!~\[ ]", texto, maxsplit=1)[0].strip()
+    return {"ecosystem": "PyPI", "name": nombre, "version": None} if nombre else None
+
+
+def _exact_pypi_version(especificacion: str | None) -> str | None:
+    """Igual que en npm: solo vale una version exacta.
+
+    `^3.0` o `>=3.0` pueden resolver a cualquier cosa, y preguntar por una
+    concreta daria una respuesta que no corresponde a lo instalado.
+    """
+    if not especificacion:
+        return None
+    limpio = especificacion.strip()
+    return limpio[2:] if limpio.startswith("==") else None
 
 
 def _exact_npm_version(rango: str) -> str | None:

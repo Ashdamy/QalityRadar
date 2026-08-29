@@ -277,6 +277,30 @@ Se añadió licencia MIT y se documentó el despliegue en [`docs/DEPLOYMENT.md`]
 
 ---
 
+### 18. Calibración de la puntuación
+
+Al contrastar la escala contra proyectos de calidad conocida —algo que no se había hecho desde que se reescribió para ser exigente— apareció el problema opuesto al original: **Flask sacaba 40 sobre 100**.
+
+La causa no era medir mal muchas cosas, sino una sola. Gitleaks marcaba cinco secretos críticos en `docs/config.rst` y `docs/tutorial/deploy.rst`: los ejemplos de `SECRET_KEY` del propio manual de Flask. Como un hallazgo crítico limita la nota a 40, ese era exactamente su resultado. La nota no salía de medir, salía del tope.
+
+Tres arreglos:
+
+- **La documentación no genera hallazgos críticos de secreto.** El mecanismo ya existía para material de pruebas (se añadió cuando axios daba un falso positivo); se extiende a `docs/`, `*.md`, `*.rst` y demás. Se rebajan a gravedad baja, no se ignoran: una credencial real ahí sigue viéndose.
+- **Se lee `pyproject.toml`**, el estándar de Python desde PEP 621. Sin ello, Flask, FastAPI o Django reportaban cero dependencias declaradas, **se quedaban sin análisis de vulnerabilidades** y encima perdían puntos por no declarar lo que sí declaran. Se admiten PEP 621 y Poetry.
+- **Si la rama guardada ya no existe, se reintenta con la que declare el remoto.** Renombrar `master` a `main` es habitual y el dato guardado se queda viejo; fallar por eso era negarse a analizar un repositorio válido.
+
+Resultado:
+
+| Proyecto | Antes | Después |
+|---|---|---|
+| pallets/flask | 40 (5 críticos falsos) | **64** (0 críticos) |
+| axios/axios | 66 | **68** |
+| octocat/Hello-World | *fallaba* | **7** |
+
+La escala ya discrimina: las referencias en los sesenta, el repositorio vacío en siete. Queda fijado con 29 pruebas para que no vuelva a descalibrarse en silencio.
+
+---
+
 ## Lo que sigue
 
 1. **Despliegue**, cuando tú lo digas. La recomendación sigue siendo **Vercel para el frontend y Oracle Cloud Always Free para el backend**: Render y Railway no dan acceso al demonio de Docker, que el sandbox necesita.

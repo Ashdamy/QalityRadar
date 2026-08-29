@@ -27,6 +27,14 @@ Además: histórico y comparación entre análisis, exportación a PDF, enlaces 
 
 Además hay techos por gravedad: un hallazgo **crítico** limita la nota a 40 y uno **alto** la limita a 70, por buena que sea el resto del análisis. Un secreto filtrado no se compensa con buena documentación.
 
+Ser exigente no es lo mismo que ser injusto. La escala se contrasta contra proyectos de calidad conocida:
+
+| Proyecto | Nota |
+|---|---|
+| axios/axios | 68 |
+| pallets/flask | 64 |
+| octocat/Hello-World (repositorio de ejemplo, vacío) | 7 |
+
 > Las puntuaciones son una aproximación al modelo ISO/IEC 25010. **No constituyen una certificación oficial.** El mapeo completo, con sus límites declarados, está en [`docs/ISO_25010_MAPPING.md`](docs/ISO_25010_MAPPING.md).
 
 ---
@@ -197,7 +205,7 @@ Al analizar una URL se resuelve el DNS y se valida la IP **en cada salto de redi
 ## Pruebas
 
 ```bash
-cd backend && pytest              # 345 pruebas
+cd backend && pytest              # 374 pruebas
 cd frontend && npx playwright test # 5 recorridos end-to-end
 ```
 

@@ -95,28 +95,55 @@ def clone_repository(clone_url: str, branch: str) -> Iterator[Path]:
 
     temp_dir = Path(tempfile.mkdtemp(prefix="qaliti-clone-"))
     try:
-        completed = subprocess.run(
-            [
-                "git", "clone",
-                "--depth", "1",
-                "--single-branch",
-                "--branch", safe_branch,
-                "--config", "core.askPass=true",   # nunca pedir credenciales
-                safe_url,
-                str(temp_dir / "repo"),
-            ],
-            capture_output=True,
-            text=True,
-            timeout=CLONE_TIMEOUT_SECONDS,
-            shell=False,
-            check=False,
-            env=_restricted_git_env(),
-        )
+        completed = _run_clone(safe_url, temp_dir, safe_branch)
+
+        # Si la rama guardada ya no existe, se reintenta dejando que git use la
+        # que el remoto declare por defecto. Pasa mas de lo que parece: el
+        # nombre se guardo al listar el repositorio y desde entonces pudieron
+        # renombrar master a main, o cambiar la rama principal. Fallar ahi
+        # significaria negarse a analizar un repositorio perfectamente valido
+        # por un dato caducado.
+        if completed.returncode != 0 and _branch_not_found(completed.stderr):
+            _cleanup_clone_dir(temp_dir)
+            temp_dir = Path(tempfile.mkdtemp(prefix="qaliti-clone-"))
+            completed = _run_clone(safe_url, temp_dir, None)
+
         if completed.returncode != 0:
             raise RuntimeError(f"no se pudo clonar el repositorio: {completed.stderr[:300]}")
         yield temp_dir / "repo"
     finally:
         _cleanup_clone_dir(temp_dir)
+
+
+def _run_clone(safe_url: str, temp_dir: Path, safe_branch: str | None):
+    """Clon superficial. Sin `branch`, git usa la rama por defecto del remoto."""
+    orden = ["git", "clone", "--depth", "1", "--single-branch"]
+    if safe_branch:
+        orden += ["--branch", safe_branch]
+    orden += [
+        "--config", "core.askPass=true",   # nunca pedir credenciales
+        safe_url,
+        str(temp_dir / "repo"),
+    ]
+    return subprocess.run(
+        orden,
+        capture_output=True,
+        text=True,
+        timeout=CLONE_TIMEOUT_SECONDS,
+        shell=False,
+        check=False,
+        env=_restricted_git_env(),
+    )
+
+
+def _branch_not_found(stderr: str) -> bool:
+    """Distingue "esa rama no existe" de cualquier otro fallo del clon.
+
+    Importa acertar: reintentar sin rama ante un error de red o de permisos
+    solo duplicaria la espera para acabar fallando igual.
+    """
+    texto = (stderr or "").lower()
+    return "remote branch" in texto and "not found" in texto
 
 
 def read_head_commit(repo_dir: Path) -> tuple[str, str]:

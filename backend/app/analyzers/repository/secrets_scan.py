@@ -36,6 +36,17 @@ TEST_FIXTURE_MARKERS = (
     "e2e/", "cypress/", "sample/", "samples/", "benchmark/", "benchmarks/",
 )
 
+# La documentacion es el otro sitio donde una credencial casi nunca es real:
+# los tutoriales ENSENAN a configurar claves, asi que las escriben. Flask
+# recibia cinco criticos por los ejemplos de SECRET_KEY de su propio manual, y
+# como un critico limita la nota a 40, ese era su resultado final. Medir eso
+# como una fuga es sencillamente falso.
+DOCUMENTATION_MARKERS = (
+    "docs/", "doc/", "documentation/", "website/", "site/", "guide/", "guides/",
+    "tutorial/", "tutorials/", "changelog", "readme", "contributing",
+)
+DOCUMENTATION_SUFFIXES = (".md", ".rst", ".txt", ".adoc", ".mdx", ".ipynb")
+
 
 class SecretsScanAnalyzer:
     name = "secrets_scan"
@@ -152,11 +163,23 @@ class SecretsScanAnalyzer:
 
 
 def _is_test_fixture(file_path: str | None) -> bool:
-    """Una credencial en una ruta de tests es casi siempre material ficticio."""
+    """Rutas donde una credencial es casi siempre ficticia: pruebas o manual.
+
+    En ambos casos el hallazgo se informa con gravedad baja en vez de
+    ignorarse: si de verdad hubiera una credencial real ahi, sigue viendose.
+    Lo que no puede es hundir la nota de un proyecto correcto.
+    """
     if not file_path:
         return False
     ruta = file_path.replace("\\", "/").lower()
-    return any(marker in f"{ruta}" or ruta.startswith(marker) for marker in TEST_FIXTURE_MARKERS)
+
+    if any(marker in ruta or ruta.startswith(marker) for marker in TEST_FIXTURE_MARKERS):
+        return True
+
+    if ruta.endswith(DOCUMENTATION_SUFFIXES):
+        return True
+
+    return any(marker in ruta for marker in DOCUMENTATION_MARKERS)
 
 
 def _strip_container_prefix(file_path: str | None) -> str | None:
