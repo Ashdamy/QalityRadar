@@ -13,7 +13,9 @@ class RefreshToken(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    token_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Unico: dos filas con el mismo hash, una viva y otra revocada, hacen que
+    # la busqueda devuelva una u otra sin criterio.
+    token_hash: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     # Cuando se anulo por haberse renovado, que no es lo mismo que cerrar

@@ -146,12 +146,31 @@ def revoke_all_for_user(db: Session, user_id: uuid.UUID) -> int:
 
 
 def purge_expired(db: Session) -> int:
-    """Borra los que ya caducaron. La tabla crece con cada inicio de sesion y
-    un token caducado no aporta nada: ya no vale ni aunque no este revocado."""
-    from sqlalchemy import delete
+    """Borra los tokens que ya no pueden servir para nada.
+
+    Dos motivos, y el segundo pesa mucho mas desde que se rota: un token
+    caducado no vale ni aunque no este revocado, y uno revocado no vuelve a
+    valer una vez pasada la ventana de gracia. Con la rotacion, cada renovacion
+    deja una fila revocada, o sea unas cien al dia por sesion activa.
+
+    Borrar una fila revocada no cambia nada para quien la tuviera: un token que
+    no consta se rechaza igual que uno revocado.
+    """
+    from sqlalchemy import delete, or_
+
+    ahora = datetime.now(timezone.utc)
+    ya_no_hay_gracia = ahora - timedelta(seconds=GRACE_SECONDS)
 
     resultado = db.execute(
-        delete(RefreshToken).where(RefreshToken.expires_at <= datetime.now(timezone.utc))
+        delete(RefreshToken).where(
+            or_(
+                RefreshToken.expires_at <= ahora,
+                # Revocado al cerrar sesion: muerto desde ese instante.
+                (RefreshToken.revoked.is_(True)) & (RefreshToken.rotated_at.is_(None)),
+                # Revocado al rotar: muerto en cuanto pasa la gracia.
+                (RefreshToken.revoked.is_(True)) & (RefreshToken.rotated_at < ya_no_hay_gracia),
+            )
+        )
     )
     return resultado.rowcount or 0
 

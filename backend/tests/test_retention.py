@@ -15,6 +15,10 @@ from app.core.database import SessionLocal
 from app.models.analysis import Analysis
 from app.models.repository import Repository
 from app.models.user import User
+from app.core.security import create_refresh_token
+from app.models.refresh_token import RefreshToken
+from app.models.shared_report import SharedReport
+from app.services import session_service, share_service
 from app.services.retention_service import (
     ALWAYS_KEEP,
     MAX_PER_TARGET,
@@ -215,3 +219,233 @@ def test_purgar_sin_nada_que_borrar_devuelve_cero(repositorio):
         assert purge_old_analyses(db) >= 0
     finally:
         db.close()
+
+
+# --------------------------------------------------------------------------
+# Tokens de refresco muertos
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def usuario_suelto():
+    """Un usuario cualquiera al que colgarle tokens."""
+    correo = "purga-tokens@example.com"
+
+    def _limpiar():
+        db = SessionLocal()
+        try:
+            db.execute(delete(User).where(User.email == correo))
+            db.commit()
+        finally:
+            db.close()
+
+    _limpiar()
+    db = SessionLocal()
+    try:
+        usuario = User(id=uuid.uuid4(), email=correo, password_hash="x")
+        db.add(usuario)
+        db.commit()
+        identificador = usuario.id
+    finally:
+        db.close()
+
+    yield identificador
+    _limpiar()
+
+
+def _tokens_de(db, user_id):
+    return db.scalars(select(RefreshToken).where(RefreshToken.user_id == user_id)).all()
+
+
+def test_un_token_caducado_se_borra(usuario_suelto):
+    db = SessionLocal()
+    try:
+        token = create_refresh_token(usuario_suelto)
+        session_service.register_refresh_token(db, usuario_suelto, token)
+        db.commit()
+        fila = _tokens_de(db, usuario_suelto)[0]
+        fila.expires_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+        db.commit()
+
+        session_service.purge_expired(db)
+        db.commit()
+
+        assert _tokens_de(db, usuario_suelto) == []
+    finally:
+        db.close()
+
+
+def test_un_token_revocado_al_cerrar_sesion_se_borra(usuario_suelto):
+    """Esta muerto desde ese instante: un token que no consta se rechaza igual
+    que uno revocado."""
+    db = SessionLocal()
+    try:
+        token = create_refresh_token(usuario_suelto)
+        session_service.register_refresh_token(db, usuario_suelto, token)
+        db.commit()
+        session_service.revoke(db, token)
+        db.commit()
+
+        session_service.purge_expired(db)
+        db.commit()
+
+        assert _tokens_de(db, usuario_suelto) == []
+    finally:
+        db.close()
+
+
+def test_un_token_recien_rotado_sobrevive_a_la_purga(usuario_suelto):
+    """Dentro de la ventana de gracia todavia sirve: borrarlo echaria de la
+    sesion a quien tenga dos pestañas renovando a la vez."""
+    db = SessionLocal()
+    try:
+        viejo = create_refresh_token(usuario_suelto)
+        session_service.register_refresh_token(db, usuario_suelto, viejo)
+        db.commit()
+        session_service.rotate(db, usuario_suelto, viejo, create_refresh_token(usuario_suelto))
+        db.commit()
+
+        session_service.purge_expired(db)
+        db.commit()
+
+        assert session_service.is_active(db, viejo) is True
+    finally:
+        db.close()
+
+
+def test_un_token_rotado_hace_rato_se_borra(usuario_suelto):
+    """Con la rotacion, cada renovacion deja una fila revocada: unas cien al
+    dia por sesion activa. Sin purga, la tabla no para de crecer."""
+    db = SessionLocal()
+    try:
+        viejo = create_refresh_token(usuario_suelto)
+        session_service.register_refresh_token(db, usuario_suelto, viejo)
+        db.commit()
+        session_service.rotate(db, usuario_suelto, viejo, create_refresh_token(usuario_suelto))
+        db.commit()
+
+        fila = db.scalar(
+            select(RefreshToken).where(
+                RefreshToken.token_hash == session_service._hash(viejo)
+            )
+        )
+        fila.rotated_at = datetime.now(timezone.utc) - timedelta(
+            seconds=session_service.GRACE_SECONDS + 60
+        )
+        db.commit()
+
+        session_service.purge_expired(db)
+        db.commit()
+
+        # El que lo sustituyo sigue ahi; solo se fue el muerto.
+        assert len(_tokens_de(db, usuario_suelto)) == 1
+    finally:
+        db.close()
+
+
+def test_una_sesion_abierta_no_se_toca(usuario_suelto):
+    db = SessionLocal()
+    try:
+        token = create_refresh_token(usuario_suelto)
+        session_service.register_refresh_token(db, usuario_suelto, token)
+        db.commit()
+
+        session_service.purge_expired(db)
+        db.commit()
+
+        assert session_service.is_active(db, token) is True
+    finally:
+        db.close()
+
+
+# --------------------------------------------------------------------------
+# Enlaces compartidos caducados
+# --------------------------------------------------------------------------
+
+
+def test_un_enlace_caducado_se_borra(repositorio):
+    user_id, repo_id = repositorio
+    """Ya no abre nada; guardarlo solo acumula tokens que un dia dieron acceso
+    a un informe."""
+    db = SessionLocal()
+    try:
+        analisis = Analysis(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            repository_id=repo_id,
+            analysis_type="repository",
+            status="completed",
+        )
+        db.add(analisis)
+        db.flush()
+        enlace = share_service.create_share_link(db, analisis)
+        db.flush()
+        enlace.expires_at = datetime.now(timezone.utc) - timedelta(days=1)
+        db.commit()
+        token = enlace.token
+
+        borrados = share_service.purge_expired_links(db)
+        db.commit()
+
+        assert borrados == 1
+        assert db.scalar(select(SharedReport).where(SharedReport.token == token)) is None
+        # Y para quien lo tuviera no cambia nada: sigue sin abrir.
+        assert share_service.resolve_share_token(db, token) is None
+    finally:
+        db.close()
+
+
+def test_un_enlace_vivo_no_se_toca(repositorio):
+    user_id, repo_id = repositorio
+    db = SessionLocal()
+    try:
+        analisis = Analysis(
+            id=uuid.uuid4(),
+            user_id=user_id,
+            repository_id=repo_id,
+            analysis_type="repository",
+            status="completed",
+        )
+        db.add(analisis)
+        db.flush()
+        enlace = share_service.create_share_link(db, analisis)
+        db.commit()
+        token = enlace.token
+
+        share_service.purge_expired_links(db)
+        db.commit()
+
+        assert share_service.resolve_share_token(db, token) is not None
+    finally:
+        db.close()
+
+
+def test_dos_filas_con_el_mismo_hash_no_caben(usuario_suelto):
+    """La base de datos se niega, en vez de dejar una sesion en un estado
+    ambiguo: una fila viva y otra revocada con el mismo hash hacen que cerrar
+    sesion revoque una y la otra siga abriendo.
+
+    Pasaba de verdad antes de que los tokens llevaran `jti`: dos emitidos en el
+    mismo segundo salian identicos, asi que rotar reemitia el que se acababa de
+    anular.
+    """
+    from sqlalchemy.exc import IntegrityError
+
+    db = SessionLocal()
+    try:
+        token = create_refresh_token(usuario_suelto)
+        session_service.register_refresh_token(db, usuario_suelto, token)
+        db.commit()
+
+        session_service.register_refresh_token(db, usuario_suelto, token)
+        with pytest.raises(IntegrityError):
+            db.commit()
+        db.rollback()
+    finally:
+        db.close()
+
+
+def test_dos_tokens_seguidos_del_mismo_usuario_son_distintos(usuario_suelto):
+    """El `jti` es lo que lo garantiza: `iat` y `exp` tienen resolucion de
+    segundos, asi que sin el dos tokens emitidos a la vez salen identicos."""
+    assert create_refresh_token(usuario_suelto) != create_refresh_token(usuario_suelto)

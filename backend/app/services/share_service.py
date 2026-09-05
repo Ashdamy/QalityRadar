@@ -71,3 +71,19 @@ def revoke_share_link(db: Session, analysis: Analysis, token: str) -> bool:
         return False
     db.delete(enlace)
     return True
+
+
+def purge_expired_links(db: Session) -> int:
+    """Borra los enlaces caducados. Devuelve cuantos elimino.
+
+    Un enlace caducado ya no abre nada, asi que guardarlo solo es acumular
+    tokens que un dia dieron acceso a un informe. Y para quien lo tenga no
+    cambia nada: un token que no consta y uno caducado dan la misma respuesta,
+    que es justo lo que evita que este endpoint sirva de oraculo.
+    """
+    from sqlalchemy import delete
+
+    resultado = db.execute(
+        delete(SharedReport).where(SharedReport.expires_at <= datetime.now(timezone.utc))
+    )
+    return resultado.rowcount or 0
