@@ -16,4 +16,8 @@ class RefreshToken(Base):
     token_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    # Cuando se anulo por haberse renovado, que no es lo mismo que cerrar
+    # sesion: durante unos segundos el anterior todavia se acepta, para que dos
+    # pestanas renovando a la vez no echen al usuario.
+    rotated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

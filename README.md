@@ -200,6 +200,8 @@ El aislamiento está **verificado con pruebas reales contra Docker**, no solo de
 
 Al analizar una URL se resuelve el DNS y se valida la IP **en cada salto de redirección**, no solo en la dirección inicial, para que una redirección no pueda apuntar a la red interna.
 
+El inventario completo de defensas —y, con la misma franqueza, lo que **no** está cubierto— está en [`docs/SECURITY.md`](docs/SECURITY.md).
+
 ---
 
 ## Pruebas
@@ -220,6 +222,7 @@ Las end-to-end usan un navegador real contra la aplicación en marcha. Requieren
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Componentes, flujos y riesgos de seguridad |
 | [`docs/DATA_MODEL.md`](docs/DATA_MODEL.md) | Esquema completo: tablas, relaciones e índices |
 | [`docs/ISO_25010_MAPPING.md`](docs/ISO_25010_MAPPING.md) | Qué señal alimenta cada característica del estándar |
+| [`docs/SECURITY.md`](docs/SECURITY.md) | Todas las defensas del sistema, y lo que **no** está cubierto |
 | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Cómo ponerlo en internet, y qué cerrar antes de abrirlo |
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | Plan por semanas con criterios de salida |
 | [`RESUME.md`](RESUME.md) | Bitácora del desarrollo y decisiones tomadas |

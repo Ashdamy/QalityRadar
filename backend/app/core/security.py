@@ -45,6 +45,12 @@ def _create_token(user_id: uuid.UUID, token_type: str, lifetime: timedelta) -> s
     payload = {
         "sub": str(user_id),
         "type": token_type,
+        # Identificador unico del token. Sin el, dos tokens del mismo usuario
+        # creados en el mismo segundo salen identicos, porque `iat` y `exp`
+        # tienen resolucion de segundos: al rotar el de refresco se emitia
+        # literalmente el mismo token que se acababa de anular, y quedaban dos
+        # filas con el mismo hash, una viva y otra no.
+        "jti": uuid.uuid4().hex,
         "iat": now,
         "exp": now + lifetime,
     }
@@ -72,10 +78,11 @@ def create_refresh_token(user_id: uuid.UUID) -> str:
 def _decode(token: str, expected_type: str) -> uuid.UUID:
     settings = get_settings()
     payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
-    # Los tokens emitidos antes de que existieran los tipos no llevan la
-    # marca. Se tratan como de acceso, que es lo unico que se emitia entonces,
-    # para no invalidar las sesiones abiertas al desplegar este cambio.
-    tipo = payload.get("type", ACCESS_TOKEN_TYPE)
+    # Un token sin marca se rechaza. Hubo un periodo en que se trataba como
+    # de acceso, para no cortar las sesiones abiertas al desplegar los tipos;
+    # ese periodo ya paso, y mientras duro cualquier token sin `type` valia
+    # como token de acceso.
+    tipo = payload.get("type")
     if tipo != expected_type:
         raise InvalidTokenType(f"se esperaba un token de tipo {expected_type}, llego {tipo}")
     return uuid.UUID(payload["sub"])

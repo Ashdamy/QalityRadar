@@ -7,25 +7,40 @@ de confianza.
 """
 
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
+from pydantic import ValidationError
 from fastapi.testclient import TestClient
 from sqlalchemy import delete, select
 
+from app.core.config import get_settings
 from app.core.database import SessionLocal
-from app.core.security import create_refresh_token
-from app.main import app
+import jwt
+
+from app.core.config import Settings
+from app.core.security import (
+    ACCESS_TOKEN_TYPE,
+    InvalidTokenType,
+    create_refresh_token,
+    decode_access_token,
+)
+from app.main import MAX_REQUEST_BYTES, app
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.services import rate_limit_service as limites
 from app.services import session_service
 from app.services.rate_limit_service import (
     MAX_GLOBAL_CONCURRENT,
+    MAX_LOGIN_FAILURES_PER_EMAIL_HOUR,
     MAX_REGISTRATIONS_PER_IP_HOUR,
     RateLimitExceeded,
     check_and_reserve,
+    check_login_allowed,
     check_registration_ip,
+    clear_login_failures,
     global_running,
+    record_login_failure,
     release,
 )
 
@@ -47,8 +62,9 @@ def _borrar_usuario():
 def _limpiar_redis():
     cliente = limites._client()
     cliente.delete(limites._GLOBAL_RUNNING_KEY)
-    for clave in cliente.scan_iter("ratelimit:registrations:*"):
-        cliente.delete(clave)
+    for patron in ("ratelimit:registrations:*", "ratelimit:login:*"):
+        for clave in cliente.scan_iter(patron):
+            cliente.delete(clave)
 
 
 @pytest.fixture(autouse=True)
@@ -254,3 +270,283 @@ def test_sin_ip_conocida_no_se_bloquea_a_nadie():
     rechazar a usuarios legitimos."""
     for _ in range(MAX_REGISTRATIONS_PER_IP_HOUR * 2):
         check_registration_ip(None)
+
+
+# --------------------------------------------------------------------------
+# Cabeceras de seguridad de la propia API
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "cabecera,valor",
+    [
+        ("X-Content-Type-Options", "nosniff"),
+        ("X-Frame-Options", "DENY"),
+        ("Referrer-Policy", "no-referrer"),
+    ],
+)
+def test_la_api_envia_sus_cabeceras_de_seguridad(cabecera, valor):
+    """QalitiRadar penalizaba a otros sitios por no enviarlas y la propia API
+    no enviaba ninguna."""
+    respuesta = client.get("/health")
+    assert respuesta.headers.get(cabecera) == valor
+
+
+def test_la_politica_de_contenido_no_permite_incrustar_la_api():
+    respuesta = client.get("/health")
+    politica = respuesta.headers.get("Content-Security-Policy", "")
+    assert "frame-ancestors 'none'" in politica
+
+
+def test_las_cabeceras_acompanan_tambien_a_los_errores():
+    """Una respuesta de error tambien la interpreta el navegador."""
+    respuesta = client.get("/api/reports/shared/no-existe")
+    assert respuesta.status_code == 404
+    assert respuesta.headers.get("X-Content-Type-Options") == "nosniff"
+
+
+def test_la_documentacion_interactiva_se_puede_apagar():
+    """Publicada regala el mapa completo de la API: cada ruta, cada parametro
+    y cada forma de respuesta."""
+    from app.core.config import Settings
+
+    assert Settings.model_fields["enable_api_docs"].default is True  # comodo en local
+    import inspect
+
+    from app import main
+
+    fuente = inspect.getsource(main)
+    assert "enable_api_docs" in fuente
+
+
+# --------------------------------------------------------------------------
+# Fuerza bruta contra el inicio de sesion
+# --------------------------------------------------------------------------
+
+
+def test_los_intentos_fallidos_de_login_se_acaban():
+    """bcrypt hace lento cada intento, pero lento no es imposible: sin limite
+    se pueden probar contrasenas toda la noche contra la misma cuenta."""
+    for _ in range(MAX_LOGIN_FAILURES_PER_EMAIL_HOUR):
+        check_login_allowed(_EMAIL, "203.0.113.9")
+        record_login_failure(_EMAIL, "203.0.113.9")
+
+    with pytest.raises(RateLimitExceeded) as excinfo:
+        check_login_allowed(_EMAIL, "203.0.113.9")
+    assert excinfo.value.retry_after_seconds > 0
+
+
+def test_el_limite_de_login_sigue_al_email_aunque_cambie_la_ip():
+    """Un ataque distribuido cambia de IP cada intento; si solo se contara por
+    IP, la cuenta quedaria igual de expuesta."""
+    for numero in range(MAX_LOGIN_FAILURES_PER_EMAIL_HOUR):
+        record_login_failure(_EMAIL, f"203.0.113.{numero}")
+
+    with pytest.raises(RateLimitExceeded):
+        check_login_allowed(_EMAIL, "198.51.100.1")
+
+
+def test_bloquear_una_cuenta_no_bloquea_a_las_demas():
+    for _ in range(MAX_LOGIN_FAILURES_PER_EMAIL_HOUR):
+        record_login_failure(_EMAIL, None)
+
+    check_login_allowed("otra-persona@example.com", None)  # no debe lanzar
+
+
+def test_entrar_bien_borra_los_fallos_de_esa_cuenta():
+    """Un despiste con la contrasena no puede dejar al dueno fuera una hora."""
+    for _ in range(MAX_LOGIN_FAILURES_PER_EMAIL_HOUR):
+        record_login_failure(_EMAIL, None)
+
+    clear_login_failures(_EMAIL)
+    check_login_allowed(_EMAIL, None)  # no debe lanzar
+
+
+def test_el_endpoint_de_login_responde_429_al_pasarse():
+    """De punta a punta: el limite tiene que llegar al cliente como 429 con
+    Retry-After, no como un 401 mas."""
+    client.post("/api/auth/register", json={"email": _EMAIL, "password": _PASSWORD})
+
+    for _ in range(MAX_LOGIN_FAILURES_PER_EMAIL_HOUR):
+        fallo = client.post("/api/auth/login", json={"email": _EMAIL, "password": "no-es-esta"})
+        assert fallo.status_code == 401
+
+    bloqueado = client.post("/api/auth/login", json={"email": _EMAIL, "password": "no-es-esta"})
+    assert bloqueado.status_code == 429
+    assert "Retry-After" in bloqueado.headers
+
+    # Y la contrasena buena tampoco pasa mientras dure el bloqueo: si pasara,
+    # el atacante sabria que acerto por el codigo de respuesta.
+    correcta = client.post("/api/auth/login", json={"email": _EMAIL, "password": _PASSWORD})
+    assert correcta.status_code == 429
+
+
+# --------------------------------------------------------------------------
+# Un token sin tipo ya no vale
+# --------------------------------------------------------------------------
+
+
+def test_un_token_sin_marca_de_tipo_se_rechaza():
+    """Hubo un periodo en que un token sin `type` se trataba como de acceso,
+    para no cortar las sesiones al desplegar los tipos. Mientras duro, un token
+    de refresco robado valia como token de acceso."""
+    ajustes = get_settings()
+    sin_tipo = jwt.encode(
+        {
+            "sub": str(uuid.uuid4()),
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        },
+        ajustes.jwt_secret,
+        algorithm=ajustes.jwt_algorithm,
+    )
+
+    with pytest.raises(InvalidTokenType):
+        decode_access_token(sin_tipo)
+
+
+def test_un_token_de_acceso_normal_sigue_valiendo():
+    ajustes = get_settings()
+    identificador = uuid.uuid4()
+    bueno = jwt.encode(
+        {
+            "sub": str(identificador),
+            "type": ACCESS_TOKEN_TYPE,
+            "exp": datetime.now(timezone.utc) + timedelta(minutes=5),
+        },
+        ajustes.jwt_secret,
+        algorithm=ajustes.jwt_algorithm,
+    )
+
+    assert decode_access_token(bueno) == identificador
+
+
+# --------------------------------------------------------------------------
+# Secretos de despliegue
+# --------------------------------------------------------------------------
+
+
+def _ajustes_con(**cambios):
+    base = get_settings()
+    valores = {
+        "database_url": base.database_url,
+        "redis_url": base.redis_url,
+        "jwt_secret": base.jwt_secret,
+        "encryption_key": base.encryption_key,
+        "github_client_id": base.github_client_id,
+        "github_client_secret": base.github_client_secret,
+        "github_oauth_redirect_uri": base.github_oauth_redirect_uri,
+    }
+    valores.update(cambios)
+    return Settings(**valores)
+
+
+@pytest.mark.parametrize("secreto", ["change-me-in-production", "corto", "CHANGEME"])
+def test_no_se_arranca_con_un_secreto_de_ejemplo_o_corto(secreto):
+    """Un despliegue con el secreto del `.env.example` funciona igual de bien y
+    no da ninguna senal, hasta que alguien firma el token que quiera."""
+    with pytest.raises(ValidationError):
+        _ajustes_con(jwt_secret=secreto)
+
+
+def test_la_clave_de_cifrado_tambien_se_comprueba():
+    with pytest.raises(ValidationError):
+        _ajustes_con(encryption_key="generate-with-fernet-generate-key")
+
+
+def test_un_secreto_propio_y_largo_se_acepta():
+    _ajustes_con(jwt_secret="x" * 32)  # no debe lanzar
+
+
+# --------------------------------------------------------------------------
+# Tamano del cuerpo de la peticion
+# --------------------------------------------------------------------------
+
+
+def test_un_cuerpo_desmedido_se_rechaza_sin_leerlo():
+    """Sin tope, una sola peticion reserva toda la memoria del proceso antes de
+    que nadie mire lo que trae."""
+    respuesta = client.post(
+        "/api/auth/login",
+        content=b"x" * (MAX_REQUEST_BYTES + 1),
+        headers={"Content-Type": "application/json"},
+    )
+    assert respuesta.status_code == 413
+
+
+def test_un_cuerpo_normal_pasa():
+    respuesta = client.post(
+        "/api/auth/login", json={"email": _EMAIL, "password": "no-existe-esta-cuenta"}
+    )
+    assert respuesta.status_code == 401
+
+
+# --------------------------------------------------------------------------
+# Rotacion del token de refresco
+# --------------------------------------------------------------------------
+
+
+def test_cada_renovacion_entrega_un_token_de_refresco_nuevo():
+    """Sin rotar, un token robado valia los 30 dias enteros."""
+    tokens = _crear_sesion()
+
+    renovado = client.post(
+        "/api/auth/refresh", json={"refresh_token": tokens["refresh_token"]}
+    ).json()
+
+    assert renovado["refresh_token"]
+    assert renovado["refresh_token"] != tokens["refresh_token"]
+    assert client.post(
+        "/api/auth/refresh", json={"refresh_token": renovado["refresh_token"]}
+    ).status_code == 200
+
+
+def test_el_token_anterior_deja_de_valer_pasada_la_gracia():
+    """Es el punto de rotar: el que se uso queda anulado. Se le acepta unos
+    segundos por si dos pestanas renuevan a la vez, y despues no."""
+    tokens = _crear_sesion()
+    client.post("/api/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
+
+    db = SessionLocal()
+    try:
+        fila = db.scalar(
+            select(RefreshToken).where(
+                RefreshToken.token_hash == session_service._hash(tokens["refresh_token"])
+            )
+        )
+        assert fila.revoked is True
+        assert fila.rotated_at is not None
+        # Se envejece la rotacion para no esperar medio minuto en un test.
+        fila.rotated_at = datetime.now(timezone.utc) - timedelta(
+            seconds=session_service.GRACE_SECONDS + 1
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    caducado = client.post("/api/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
+    assert caducado.status_code == 401
+
+
+def test_dos_pestanas_renovando_a_la_vez_no_se_echan():
+    """Dentro de la ventana de gracia el anterior sigue sirviendo: dos pestanas
+    renovando a la vez no son un ataque, y sin margen la segunda se encontraria
+    la sesion cerrada."""
+    tokens = _crear_sesion()
+
+    primera = client.post("/api/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
+    segunda = client.post("/api/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
+
+    assert primera.status_code == 200
+    assert segunda.status_code == 200
+
+
+def test_cerrar_sesion_corta_tambien_la_ventana_de_gracia():
+    """Si no, un token recien rotado seguiria sirviendo medio minuto despues de
+    cerrar sesion, que es justo lo que cerrar sesion promete que no pasa."""
+    tokens = _crear_sesion()
+    client.post("/api/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
+
+    client.post("/api/auth/logout", json={"refresh_token": tokens["refresh_token"]})
+
+    despues = client.post("/api/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
+    assert despues.status_code == 401

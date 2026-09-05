@@ -18,7 +18,9 @@ if not os.environ["DATABASE_URL"].endswith("_test"):
     )
 
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
-os.environ.setdefault("JWT_SECRET", "test-secret")
+# Largo de verdad: la configuracion rechaza secretos cortos o de ejemplo, y un
+# "test-secret" de once caracteres no arrancaria.
+os.environ.setdefault("JWT_SECRET", "test-secret-solo-para-la-suite-de-pruebas-0123456789")
 os.environ.setdefault("ENCRYPTION_KEY", "vxhb4mYBgiJ9hV5GKwlB7XZOeQQZLAuGayrkNp4UWNQ=")
 os.environ.setdefault("GITHUB_CLIENT_ID", "test-client-id")
 os.environ.setdefault("GITHUB_CLIENT_SECRET", "test-client-secret")

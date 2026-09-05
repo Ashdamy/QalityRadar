@@ -72,15 +72,28 @@ def fetch_github_user(token: str) -> dict:
 
 
 def fetch_github_primary_email(token: str) -> str:
+    """Devuelve el email de GitHub, y **solo** si GitHub lo da por verificado.
+
+    Esto no es una comprobacion de higiene: el callback de OAuth vincula la
+    cuenta de GitHub a la fila de usuario que tenga ese email. Cualquiera puede
+    anadir el correo de otra persona a su cuenta de GitHub; lo que no puede es
+    verificarlo sin acceder a ese buzon. Aceptando uno sin verificar, quien
+    quisiera entrar en una cuenta ajena solo tendria que anadir su email en
+    GitHub y pasar por aqui.
+    """
     response = _github_request(
         "GET", f"{GITHUB_API_BASE}/user/emails", headers={"Authorization": f"Bearer {token}"}
     )
     emails = response.json()
-    if not emails:
+    verificados = [e for e in emails if e.get("verified")]
+    if not verificados:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="GitHub account has no accessible email"
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="GitHub account has no verified email",
         )
-    primary = next((e for e in emails if e.get("primary")), emails[0])
+    # El principal, si esta verificado; si no, cualquier otro que si lo este:
+    # tambien prueba que ese buzon es suyo.
+    primary = next((e for e in verificados if e.get("primary")), verificados[0])
     return primary["email"]
 
 

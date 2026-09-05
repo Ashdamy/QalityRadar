@@ -6,7 +6,7 @@
  * routing, or state-management logic.
  */
 
-import { getRefreshToken, saveToken } from "@/lib/auth";
+import { getRefreshToken, saveRefreshToken, saveToken } from "@/lib/auth";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -19,7 +19,8 @@ export interface RegisterResponse {
 export interface TokenResponse {
   access_token: string;
   token_type: "bearer";
-  // Ausente en la respuesta de /refresh, que no lo rota.
+  // /refresh también lo devuelve: cada renovación rota el de refresco y anula
+  // el anterior, así que hay que guardar el nuevo o la sesión se cae sola.
   refresh_token?: string | null;
 }
 
@@ -62,7 +63,11 @@ async function parseErrorMessage(response: Response): Promise<string> {
 }
 
 /**
- * Canjea el token de refresco por uno de acceso nuevo y lo guarda.
+ * Canjea el token de refresco por una pareja nueva y la guarda.
+ *
+ * El servidor rota el de refresco: el que se acaba de usar queda anulado, así
+ * que hay que guardar el que llega. Si no, la siguiente renovación presentaría
+ * uno muerto y la sesión se cerraría sola.
  *
  * Devuelve null si no hay refresco o ya no vale; en ese caso quien llame debe
  * tratar el 401 como sesión terminada.
@@ -78,8 +83,9 @@ async function renovarAcceso(): Promise<string | null> {
   });
   if (!response.ok) return null;
 
-  const { access_token } = (await response.json()) as TokenResponse;
+  const { access_token, refresh_token } = (await response.json()) as TokenResponse;
   saveToken(access_token);
+  if (refresh_token) saveRefreshToken(refresh_token);
   return access_token;
 }
 

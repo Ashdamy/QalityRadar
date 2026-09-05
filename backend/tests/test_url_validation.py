@@ -9,7 +9,9 @@ import ipaddress
 
 import pytest
 
+from app.utils.safe_http import MAX_RESPONSE_BYTES, _leer_con_tope, _peticion_fijada
 from app.utils.url_validation import (
+    ResolvedTarget,
     UnsafeUrlError,
     validate_public_url,
     validate_redirect_chain,
@@ -137,3 +139,80 @@ def test_too_many_redirects_are_rejected():
 def test_the_metadata_address_is_recognised_as_non_global():
     # Comprobacion directa de la propiedad en la que se apoya la defensa.
     assert not ipaddress.ip_address("169.254.169.254").is_global
+
+
+# --------------------------------------------------------------------------
+# Descarga acotada y conexion contra la IP validada
+# --------------------------------------------------------------------------
+
+
+class _RespuestaSinFin:
+    """Un servidor hostil que responde un flujo que no termina."""
+
+    encoding = "utf-8"
+
+    def __init__(self) -> None:
+        self.trozos_servidos = 0
+
+    def iter_bytes(self):
+        while True:
+            self.trozos_servidos += 1
+            yield b"x" * 65536
+
+
+def test_un_flujo_infinito_se_corta_en_el_tope():
+    """El tope existia, pero se aplicaba tras leer `respuesta.content`: la
+    memoria ya se habia gastado antes de recortar."""
+    respuesta = _RespuestaSinFin()
+    texto, leidos, truncado = _leer_con_tope(respuesta)
+
+    assert truncado
+    assert leidos == MAX_RESPONSE_BYTES
+    assert len(texto) == MAX_RESPONSE_BYTES
+    # Y se dejo de leer: no se descargo el flujo entero para luego recortarlo.
+    assert respuesta.trozos_servidos < MAX_RESPONSE_BYTES // 65536 + 2
+
+
+class _RespuestaCorta:
+    encoding = "utf-8"
+
+    def iter_bytes(self):
+        yield b"<html>ok</html>"
+
+
+def test_una_pagina_normal_no_se_marca_truncada():
+    texto, leidos, truncado = _leer_con_tope(_RespuestaCorta())
+    assert (texto, leidos, truncado) == ("<html>ok</html>", 15, False)
+
+
+def test_se_conecta_a_la_ip_validada_y_no_al_nombre():
+    """Entre validar el nombre y conectar, el atacante puede hacer que su
+    dominio resuelva a una IP interna (ataque de "DNS rebinding"). Fijando la
+    IP, la conexion va justo a donde se comprobo."""
+    objetivo = ResolvedTarget(
+        url="https://ejemplo.test/pagina",
+        hostname="ejemplo.test",
+        port=443,
+        ip_addresses=("93.184.215.14",),
+    )
+
+    url, extras = _peticion_fijada("https://ejemplo.test/pagina", objetivo)
+
+    assert url.host == "93.184.215.14"
+    assert url.path == "/pagina"
+    # El servidor sigue viendo el dominio, y TLS valida el certificado contra
+    # el dominio y no contra la IP.
+    assert extras["headers"]["Host"] == "ejemplo.test"
+    assert extras["extensions"]["sni_hostname"] == "ejemplo.test"
+
+
+def test_un_puerto_no_estandar_viaja_en_la_cabecera_host():
+    objetivo = ResolvedTarget(
+        url="http://ejemplo.test:8080/",
+        hostname="ejemplo.test",
+        port=8080,
+        ip_addresses=("93.184.215.14",),
+    )
+
+    _, extras = _peticion_fijada("http://ejemplo.test:8080/", objetivo)
+    assert extras["headers"]["Host"] == "ejemplo.test:8080"

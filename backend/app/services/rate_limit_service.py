@@ -14,6 +14,7 @@ minutos. Se guarda el momento de cada analisis en un sorted set de Redis y se
 cuentan los que caen dentro de la ventana.
 """
 
+import hashlib
 import time
 import uuid
 
@@ -56,6 +57,18 @@ _GLOBAL_RUNNING_KEY = "ratelimit:global:running"
 # cuenta, sin esto basta con crear varias para saltarselos.
 MAX_REGISTRATIONS_PER_IP_HOUR = 5
 _REGISTRATION_KEY = "ratelimit:registrations:{ip}"
+# Fuerza bruta contra el inicio de sesion. bcrypt hace lento cada intento,
+# pero lento no es imposible: sin limite se pueden probar contrasenas toda la
+# noche contra la misma cuenta.
+#
+# Se cuentan solo los fallos, y por dos claves a la vez porque frenan ataques
+# distintos: la del email frena probar mil contrasenas contra una cuenta, la de
+# la IP frena probar una contrasena comun contra mil cuentas.
+MAX_LOGIN_FAILURES_PER_EMAIL_HOUR = 10
+MAX_LOGIN_FAILURES_PER_IP_HOUR = 30
+_LOGIN_EMAIL_KEY = "ratelimit:login:email:{huella}"
+_LOGIN_IP_KEY = "ratelimit:login:ip:{ip}"
+
 # Si un analisis muere sin avisar, su marca de "en curso" caducaria sola en
 # vez de bloquear la cuenta para siempre.
 _RUNNING_TTL = 2400
@@ -232,3 +245,76 @@ def global_running() -> int:
     cliente = _client()
     cliente.zremrangebyscore(_GLOBAL_RUNNING_KEY, 0, time.time() - _RUNNING_TTL)
     return cliente.zcard(_GLOBAL_RUNNING_KEY)
+
+
+def _huella_de_email(email: str) -> str:
+    """El email no se guarda en claro como clave de Redis.
+
+    Quien lea el Redis se llevaria el listado de correos que han intentado
+    entrar, que es justo lo que no hace falta darle. El hash sirve igual para
+    contar y no dice a quien pertenece.
+    """
+    return hashlib.sha256(email.strip().lower().encode()).hexdigest()
+
+
+def _claves_de_login(email: str, ip: str | None) -> list[tuple[str, int]]:
+    claves = [
+        (
+            _LOGIN_EMAIL_KEY.format(huella=_huella_de_email(email)),
+            MAX_LOGIN_FAILURES_PER_EMAIL_HOUR,
+        )
+    ]
+    # Detras de segun que proxy la IP no llega. Mejor limitar solo por email
+    # que rechazar a usuarios legitimos.
+    if ip:
+        claves.append((_LOGIN_IP_KEY.format(ip=ip), MAX_LOGIN_FAILURES_PER_IP_HOUR))
+    return claves
+
+
+def check_login_allowed(email: str, ip: str | None) -> None:
+    """Comprueba, antes de mirar la contrasena, que quedan intentos.
+
+    Va antes a proposito: si se comprobara despues, cada intento bloqueado
+    seguiria pagando el bcrypt y el limite no protegeria de nada la CPU.
+
+    El limite se aplica exista o no la cuenta, asi que un 429 no revela que el
+    email este registrado.
+    """
+    cliente = _client()
+    ahora = time.time()
+
+    for clave, maximo in _claves_de_login(email, ip):
+        cliente.zremrangebyscore(clave, 0, ahora - HOUR_SECONDS)
+        if cliente.zcard(clave) < maximo:
+            continue
+        mas_antiguo = cliente.zrange(clave, 0, 0, withscores=True)
+        espera = (
+            int(mas_antiguo[0][1] + HOUR_SECONDS - ahora) + 1 if mas_antiguo else HOUR_SECONDS
+        )
+        raise RateLimitExceeded(
+            "Demasiados intentos fallidos. Vuelve a intentarlo mas tarde.",
+            max(1, espera),
+        )
+
+
+def record_login_failure(email: str, ip: str | None) -> None:
+    """Anota un fallo en las dos ventanas."""
+    cliente = _client()
+    ahora = time.time()
+    # Cada fallo necesita su propia marca: en un sorted set, dos miembros
+    # iguales se pisan y el segundo intento no contaria.
+    marca = str(uuid.uuid4())
+    for clave, _ in _claves_de_login(email, ip):
+        cliente.zadd(clave, {marca: ahora})
+        cliente.expire(clave, HOUR_SECONDS)
+
+
+def clear_login_failures(email: str) -> None:
+    """Entrar bien borra el contador de la cuenta, para que un despiste no
+    deje al dueno fuera una hora.
+
+    El de la IP no se toca: si se limpiara, cualquiera con una cuenta propia
+    podria entrar en la suya entre tandas y seguir probando sin limite contra
+    las demas.
+    """
+    _client().delete(_LOGIN_EMAIL_KEY.format(huella=_huella_de_email(email)))

@@ -25,7 +25,13 @@ from app.schemas.auth import (
 )
 from app.services import github_service
 from app.services import session_service
-from app.services.rate_limit_service import RateLimitExceeded, check_registration_ip
+from app.services.rate_limit_service import (
+    RateLimitExceeded,
+    check_login_allowed,
+    check_registration_ip,
+    clear_login_failures,
+    record_login_failure,
+)
 from app.services.oauth_state_service import consume_state, issue_state
 from app.utils.crypto import encrypt_token
 
@@ -40,6 +46,14 @@ GITHUB_OAUTH_SCOPES = "public_repo read:user user:email"
 _DUMMY_PASSWORD_HASH = hash_password("dummy-password-for-timing-equalization")
 
 
+def _demasiadas_peticiones(exc: RateLimitExceeded) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+        detail=exc.message,
+        headers={"Retry-After": str(exc.retry_after_seconds)},
+    )
+
+
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(
     payload: RegisterRequest, request: Request, db: Session = Depends(get_db)
@@ -49,11 +63,7 @@ def register(
     try:
         check_registration_ip(request.client.host if request.client else None)
     except RateLimitExceeded as exc:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=exc.message,
-            headers={"Retry-After": str(exc.retry_after_seconds)},
-        ) from exc
+        raise _demasiadas_peticiones(exc) from exc
 
     existing = db.scalar(select(User).where(User.email == payload.email))
     if existing is not None:
@@ -77,15 +87,31 @@ def register(
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+def login(
+    payload: LoginRequest, request: Request, db: Session = Depends(get_db)
+) -> TokenResponse:
+    ip = request.client.host if request.client else None
+    # bcrypt hace lento cada intento, pero lento no es imposible: sin esto se
+    # pueden probar contrasenas toda la noche contra la misma cuenta. Se mira
+    # antes de tocar la base de datos y antes de pagar el bcrypt.
+    try:
+        check_login_allowed(payload.email, ip)
+    except RateLimitExceeded as exc:
+        raise _demasiadas_peticiones(exc) from exc
+
     user = db.scalar(select(User).where(User.email == payload.email))
     if user is None or user.password_hash is None:
         verify_password(payload.password, _DUMMY_PASSWORD_HASH)
+        # Tambien se cuenta cuando la cuenta no existe: si no, el contador
+        # diria que emails estan registrados.
+        record_login_failure(payload.email, ip)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials")
 
     if not verify_password(payload.password, user.password_hash):
+        record_login_failure(payload.email, ip)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials")
 
+    clear_login_failures(payload.email)
     return _emitir_sesion(db, user.id)
 
 
@@ -162,10 +188,12 @@ def _emitir_sesion(db: Session, user_id: uuid.UUID) -> TokenResponse:
 
 @router.post("/refresh", response_model=TokenResponse)
 def refresh(payload: RefreshRequest, db: Session = Depends(get_db)) -> TokenResponse:
-    """Emite un token de acceso nuevo a partir del de refresco.
+    """Emite una pareja nueva a partir del token de refresco, y anula el usado.
 
-    No se rota el de refresco: rotarlo obliga a que dos pestanas renovando a la
-    vez no se pisen, y una rotacion a medias deja al usuario fuera.
+    Rotar acorta muchisimo lo que vale un token robado: deja de servir en
+    cuanto el dueno renueva, en vez de los 30 dias enteros. El anterior se
+    acepta unos segundos mas (ver `session_service.GRACE_SECONDS`) para que dos
+    pestanas renovando a la vez no se echen la una a la otra.
     """
     try:
         user_id = decode_refresh_token(payload.refresh_token)
@@ -188,7 +216,13 @@ def refresh(payload: RefreshRequest, db: Session = Depends(get_db)) -> TokenResp
             status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh token invalido"
         )
 
-    return TokenResponse(access_token=create_access_token(user_id))
+    nuevo_refresco = create_refresh_token(user_id)
+    session_service.rotate(db, user_id, payload.refresh_token, nuevo_refresco)
+    db.commit()
+    return TokenResponse(
+        access_token=create_access_token(user_id),
+        refresh_token=nuevo_refresco,
+    )
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

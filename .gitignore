@@ -5,6 +5,11 @@ __pycache__/
 .venv/
 venv/
 .env
+# Cualquier variante: .env.local, .env.docker.bak, .env.produccion...
+# El patron `.env` a secas no las cubre, y un backup con credenciales reales
+# se cuela en un `git add -A` sin que nadie lo note.
+.env.*
+!.env.example
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

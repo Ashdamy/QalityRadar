@@ -1,0 +1,41 @@
+# El proyecto analiza las dependencias de otros; sin esto, nadie vigila las
+# suyas. Corre en cada cambio y una vez por semana, porque una dependencia no
+# se vuelve vulnerable cuando la tocas, sino cuando alguien publica el aviso.
+name: Auditoria de dependencias
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+
+jobs:
+  backend:
+    name: pip-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install pip-audit
+      - run: pip-audit --requirement backend/requirements.txt --strict
+
+  frontend:
+    name: npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      # Solo lo que llega a produccion y a partir de gravedad alta: fallar por
+      # un aviso bajo en una herramienta de desarrollo entrena a ignorar el
+      # rojo, y entonces la auditoria deja de servir para nada.
+      - run: npm audit --omit=dev --audit-level=high
+        working-directory: frontend

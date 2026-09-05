@@ -205,7 +205,10 @@ def test_github_callback_with_no_emails_returns_400(monkeypatch):
     `next((e for e in emails if e.get("primary")), emails[0])`, which
     evaluates emails[0] eagerly and raises IndexError before next() ever
     runs -- surfacing as an unhandled 500. This must be a clean 400
-    instead."""
+    instead.
+
+    Sin ningun email, tampoco hay ninguno verificado: la respuesta es la
+    misma que cuando los hay pero ninguno esta verificado."""
 
     def fake_request(method, url, **kwargs):
         if url == github_service.GITHUB_OAUTH_TOKEN_URL:
@@ -224,7 +227,7 @@ def test_github_callback_with_no_emails_returns_400(monkeypatch):
     )
 
     assert response.status_code == 400
-    assert response.json()["detail"] == "GitHub account has no accessible email"
+    assert response.json()["detail"] == "GitHub account has no verified email"
 
 
 def test_github_callback_with_github_http_error_returns_502(monkeypatch):
@@ -246,3 +249,55 @@ def test_github_callback_with_github_http_error_returns_502(monkeypatch):
     assert detail == "GitHub is unavailable"
     # Never echo GitHub's raw response body into the error detail.
     assert "upstream rate limited" not in response.text
+
+
+# --------------------------------------------------------------------------
+# El email de GitHub tiene que estar verificado
+# --------------------------------------------------------------------------
+
+
+def _responder_emails(monkeypatch, emails):
+    """Sustituye la llamada a /user/emails por una respuesta preparada."""
+
+    def _peticion(method, url, **kwargs):
+        return httpx.Response(200, json=emails, request=httpx.Request(method, url))
+
+    monkeypatch.setattr(github_service, "_github_request", _peticion)
+
+
+def test_no_se_acepta_un_email_de_github_sin_verificar(monkeypatch):
+    """Cualquiera puede anadir el correo de otra persona a su cuenta de GitHub;
+    lo que no puede es verificarlo sin entrar en ese buzon. Aceptarlo sin
+    verificar deja entrar en la cuenta ajena que tenga ese email."""
+    _responder_emails(
+        monkeypatch, [{"email": "victima@example.com", "primary": True, "verified": False}]
+    )
+
+    with pytest.raises(Exception) as excinfo:
+        github_service.fetch_github_primary_email("token")
+    assert "verified" in str(excinfo.value.detail)
+
+
+def test_si_el_principal_no_esta_verificado_se_usa_otro_que_si(monkeypatch):
+    """Un email verificado prueba igual que ese buzon es suyo."""
+    _responder_emails(
+        monkeypatch,
+        [
+            {"email": "victima@example.com", "primary": True, "verified": False},
+            {"email": "suyo@example.com", "primary": False, "verified": True},
+        ],
+    )
+
+    assert github_service.fetch_github_primary_email("token") == "suyo@example.com"
+
+
+def test_el_principal_verificado_es_el_que_se_usa(monkeypatch):
+    _responder_emails(
+        monkeypatch,
+        [
+            {"email": "otro@example.com", "primary": False, "verified": True},
+            {"email": "principal@example.com", "primary": True, "verified": True},
+        ],
+    )
+
+    assert github_service.fetch_github_primary_email("token") == "principal@example.com"

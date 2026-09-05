@@ -75,9 +75,15 @@ ENCRYPTION_KEY=<python -c "from cryptography.fernet import Fernet; print(Fernet.
 # El dominio del frontend, no localhost. Sin esto el navegador bloquea la API.
 CORS_ORIGINS=https://qalitiradar.vercel.app
 
+# Apaga /docs, /redoc y /openapi.json. Publicados regalan el mapa completo de
+# la API y le ahorran a un atacante todo el trabajo de reconocimiento.
+ENABLE_API_DOCS=false
+
 # Tiene que ser el mismo que pongas en la OAuth App de GitHub, y con https.
 GITHUB_OAUTH_REDIRECT_URI=https://qalitiradar.vercel.app/auth/github/callback
 ```
+
+> **La aplicación no arranca si alguno sigue con el valor de ejemplo o mide menos de 32 caracteres.** Es deliberado: un despliegue con `JWT_SECRET=change-me-in-production` funciona igual de bien y no da ninguna señal hasta que alguien firma el token que quiera.
 
 > **Nunca reutilices el `JWT_SECRET` ni el `ENCRYPTION_KEY` de desarrollo.** El de cifrado protege los tokens de GitHub de tus usuarios; si se filtra, se filtran sus cuentas.
 
@@ -139,10 +145,15 @@ Estas defensas no hacían falta mientras el proyecto corría en un ordenador pro
 | Contraseñas de un carácter | **Mínimo 8** en el registro |
 | Un token robado sirve 30 días | **Cerrar sesión lo invalida en el servidor**, no solo en el navegador |
 | Google indexando informes compartidos | **`noindex`** en `/r/[token]` |
+| Navegador confiando de más en la API | **Cabeceras de seguridad** en cada respuesta |
+| Reconocimiento gratis de la API | **`/docs` apagado** con `ENABLE_API_DOCS=false` |
+| Un backup de `.env` subido sin querer | **`.env.*` ignorado** en git |
 
 Sobre el tope global: `MAX_GLOBAL_CONCURRENT = 6` está pensado para una máquina de 4 GB. Cada análisis reserva 512 MB, así que en el peor caso son 3 GB más PostgreSQL. **Si despliegas en una máquina más pequeña, baja ese número** en `app/services/rate_limit_service.py`.
 
 Sobre el registro por IP: no sustituye a verificar el email, que sigue siendo lo suyo si esto llega a tener uso real. Sube el coste del abuso, no lo elimina — alguien con varias IP puede saltárselo.
+
+El inventario completo de defensas, con lo que **no** está cubierto, está en [`SECURITY.md`](SECURITY.md).
 
 ---
 
