@@ -114,6 +114,8 @@ El modo URL hace peticiones a donde diga el usuario. Sin defensas, eso convierte
 - **Un token sin marca de tipo se rechaza.** Hubo un periodo en que se trataba como token de acceso, para no cortar las sesiones abiertas al desplegar los tipos; mientras duró, cualquier token sin `type` valía como token de acceso.
 - **Cada renovación rota el token de refresco.** Se emite uno nuevo y el usado queda anulado, así que un token robado deja de servir en cuanto el dueño renueva, en vez de valer los 30 días enteros. El anterior se acepta 30 segundos más (`GRACE_SECONDS`): dos pestañas renovando a la vez no son un ataque, y sin ese margen la segunda se encontraría la sesión cerrada. Cerrar sesión corta también esa ventana.
 - **Cada token lleva un `jti` único.** Sin él, dos tokens del mismo usuario emitidos en el mismo segundo salían **idénticos** —`iat` y `exp` tienen resolución de segundos— y al rotar se reemitía literalmente el token que se acababa de anular, dejando dos filas con el mismo hash: una viva y otra muerta. La rotación no servía de nada.
+- **El hash de un token de refresco es único en la base de datos.** Dos filas con el mismo hash, una viva y otra revocada, hacen que la búsqueda devuelva una u otra sin criterio: cerrar sesión revoca una y la otra sigue abriendo. El `jti` ya lo impide; la restricción lo pone donde no depende de que nadie se acuerde.
+- **Los tokens muertos se borran a diario.** Uno caducado no vale, y uno revocado no vuelve a valer pasada la ventana de gracia. Importa desde que se rota: cada renovación deja una fila revocada, unas cien al día por sesión activa. `purge_expired` existía y **no la llamaba nadie**; ahora corre en la tarea de mantenimiento junto a la purga de análisis. Borrar una fila revocada no cambia nada para quien la tuviera: un token que no consta se rechaza igual.
 - Un token con firma válida pero no registrado se rechaza.
 
 ### La sesión vive en cookies httpOnly, no en `localStorage`
@@ -200,6 +202,7 @@ Se cuentan **solo los fallos**, y por dos claves a la vez porque frenan ataques 
 
 - **Los enlaces compartidos son tokens de 256 bits** (`secrets.token_urlsafe(32)`), imposibles de adivinar. Caducan a los 7 días (30 como máximo) y se revocan uno a uno.
 - **Un token inexistente y uno caducado dan la misma respuesta.** Distinguirlos convertiría el endpoint en un oráculo sobre qué tokens han existido.
+- **Los enlaces caducados se borran a diario.** Uno caducado ya no abre nada, así que guardarlo solo acumula tokens que un día dieron acceso a un informe. Para quien lo tenga no cambia nada: un token que no consta y uno caducado dan la misma respuesta, que es justo lo que evita que el endpoint sirva de oráculo.
 - **`noindex` en las páginas de informe compartido.** El token protege de quien no lo tiene, pero no de un buscador que ya lo vio: si alguien pega el enlace donde Google rastree, el informe quedaría indexado **aunque el enlace caduque**.
 - **La documentación interactiva de la API se apaga en producción** (`ENABLE_API_DOCS=false`). No es una vulnerabilidad por sí sola, pero publicada regala el mapa completo de la API y le ahorra a un atacante todo el reconocimiento.
 
@@ -296,7 +299,7 @@ Esto es tan importante como lo anterior.
 ## Cómo comprobarlo
 
 ```bash
-cd backend && pytest                                  # las 423 pruebas
+cd backend && pytest                                  # las 432 pruebas
 cd frontend && npx playwright test                    # los flujos, en un navegador real
 cd backend && pytest tests/test_sandbox.py            # aislamiento real contra Docker
 cd backend && pytest tests/test_url_validation.py     # SSRF
