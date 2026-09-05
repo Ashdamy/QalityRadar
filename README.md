@@ -129,7 +129,7 @@ REDIS_URL=redis://localhost:6379/0
 
 ```bash
 cd backend
-pip install -r requirements.txt
+pip install -r requirements.in
 alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 ```

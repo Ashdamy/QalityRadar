@@ -263,6 +263,8 @@ Dos concesiones, dichas por su nombre:
 El proyecto analiza las dependencias *de otros*; sin esto, nadie vigilaba las suyas.
 
 - **`pip-audit` sobre `backend/requirements.txt` y `npm audit` sobre el frontend**, en cada cambio y una vez por semana. Semanal porque una dependencia no se vuelve vulnerable cuando la tocas, sino cuando alguien publica el aviso.
+- **Las de Python se instalan por hash.** `requirements.in` lleva las directas, escritas a mano; `requirements.txt` sale de ahí con **todas las transitivas fijadas** y su hash, y es lo que instalan el contenedor y el worker con `--require-hashes`. Cierra dos cosas: que una versión transitiva cambie sin que nadie lo decida —hasta ahora el CI auditaba una resolución y el despliegue podía instalar otra— y que lo que baja de la red no sea lo que se auditó.
+- El archivo fijado se compila **en un contenedor de Linux**, porque `pip-compile` resuelve para la plataforma donde corre y el resultado lleva paquetes que solo existen ahí (`uvloop`). Para desarrollar se instala `requirements.in`; el fijado es el artefacto del despliegue.
 - `npm audit` corre con `--omit=dev --audit-level=high`: fallar por un aviso bajo en una herramienta de desarrollo entrena a ignorar el rojo, y entonces la auditoría deja de servir para nada.
 
 **La primera ejecución encontró 30 vulnerabilidades conocidas en 4 paquetes**, entre ellos los dos que sostienen la autenticación entera: `pyjwt` (2.9.0, con avisos sobre la validación de firmas) y `cryptography` (43.0.1), más `starlette` vía `fastapi`. Se subieron todos y la auditoría quedó limpia:
@@ -289,8 +291,6 @@ Esto es tan importante como lo anterior.
 **El worker tiene acceso al demonio de Docker.** Es inherente al diseño: quien logre ejecutar código como ese usuario es efectivamente root en la máquina. Se mitiga dedicando la máquina solo a esto, y es la razón de que el sandbox esté cerrado a cal y canto.
 
 **Sin auditoría de accesos.** No queda registro de quién consultó qué. Para un MVP es asumible; para datos de terceros, no.
-
-**Las dependencias de Python no se fijan por hash.** El CI detecta versiones con vulnerabilidades publicadas, pero no que alguien publique una versión maliciosa. `pip install --require-hashes` lo cerraría.
 
 **El tope de 64 KB por petición se esquiva con `Transfer-Encoding: chunked`**, que no declara `Content-Length`. Es tarea del proxy inverso, que puede cortarlo sin haber leído nada.
 

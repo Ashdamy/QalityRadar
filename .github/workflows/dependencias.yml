@@ -20,6 +20,8 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install pip-audit
+      # requirements.txt trae las transitivas fijadas, asi que esto audita
+      # exactamente lo que instala el despliegue y no una resolucion parecida.
       - run: pip-audit --requirement backend/requirements.txt --strict
 
   frontend:

@@ -100,9 +100,11 @@ docker compose exec backend alembic upgrade head
 
 **No dentro de un contenedor.** Meterlo en uno obligaría a montar `/var/run/docker.sock`, que es una vía conocida de escalada a root en la máquina anfitriona.
 
+El worker se instala desde `requirements.txt`, no desde `requirements.in`: trae las versiones transitivas fijadas y sus hashes, así que instala exactamente lo mismo que el contenedor de la API y lo mismo que audita el CI.
+
 ```bash
 cd backend
-pip install -r requirements.txt
+pip install --require-hashes -r requirements.txt
 celery -A app.worker.celery_app worker --loglevel=info &
 celery -A app.worker.celery_app beat --loglevel=info &
 ```
