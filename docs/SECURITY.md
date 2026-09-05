@@ -42,6 +42,10 @@ Las herramientas de inspección (Gitleaks, Semgrep) corren dentro de un contened
 
 El nombre de la imagen se valida contra un patrón y se rechaza si empieza por `-`. Además, el comando lleva `--` antes de la imagen: aunque algo se colara en la validación, Docker ya no puede interpretarlo como una opción.
 
+### Ningún contenedor corre como root
+
+Ni el del análisis (ya lo hacía: `--user 65534:65534`) ni los de la propia aplicación. `backend/Dockerfile` termina en `USER 65534:65534` y `frontend/Dockerfile` en `USER node`. Si alguien logra ejecutar código dentro, la diferencia entre root y `nobody` es la diferencia entre escaparse por un fallo del núcleo y no tener por dónde empezar.
+
 ### El worker corre en el host, no en un contenedor
 
 Es deliberado y es lo contrario de lo que parece razonable. Para crear contenedores desde dentro de otro contenedor habría que montarle `/var/run/docker.sock`, y quien controla ese socket **es root en la máquina anfitriona**. Se prefiere un worker en el host, con acceso a Docker, antes que un contenedor que regala la máquina entera si se compromete.
@@ -169,6 +173,21 @@ La API envía en cada respuesta:
 | `Content-Security-Policy: default-src 'none'` | Que nada de lo que sirve la API se ejecute |
 
 > Se añadieron tras una auditoría en la que apareció algo incómodo: **QalitiRadar penalizaba a otros sitios por no enviar estas cabeceras, y la propia API no enviaba ninguna.**
+
+### El frontend también las envía
+
+`frontend/next.config.ts`
+
+La API mandaba sus cabeceras y el frontend ninguna, que es la mitad que el navegador de verdad renderiza. Envía las mismas cuatro, más una **CSP propia**: `default-src 'self'`, nada de terceros, `object-src 'none'`, `base-uri 'self'`, `form-action 'self'` y `frame-ancestors 'none'`.
+
+Dos concesiones, dichas por su nombre:
+
+- **`script-src` lleva `'unsafe-inline'`.** Next inyecta scripts en línea para hidratar la página; la alternativa —un nonce por petición— obliga a renderizar todo en el servidor en cada visita. El resto de la política sigue valiendo.
+- **`'unsafe-eval'` solo en desarrollo**, que es lo que necesita el recargado en caliente. En producción no se emite.
+
+`connect-src` se construye a partir de `NEXT_PUBLIC_API_URL`, porque la API vive en otro origen y sin autorizarlo la propia política bloquearía todas las llamadas.
+
+**Verificado en un navegador real:** las 6 pruebas end-to-end (registro, análisis, compartir, enlace público) pasan con la política activa. Una CSP que rompe la aplicación se revierte al día siguiente y no protege de nada.
 
 **HSTS no se emite desde la aplicación.** La termina el proxy inverso, que es quien sabe si la conexión es realmente HTTPS; emitirla en local, por HTTP, dejaría el dominio inaccesible en el navegador.
 
