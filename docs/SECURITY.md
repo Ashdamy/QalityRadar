@@ -84,6 +84,21 @@ El modo URL hace peticiones a donde diga el usuario. Sin defensas, eso convierte
 - **Cada token lleva un `jti` único.** Sin él, dos tokens del mismo usuario emitidos en el mismo segundo salían **idénticos** —`iat` y `exp` tienen resolución de segundos— y al rotar se reemitía literalmente el token que se acababa de anular, dejando dos filas con el mismo hash: una viva y otra muerta. La rotación no servía de nada.
 - Un token con firma válida pero no registrado se rechaza.
 
+### La sesión vive en cookies httpOnly, no en `localStorage`
+
+`backend/app/api/auth.py`, `frontend/src/lib/auth.ts`
+
+Los tokens estaban en `localStorage`. Ahí bastaba **un solo XSS** —un comentario, una dependencia comprometida, un script inyectado— para llevarse 30 días de sesión de cualquier usuario, sin dejar rastro y sin que cerrar sesión sirviera de nada. Ahora los pone el servidor en cookies que JavaScript no puede leer.
+
+- **`SameSite=Lax` es la defensa contra CSRF.** El navegador no adjunta la cookie en peticiones que salen de otro sitio, así que un formulario ajeno no puede actuar en nombre del usuario. Exige que el frontend y la API compartan dominio; con dominios distintos habría que bajar a `None` y volver a necesitar un testigo CSRF aparte.
+- **`Secure` se controla por configuración** (`COOKIE_SECURE`, `true` en producción). En local el desarrollo va por HTTP, y una cookie `Secure` sobre HTTP se descarta en silencio.
+- **`/refresh` no devuelve los tokens en el cuerpo cuando la sesión viene en cookie.** Es el detalle del que depende todo lo demás: un XSS no puede leer la cookie, pero el navegador la adjunta por él, así que le bastaría con llamar a `/refresh` y leer la respuesta. A quien manda el token de refresco en el cuerpo —un script, no un navegador— sí se le devuelven: ya los tenía.
+- **`/login` y el callback de OAuth sí los devuelven**, y no abre ningún hueco: para llegar ahí hace falta la contraseña o pasar por GitHub, o sea que quien recibe la respuesta ya podía entrar.
+- **Queda una cookie legible, `qr_sesion`**, que solo dice "hay sesión". La interfaz la necesita para saber si enseña la pantalla o redirige al inicio. No es una credencial: robarla no sirve de nada.
+- **La cabecera `Authorization` se sigue aceptando**, y va primero: quien la manda lo hace a propósito, y una cookie olvidada en el navegador no debe pisar una petición explícita.
+
+**Verificado en un navegador real:** una prueba end-to-end comprueba que, con la sesión abierta, `localStorage` está vacío y `document.cookie` no contiene ni `qr_access` ni `qr_refresh`.
+
 ### OAuth de GitHub
 
 - **Parámetro `state`** contra CSRF, guardado en Redis, **de un solo uso** y con 10 minutos de vida. Sin él, un tercero podía forzar el callback con un `code` suyo y dejar **su** cuenta de GitHub vinculada a **tu** sesión.
@@ -240,12 +255,17 @@ Esto es tan importante como lo anterior.
 
 **Sin auditoría de accesos.** No queda registro de quién consultó qué. Para un MVP es asumible; para datos de terceros, no.
 
+**Las dependencias de Python no se fijan por hash.** El CI detecta versiones con vulnerabilidades publicadas, pero no que alguien publique una versión maliciosa. `pip install --require-hashes` lo cerraría.
+
+**El tope de 64 KB por petición se esquiva con `Transfer-Encoding: chunked`**, que no declara `Content-Length`. Es tarea del proxy inverso, que puede cortarlo sin haber leído nada.
+
 ---
 
 ## Cómo comprobarlo
 
 ```bash
-cd backend && pytest                                  # las 405 pruebas
+cd backend && pytest                                  # las 411 pruebas
+cd frontend && npx playwright test                    # los flujos, en un navegador real
 cd backend && pytest tests/test_sandbox.py            # aislamiento real contra Docker
 cd backend && pytest tests/test_url_validation.py     # SSRF
 cd backend && pytest tests/test_security_hardening.py # sesiones, límites, cabeceras

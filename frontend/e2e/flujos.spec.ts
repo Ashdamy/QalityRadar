@@ -89,8 +89,8 @@ test.describe("Flujo de URL, de principio a fin", () => {
     await expect(page.getByText(/Cualquiera con el enlace/)).toBeVisible();
 
     // -- El enlace funciona SIN sesión -------------------------------------
-    // Contexto nuevo y limpio: sin él, el localStorage de la sesión actual
-    // haría pasar la prueba aunque el endpoint exigiera autenticación.
+    // Contexto nuevo y limpio: sin él, las cookies de la sesión actual harían
+    // pasar la prueba aunque el endpoint exigiera autenticación.
     const anonimo = await page.context().browser()!.newContext();
     const paginaAnonima = await anonimo.newPage();
     await paginaAnonima.goto(enlace);
@@ -99,6 +99,24 @@ test.describe("Flujo de URL, de principio a fin", () => {
     });
     await expect(paginaAnonima.getByText("Puntuación", { exact: true })).toBeVisible();
     await anonimo.close();
+  });
+
+  test("la sesión no queda al alcance de JavaScript", async ({ page }) => {
+    // Estaba en localStorage: bastaba un XSS —un comentario, una dependencia
+    // comprometida— para llevarse 30 días de sesión de cualquier usuario.
+    await crearCuentaYEntrar(page);
+
+    const alcanceDeJavaScript = await page.evaluate(() => ({
+      almacen: Object.entries(localStorage),
+      cookies: document.cookie,
+    }));
+
+    expect(alcanceDeJavaScript.almacen).toEqual([]);
+    // Las de verdad son httpOnly y no aparecen aquí; la marca de sesión sí,
+    // porque no es una credencial: no lleva ningún token.
+    expect(alcanceDeJavaScript.cookies).toContain("qr_sesion=1");
+    expect(alcanceDeJavaScript.cookies).not.toContain("qr_access");
+    expect(alcanceDeJavaScript.cookies).not.toContain("qr_refresh");
   });
 
   test("un enlace inventado no revela nada", async ({ page }) => {

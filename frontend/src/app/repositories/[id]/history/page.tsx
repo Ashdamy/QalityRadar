@@ -11,7 +11,7 @@ import {
   type Progress,
   type TimelineEntry,
 } from "@/lib/api";
-import { clearToken, getToken } from "@/lib/auth";
+import { clearToken, haySesion } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { EvolutionChart } from "@/components/EvolutionChart";
@@ -58,8 +58,7 @@ export default function HistoryPage() {
   const [compareError, setCompareError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
+    if (!haySesion()) {
       router.replace("/");
       return;
     }
@@ -68,8 +67,8 @@ export default function HistoryPage() {
     (async () => {
       try {
         const [timeline, progress] = await Promise.all([
-          getTimeline(token, repositoryId),
-          getProgress(token, repositoryId),
+          getTimeline(repositoryId),
+          getProgress(repositoryId),
         ]);
         if (cancelled) return;
         setState(timeline.length === 0 ? { kind: "empty" } : { kind: "ready", timeline, progress });
@@ -104,12 +103,11 @@ export default function HistoryPage() {
   }
 
   async function handleCompare() {
-    const token = getToken();
-    if (!token || selected.length !== 2 || comparing) return;
+        if (selected.length !== 2 || comparing) return;
     setComparing(true);
     setCompareError(null);
     try {
-      setComparison(await getComparison(token, selected[0], selected[1]));
+      setComparison(await getComparison(selected[0], selected[1]));
     } catch (error) {
       setComparison(null);
       setCompareError(

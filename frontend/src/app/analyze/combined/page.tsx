@@ -10,7 +10,7 @@ import {
   type Analysis,
   type Repository,
 } from "@/lib/api";
-import { clearToken, getToken } from "@/lib/auth";
+import { clearToken, haySesion } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { AnalysisPanel } from "@/components/AnalysisPanel";
@@ -53,12 +53,11 @@ export default function AnalyzeCombinedPage() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
+    if (!haySesion()) {
       router.replace("/");
       return;
     }
-    listRepositories(token)
+    listRepositories()
       // Solo los públicos: el backend rechaza los privados y es mejor no
       // ofrecer una opción que va a fallar.
       .then((lista) => setRepositorios(lista.filter((r) => !r.is_private)))
@@ -82,18 +81,17 @@ export default function AnalyzeCombinedPage() {
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const token = getToken();
-    if (!token || pending || !repositorioId || !url.trim()) return;
+        if (pending || !repositorioId || !url.trim()) return;
 
     setError(null);
     setPending(true);
     setAnalysis(null);
 
     try {
-      const { analysis_id } = await analyzeCombined(token, repositorioId, url.trim());
+      const { analysis_id } = await analyzeCombined(repositorioId, url.trim());
 
       for (let intento = 0; intento < MAX_POLLS; intento += 1) {
-        const actual = await getAnalysis(token, analysis_id);
+        const actual = await getAnalysis(analysis_id);
         setAnalysis(actual);
         if (!IN_PROGRESS.has(actual.status)) return;
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));

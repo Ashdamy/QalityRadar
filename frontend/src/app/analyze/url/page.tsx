@@ -8,7 +8,7 @@ import {
   getAnalysis,
   type Analysis,
 } from "@/lib/api";
-import { getToken } from "@/lib/auth";
+import { haySesion } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { AnalysisPanel } from "@/components/AnalysisPanel";
@@ -70,23 +70,22 @@ export default function AnalyzeUrlPage() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
 
   useEffect(() => {
-    if (!getToken()) router.replace("/");
+    if (!haySesion()) router.replace("/");
   }, [router]);
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
-    const token = getToken();
-    if (!token || pending || !url.trim()) return;
+        if (pending || !url.trim()) return;
 
     setError(null);
     setPending(true);
     setAnalysis(null);
 
     try {
-      const { analysis_id } = await analyzeUrl(token, url.trim());
+      const { analysis_id } = await analyzeUrl(url.trim());
 
       for (let intento = 0; intento < MAX_POLLS; intento += 1) {
-        const actual = await getAnalysis(token, analysis_id);
+        const actual = await getAnalysis(analysis_id);
         setAnalysis(actual);
         if (!IN_PROGRESS.has(actual.status)) return;
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));

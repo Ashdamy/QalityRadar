@@ -13,7 +13,7 @@ import {
   type MonitorList,
   type Repository,
 } from "@/lib/api";
-import { clearToken, endSession, getToken } from "@/lib/auth";
+import { clearToken, endSession, haySesion } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
 import { NotificationBell } from "@/components/NotificationBell";
 import { Sparkline } from "@/components/Sparkline";
@@ -200,8 +200,8 @@ export default function MonitorsPage() {
    * de guardarlos: asi el efecto puede escribir el estado dentro de un
    * callback y no en su cuerpo, que es lo que React desaconseja.
    */
-  const obtener = useCallback(async (token: string) => {
-    const lista = await listMonitors(token);
+  const obtener = useCallback(async () => {
+    const lista = await listMonitors();
 
     // El historico alimenta la minigrafica de cada proyecto. Se piden en
     // paralelo: son consultas independientes y en serie la pantalla tardaria
@@ -211,7 +211,7 @@ export default function MonitorsPage() {
         .filter((m) => m.repository_id)
         .map(async (m) => {
           try {
-            const linea = await getTimeline(token, m.repository_id!);
+            const linea = await getTimeline(m.repository_id!);
             const notas = linea
               .filter((e) => e.overall_score !== null)
               .map((e) => e.overall_score as number)
@@ -239,10 +239,9 @@ export default function MonitorsPage() {
 
   /** Recarga tras una accion del usuario (enganchar o dejar de vigilar). */
   const refrescar = useCallback(async () => {
-    const token = getToken();
-    if (!token) return;
+    if (!haySesion()) return;
     try {
-      const { lista, historicos: nuevos } = await obtener(token);
+      const { lista, historicos: nuevos } = await obtener();
       setDatos(lista);
       setHistoricos(nuevos);
     } catch (err) {
@@ -251,14 +250,13 @@ export default function MonitorsPage() {
   }, [obtener, manejarFallo]);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
+    if (!haySesion()) {
       router.replace("/");
       return;
     }
 
     let vivo = true;
-    obtener(token)
+    obtener()
       .then(({ lista, historicos: nuevos }) => {
         if (!vivo) return;
         setDatos(lista);
@@ -275,10 +273,9 @@ export default function MonitorsPage() {
   async function abrirSelector() {
     setEligiendo(true);
     setError(null);
-    const token = getToken();
-    if (!token) return;
+    if (!haySesion()) return;
     try {
-      const lista = await listRepositories(token);
+      const lista = await listRepositories();
       setRepositorios(lista.filter((r) => !r.is_private));
     } catch {
       setRepositorios([]);
@@ -287,11 +284,10 @@ export default function MonitorsPage() {
   }
 
   async function engancharProyecto() {
-    const token = getToken();
-    if (!token || !repositorioId) return;
+        if (!repositorioId) return;
     setError(null);
     try {
-      await createMonitor(token, { repositoryId: repositorioId, intervalMinutes: intervalo });
+      await createMonitor({ repositoryId: repositorioId, intervalMinutes: intervalo });
       setEligiendo(false);
       setRepositorioId("");
       await refrescar();
@@ -303,10 +299,9 @@ export default function MonitorsPage() {
   }
 
   async function dejarDeVigilar(id: string) {
-    const token = getToken();
-    if (!token) return;
+    if (!haySesion()) return;
     try {
-      await deleteMonitor(token, id);
+      await deleteMonitor(id);
       await refrescar();
     } catch {
       setError("No se pudo dejar de vigilar.");

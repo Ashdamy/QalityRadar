@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     # trabajo de reconocimiento.
     enable_api_docs: bool = True
 
+    # En produccion, true: la cookie de sesion solo viaja por HTTPS. En local
+    # tiene que ser false o el navegador no la guarda, porque el desarrollo va
+    # por HTTP y una cookie `Secure` sobre HTTP se descarta en silencio.
+    cookie_secure: bool = False
+
     @field_validator("jwt_secret", "encryption_key")
     @classmethod
     def _un_secreto_de_verdad(cls, valor: str, info) -> str:

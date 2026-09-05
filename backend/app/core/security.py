@@ -16,6 +16,16 @@ BCRYPT_MAX_BYTES = 72
 ACCESS_TOKEN_TYPE = "access"
 REFRESH_TOKEN_TYPE = "refresh"
 
+# La sesion viaja en cookies httpOnly, no en localStorage: lo que JavaScript no
+# puede leer, un XSS no puede robar. Antes bastaba con un `alert` inyectado
+# para llevarse 30 dias de sesion.
+COOKIE_ACCESS = "qr_access"
+COOKIE_REFRESH = "qr_refresh"
+# Esta si es legible desde JavaScript, y a proposito: no es una credencial,
+# solo dice "hay sesion", que es lo que la interfaz necesita para saber si
+# redirige al inicio. Robarla no sirve de nada.
+COOKIE_SESION = "qr_sesion"
+
 
 class InvalidTokenType(Exception):
     """El token es valido pero no es del tipo que el endpoint espera."""

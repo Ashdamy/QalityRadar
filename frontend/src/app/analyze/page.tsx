@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { clearToken, endSession, getToken } from "@/lib/auth";
+import { endSession, haySesion } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
 import { NotificationBell } from "@/components/NotificationBell";
 
@@ -92,7 +92,7 @@ export default function AnalyzePage() {
   // Si no hay sesion se redirige; la pantalla se dibuja igual y desaparece
   // enseguida, que es preferible a mantener un estado solo para ocultarla.
   useEffect(() => {
-    if (!getToken()) router.replace("/");
+    if (!haySesion()) router.replace("/");
   }, [router]);
 
   return (

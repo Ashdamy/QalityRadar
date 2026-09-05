@@ -6,7 +6,7 @@
  * routing, or state-management logic.
  */
 
-import { getRefreshToken, saveRefreshToken, saveToken } from "@/lib/auth";
+import { haySesion } from "@/lib/auth";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -17,10 +17,10 @@ export interface RegisterResponse {
 }
 
 export interface TokenResponse {
-  access_token: string;
+  // Ausentes cuando la sesión viaja en cookies, que es siempre desde aquí.
+  // El servidor los pone en cookies httpOnly; el navegador no los ve.
+  access_token?: string | null;
   token_type: "bearer";
-  // /refresh también lo devuelve: cada renovación rota el de refresco y anula
-  // el anterior, así que hay que guardar el nuevo o la sesión se cae sola.
   refresh_token?: string | null;
 }
 
@@ -63,53 +63,40 @@ async function parseErrorMessage(response: Response): Promise<string> {
 }
 
 /**
- * Canjea el token de refresco por una pareja nueva y la guarda.
+ * Renueva la sesión. El token de refresco viaja en una cookie httpOnly, así
+ * que aquí no hay nada que mandar ni que guardar: el servidor lee la cookie,
+ * rota los tokens y devuelve cookies nuevas.
  *
- * El servidor rota el de refresco: el que se acaba de usar queda anulado, así
- * que hay que guardar el que llega. Si no, la siguiente renovación presentaría
- * uno muerto y la sesión se cerraría sola.
+ * A propósito no devuelve tokens: si lo hiciera, un XSS podría llamar a este
+ * endpoint —el navegador adjunta la cookie por él— y leerlos de la respuesta,
+ * y las cookies httpOnly no habrían servido de nada.
  *
- * Devuelve null si no hay refresco o ya no vale; en ese caso quien llame debe
- * tratar el 401 como sesión terminada.
+ * Devuelve si la sesión sigue viva; si no, quien llame debe tratar el 401
+ * como sesión terminada.
  */
-async function renovarAcceso(): Promise<string | null> {
-  const refresco = getRefreshToken();
-  if (!refresco) return null;
+async function renovarAcceso(): Promise<boolean> {
+  if (!haySesion()) return false;
 
   const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refresco }),
+    credentials: "include",
   });
-  if (!response.ok) return null;
-
-  const { access_token, refresh_token } = (await response.json()) as TokenResponse;
-  saveToken(access_token);
-  if (refresh_token) saveRefreshToken(refresh_token);
-  return access_token;
+  return response.ok;
 }
 
 /**
  * Varias peticiones en vuelo al caducar el token pedirían cada una su
  * renovación. Se comparte la misma promesa para que solo salga una.
  */
-let renovacionEnCurso: Promise<string | null> | null = null;
+let renovacionEnCurso: Promise<boolean> | null = null;
 
-function renovarAccesoUnaVez(): Promise<string | null> {
+function renovarAccesoUnaVez(): Promise<boolean> {
   if (!renovacionEnCurso) {
     renovacionEnCurso = renovarAcceso().finally(() => {
       renovacionEnCurso = null;
     });
   }
   return renovacionEnCurso;
-}
-
-function conAutorizacion(headers: HeadersInit | undefined, token: string): HeadersInit {
-  return { ...headers, Authorization: `Bearer ${token}` };
-}
-
-function llevaAutorizacion(headers: HeadersInit | undefined): boolean {
-  return Boolean((headers as Record<string, string> | undefined)?.Authorization);
 }
 
 async function request<T>(
@@ -119,6 +106,9 @@ async function request<T>(
 ): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
+    // Sin esto el navegador no manda las cookies de sesión: la API vive en
+    // otro origen y `fetch` las omite por defecto.
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...options.headers,
@@ -127,10 +117,9 @@ async function request<T>(
 
   // El token de acceso dura poco a propósito. Antes de dar la sesión por
   // terminada se intenta renovarlo una vez, en silencio.
-  if (response.status === 401 && reintentar && llevaAutorizacion(options.headers)) {
-    const nuevo = await renovarAccesoUnaVez();
-    if (nuevo) {
-      return request<T>(path, { ...options, headers: conAutorizacion(options.headers, nuevo) }, false);
+  if (response.status === 401 && reintentar && haySesion()) {
+    if (await renovarAccesoUnaVez()) {
+      return request<T>(path, options, false);
     }
   }
 
@@ -173,10 +162,8 @@ export function completeGithubCallback(
   return request<TokenResponse>(`/api/auth/github/callback?${query}`);
 }
 
-export function listRepositories(token: string): Promise<Repository[]> {
-  return request<Repository[]>("/api/repositories", {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export function listRepositories(): Promise<Repository[]> {
+  return request<Repository[]>("/api/repositories");
 }
 
 export interface AnalysisFinding {
@@ -239,20 +226,15 @@ export interface Analysis {
   combined: Combined | null;
 }
 
-export function startRepositoryAnalysis(
-  token: string,
-  repositoryId: string,
+export function startRepositoryAnalysis(repositoryId: string,
 ): Promise<{ analysis_id: string }> {
   return request<{ analysis_id: string }>(`/api/repositories/${repositoryId}/analyze`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
   });
 }
 
-export function getAnalysis(token: string, analysisId: string): Promise<Analysis> {
-  return request<Analysis>(`/api/analyses/${analysisId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export function getAnalysis(analysisId: string): Promise<Analysis> {
+  return request<Analysis>(`/api/analyses/${analysisId}`);
 }
 
 export interface TimelineEntry {
@@ -298,43 +280,33 @@ export interface Comparison {
   regressions: Change[];
 }
 
-export function getTimeline(token: string, repositoryId: string): Promise<TimelineEntry[]> {
-  return request<TimelineEntry[]>(`/api/repositories/${repositoryId}/timeline`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export function getTimeline(repositoryId: string): Promise<TimelineEntry[]> {
+  return request<TimelineEntry[]>(`/api/repositories/${repositoryId}/timeline`);
 }
 
-export function getProgress(token: string, repositoryId: string): Promise<Progress> {
-  return request<Progress>(`/api/repositories/${repositoryId}/progress`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export function getProgress(repositoryId: string): Promise<Progress> {
+  return request<Progress>(`/api/repositories/${repositoryId}/progress`);
 }
 
-export function getComparison(
-  token: string,
-  analysisId: string,
+export function getComparison(analysisId: string,
   otherId: string,
 ): Promise<Comparison> {
-  return request<Comparison>(`/api/analyses/${analysisId}/comparison/${otherId}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  return request<Comparison>(`/api/analyses/${analysisId}/comparison/${otherId}`);
 }
 
 /**
  * Descarga el informe en PDF. Se usa fetch + blob en vez de un enlace directo
- * porque el endpoint exige la cabecera Authorization, que un <a href> no envía.
+ * porque un <a href> no permite reintentar la renovación si la sesión caducó.
  */
-export async function downloadAnalysisReport(token: string, analysisId: string): Promise<void> {
-  let response = await fetch(`${API_BASE_URL}/api/analyses/${analysisId}/report.pdf`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (response.status === 401) {
-    const nuevo = await renovarAccesoUnaVez();
-    if (nuevo) {
-      response = await fetch(`${API_BASE_URL}/api/analyses/${analysisId}/report.pdf`, {
-        headers: { Authorization: `Bearer ${nuevo}` },
-      });
-    }
+export async function downloadAnalysisReport(analysisId: string): Promise<void> {
+  const pedir = () =>
+    fetch(`${API_BASE_URL}/api/analyses/${analysisId}/report.pdf`, {
+      credentials: "include",
+    });
+
+  let response = await pedir();
+  if (response.status === 401 && (await renovarAccesoUnaVez())) {
+    response = await pedir();
   }
   if (!response.ok) {
     throw new ApiError(response.status, await parseErrorMessage(response));
@@ -356,26 +328,20 @@ export async function downloadAnalysisReport(token: string, analysisId: string):
   URL.revokeObjectURL(url);
 }
 
-export function analyzeUrl(
-  token: string,
-  url: string,
+export function analyzeUrl(url: string,
   name?: string,
 ): Promise<{ analysis_id: string }> {
   return request<{ analysis_id: string }>("/api/apps/analyze", {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ url, name }),
   });
 }
 
-export function analyzeCombined(
-  token: string,
-  repositoryId: string,
+export function analyzeCombined(repositoryId: string,
   url: string,
 ): Promise<{ analysis_id: string }> {
   return request<{ analysis_id: string }>("/api/apps/analyze-combined", {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ repository_id: repositoryId, url }),
   });
 }
@@ -387,14 +353,11 @@ export interface ShareLink {
   expires_at: string;
 }
 
-export function shareAnalysis(
-  token: string,
-  analysisId: string,
+export function shareAnalysis(analysisId: string,
   expiryDays?: number,
 ): Promise<ShareLink> {
   return request<ShareLink>(`/api/analyses/${analysisId}/share`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ expiry_days: expiryDays ?? null }),
   });
 }
@@ -422,16 +385,13 @@ export interface NotificationList {
   notifications: NotificationItem[];
 }
 
-export function listNotifications(token: string): Promise<NotificationList> {
-  return request<NotificationList>("/api/notifications", {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export function listNotifications(): Promise<NotificationList> {
+  return request<NotificationList>("/api/notifications");
 }
 
-export async function markAllNotificationsRead(token: string): Promise<void> {
+export async function markAllNotificationsRead(): Promise<void> {
   await fetch(`${API_BASE_URL}/api/notifications/read-all`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
   });
 }
 
@@ -446,10 +406,8 @@ export interface Usage {
   max_concurrent: number;
 }
 
-export function getUsage(token: string): Promise<Usage> {
-  return request<Usage>("/api/usage", {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export function getUsage(): Promise<Usage> {
+  return request<Usage>("/api/usage");
 }
 
 // --- Seguimiento ----------------------------------------------------------
@@ -476,19 +434,14 @@ export interface MonitorList {
   allowed_intervals: number[];
 }
 
-export function listMonitors(token: string): Promise<MonitorList> {
-  return request<MonitorList>("/api/monitors", {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+export function listMonitors(): Promise<MonitorList> {
+  return request<MonitorList>("/api/monitors");
 }
 
-export function createMonitor(
-  token: string,
-  target: { repositoryId?: string; appId?: string; intervalMinutes: number },
+export function createMonitor(target: { repositoryId?: string; appId?: string; intervalMinutes: number },
 ): Promise<{ id: string; is_active: boolean }> {
   return request<{ id: string; is_active: boolean }>("/api/monitors", {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({
       repository_id: target.repositoryId ?? null,
       app_id: target.appId ?? null,
@@ -497,10 +450,9 @@ export function createMonitor(
   });
 }
 
-export async function deleteMonitor(token: string, monitorId: string): Promise<void> {
+export async function deleteMonitor(monitorId: string): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/api/monitors/${monitorId}`, {
     method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) {
     throw new ApiError(response.status, await parseErrorMessage(response));
@@ -511,13 +463,12 @@ export async function deleteMonitor(token: string, monitorId: string): Promise<v
  * Cierra la sesión también en el servidor. Sin esta llamada, el token de
  * refresco seguiría siendo válido 30 días aunque se borre del navegador.
  */
-export async function logout(refreshToken: string): Promise<void> {
+export async function logout(): Promise<void> {
   await fetch(`${API_BASE_URL}/api/auth/logout`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: refreshToken }),
+    credentials: "include",
   }).catch(() => {
-    // Si la petición falla, el token local se borra igual: es preferible
+    // Si la petición falla, la marca local se borra igual: es preferible
     // cerrar sesión aquí a dejar al usuario dentro por un fallo de red.
   });
 }

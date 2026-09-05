@@ -83,6 +83,8 @@ ENABLE_API_DOCS=false
 GITHUB_OAUTH_REDIRECT_URI=https://qalitiradar.vercel.app/auth/github/callback
 ```
 
+> **Pon `COOKIE_SECURE=true`.** La sesión viaja en cookies; sin esto viajan también por HTTP y cualquiera en la misma red puede leerlas. El frontend y la API deben quedar bajo el mismo dominio (por ejemplo `qalitiradar.com` y `api.qalitiradar.com`): las cookies usan `SameSite=Lax`, que es lo que las protege de CSRF, y con dominios distintos el navegador no las enviaría.
+
 > **La aplicación no arranca si alguno sigue con el valor de ejemplo o mide menos de 32 caracteres.** Es deliberado: un despliegue con `JWT_SECRET=change-me-in-production` funciona igual de bien y no da ninguna señal hasta que alguien firma el token que quiera.
 
 > **Nunca reutilices el `JWT_SECRET` ni el `ENCRYPTION_KEY` de desarrollo.** El de cifrado protege los tokens de GitHub de tus usuarios; si se filtra, se filtran sus cuentas.

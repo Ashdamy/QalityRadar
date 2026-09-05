@@ -550,3 +550,79 @@ def test_cerrar_sesion_corta_tambien_la_ventana_de_gracia():
 
     despues = client.post("/api/auth/refresh", json={"refresh_token": tokens["refresh_token"]})
     assert despues.status_code == 401
+
+
+# --------------------------------------------------------------------------
+# La sesion viaja en cookies httpOnly
+# --------------------------------------------------------------------------
+
+
+def _cookies_de_login():
+    """Hace login con un cliente limpio y devuelve las cookies tal cual salen.
+
+    Cliente propio: el compartido conserva las cookies entre pruebas, y aqui
+    hace falta ver exactamente lo que manda el servidor en esta respuesta.
+    """
+    limpio = TestClient(app)
+    limpio.post("/api/auth/register", json={"email": _EMAIL, "password": _PASSWORD})
+    respuesta = limpio.post(
+        "/api/auth/login", json={"email": _EMAIL, "password": _PASSWORD}
+    )
+    assert respuesta.status_code == 200
+    return limpio, respuesta
+
+
+@pytest.mark.parametrize("cookie", ["qr_access", "qr_refresh"])
+def test_los_tokens_van_en_cookies_que_javascript_no_puede_leer(cookie):
+    """En localStorage bastaba un XSS para llevarse 30 dias de sesion."""
+    _, respuesta = _cookies_de_login()
+    cabecera = next(
+        valor
+        for clave, valor in respuesta.headers.multi_items()
+        if clave.lower() == "set-cookie" and valor.startswith(f"{cookie}=")
+    )
+    assert "HttpOnly" in cabecera
+    # Sin SameSite, un formulario de otro sitio podria actuar en nombre del
+    # usuario: el navegador adjuntaria la cookie igualmente.
+    assert "SameSite=lax" in cabecera or "SameSite=Lax" in cabecera
+
+
+def test_la_marca_de_sesion_si_es_legible_y_no_es_una_credencial():
+    """La interfaz necesita saber si hay sesion para redirigir. Esa marca no
+    sirve para autenticarse: no lleva ningun token."""
+    _, respuesta = _cookies_de_login()
+    marca = next(
+        valor
+        for clave, valor in respuesta.headers.multi_items()
+        if clave.lower() == "set-cookie" and valor.startswith("qr_sesion=")
+    )
+    assert "HttpOnly" not in marca
+    assert marca.startswith("qr_sesion=1;")
+
+
+def test_la_sesion_en_cookie_autentica_sin_cabecera_authorization():
+    limpio, _ = _cookies_de_login()
+    assert limpio.get("/api/usage").status_code == 200
+
+
+def test_renovar_por_cookie_no_devuelve_los_tokens_en_el_cuerpo():
+    """Un XSS no puede leer la cookie httpOnly, pero el navegador la adjunta
+    por el. Si /refresh devolviera los tokens, le bastaria con llamar y leer la
+    respuesta, y las cookies no habrian servido de nada."""
+    limpio, _ = _cookies_de_login()
+
+    renovado = limpio.post("/api/auth/refresh")
+
+    assert renovado.status_code == 200
+    assert renovado.json() == {"access_token": None, "token_type": "bearer", "refresh_token": None}
+    # Pero la sesion si se renovo: llegan cookies nuevas y siguen valiendo.
+    assert limpio.get("/api/usage").status_code == 200
+
+
+def test_cerrar_sesion_borra_las_cookies():
+    limpio, _ = _cookies_de_login()
+
+    salida = limpio.post("/api/auth/logout")
+
+    assert salida.status_code == 204
+    assert limpio.get("/api/usage").status_code == 401

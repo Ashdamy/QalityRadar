@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ApiError, completeGithubCallback } from "@/lib/api";
-import { saveRefreshToken, saveToken } from "@/lib/auth";
 import { GithubMark } from "@/components/GithubMark";
 import { PrimaryButton } from "@/components/PrimaryButton";
 
@@ -76,9 +75,9 @@ export function CallbackClient() {
     // GitHub devuelve el mismo `state` que salio en la ida; el backend lo
     // exige para comprobar que esta vuelta corresponde a esa peticion.
     completeGithubCallback(code, searchParams.get("state"))
-      .then((res) => {
-        saveToken(res.access_token);
-        if (res.refresh_token) saveRefreshToken(res.refresh_token);
+      .then(() => {
+        // El backend deja la sesion en cookies httpOnly: no llega ningun token
+        // al navegador que haya que guardar.
         setStatus("success");
       })
       .catch((err) => {

@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ApiError, getGithubAuthorizationUrl, login, register } from "@/lib/api";
-import { getToken, saveRefreshToken, saveToken } from "@/lib/auth";
+import { haySesion } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
 import { TextField } from "@/components/TextField";
 import { PrimaryButton } from "@/components/PrimaryButton";
@@ -46,7 +46,7 @@ export default function Home() {
   const [githubPending, setGithubPending] = useState(false);
 
   useEffect(() => {
-    if (getToken()) {
+    if (haySesion()) {
       router.replace("/analyze");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -68,9 +68,9 @@ export default function Home() {
       if (isRegister) {
         await register(email, password);
       }
-      const tokenResponse = await login(email, password);
-      saveToken(tokenResponse.access_token);
-      if (tokenResponse.refresh_token) saveRefreshToken(tokenResponse.refresh_token);
+      // La sesion la deja el servidor en cookies httpOnly; aqui no hay nada
+      // que guardar.
+      await login(email, password);
       router.push("/analyze");
     } catch (err) {
       setError(genericErrorMessage(err));

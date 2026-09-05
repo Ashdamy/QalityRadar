@@ -6,7 +6,7 @@ import {
   markAllNotificationsRead,
   type NotificationItem,
 } from "@/lib/api";
-import { getToken } from "@/lib/auth";
+import { haySesion } from "@/lib/auth";
 
 // Los avisos solo aparecen al terminar un análisis, así que no hace falta
 // sondear: basta con cargarlos al montar y al abrir la bandeja.
@@ -45,10 +45,9 @@ export function NotificationBell() {
   const contenedor = useRef<HTMLDivElement>(null);
 
   async function cargar() {
-    const token = getToken();
-    if (!token) return;
+    if (!haySesion()) return;
     try {
-      const datos = await listNotifications(token);
+      const datos = await listNotifications();
       setAvisos(datos.notifications);
       setSinLeer(datos.unread_count);
     } catch {
@@ -57,12 +56,11 @@ export function NotificationBell() {
   }
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) return;
+    if (!haySesion()) return;
 
     // La guarda evita escribir estado si el componente ya se desmontó.
     let vivo = true;
-    listNotifications(token)
+    listNotifications()
       .then((datos) => {
         if (!vivo) return;
         setAvisos(datos.notifications);
@@ -93,11 +91,10 @@ export function NotificationBell() {
     if (!abriendo) return;
 
     await cargar();
-    const token = getToken();
-    if (token && sinLeer > 0) {
+    if (sinLeer > 0) {
       // Abrir la bandeja es haberlos visto: marcarlos aquí evita un botón
       // extra que nadie pulsaría.
-      await markAllNotificationsRead(token);
+      await markAllNotificationsRead();
       setSinLeer(0);
     }
   }

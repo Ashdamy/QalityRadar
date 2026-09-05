@@ -8,7 +8,6 @@ import {
   type Analysis,
   type AnalysisFinding,
 } from "@/lib/api";
-import { getToken } from "@/lib/auth";
 import { RadarChart, dimensionLabel } from "@/components/RadarChart";
 
 // Nombres tecnicos de las dimensiones ISO 25010 traducidos para el usuario.
@@ -86,12 +85,11 @@ export function AnalysisPanel({
   const [copied, setCopied] = useState(false);
 
   async function handleShare() {
-    const token = getToken();
-    if (!token || sharing) return;
+        if (sharing) return;
     setSharing(true);
     setDownloadError(null);
     try {
-      const enlace = await shareAnalysis(token, analysis.id);
+      const enlace = await shareAnalysis(analysis.id);
       setShareUrl(`${window.location.origin}/r/${enlace.token}`);
       setShareExpiry(new Date(enlace.expires_at).toLocaleDateString("es"));
     } catch (error) {
@@ -104,12 +102,11 @@ export function AnalysisPanel({
   }
 
   async function handleDownload() {
-    const token = getToken();
-    if (!token || downloading) return;
+        if (downloading) return;
     setDownloading(true);
     setDownloadError(null);
     try {
-      await downloadAnalysisReport(token, analysis.id);
+      await downloadAnalysisReport(analysis.id);
     } catch (error) {
       setDownloadError(
         error instanceof ApiError ? error.message : "No se pudo generar el PDF.",

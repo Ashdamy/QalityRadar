@@ -15,16 +15,26 @@ class LoginRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
-    access_token: str
+    """Los tokens van siempre en cookies httpOnly; en el cuerpo, solo a veces.
+
+    Estan ausentes cuando la peticion llego con la sesion en cookies. Si
+    `/refresh` los devolviera tambien en ese caso, un XSS podria llamarlo
+    —el navegador adjunta la cookie solo— y leer la respuesta: las cookies
+    httpOnly no habrian servido de nada.
+
+    Se siguen devolviendo a quien manda el token de refresco en el cuerpo, que
+    por definicion no es un navegador y ya lo tenia.
+    """
+
+    access_token: str | None = None
     token_type: str = "bearer"
-    # El cliente lo guarda para renovar el acceso sin volver a pedir
-    # credenciales. Ausente en la respuesta de /refresh, que no lo rota.
     refresh_token: str | None = None
 
 
 class RefreshRequest(BaseModel):
-    refresh_token: str
+    # Opcional: un navegador no lo manda, lo lleva en la cookie.
+    refresh_token: str | None = None
 
 
 class LogoutRequest(BaseModel):
-    refresh_token: str
+    refresh_token: str | None = None

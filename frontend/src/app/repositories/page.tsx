@@ -11,7 +11,7 @@ import {
   type Analysis,
   type Repository,
 } from "@/lib/api";
-import { clearToken, endSession, getToken } from "@/lib/auth";
+import { clearToken, endSession, haySesion } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
 import { NotificationBell } from "@/components/NotificationBell";
 import { PrimaryButton } from "@/components/PrimaryButton";
@@ -77,14 +77,13 @@ export default function RepositoriesPage() {
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
+    if (!haySesion()) {
       router.replace("/");
       return;
     }
 
     let cancelled = false;
-    listRepositories(token)
+    listRepositories()
       .then((repos) => {
         if (!cancelled) setState({ kind: "ready", repos });
       })
@@ -139,20 +138,19 @@ export default function RepositoriesPage() {
   }
 
   async function handleAnalyze() {
-    const token = getToken();
-    if (!selectedId || !token || analyzePending) return;
+    if (!selectedId || analyzePending) return;
 
     setAnalyzeError(null);
     setAnalyzePending(true);
     setAnalysis(null);
 
     try {
-      const { analysis_id } = await startRepositoryAnalysis(token, selectedId);
+      const { analysis_id } = await startRepositoryAnalysis(selectedId);
 
       // Se sondea hasta que el analisis deja de estar en marcha. El backend
       // corta a los 10 minutos, y MAX_POLLS deja algo de margen sobre eso.
       for (let attempt = 0; attempt < MAX_POLLS; attempt += 1) {
-        const current = await getAnalysis(token, analysis_id);
+        const current = await getAnalysis(analysis_id);
         setAnalysis(current);
         if (!IN_PROGRESS.has(current.status)) {
           // La fecha de "último análisis" acaba de cambiar en el servidor: se

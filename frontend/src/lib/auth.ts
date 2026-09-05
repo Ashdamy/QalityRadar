@@ -1,48 +1,46 @@
 /**
- * Minimal localStorage-backed token storage. No context provider, no hooks —
- * just plain functions, safe to call during server-side rendering.
+ * Estado de sesión en el navegador.
+ *
+ * Los tokens ya no se guardan aquí: viven en cookies `httpOnly` que el
+ * servidor pone y JavaScript no puede leer. Antes estaban en `localStorage`,
+ * y ahí bastaba un XSS —un comentario, una dependencia comprometida, un
+ * `alert` inyectado— para llevarse 30 días de sesión de todos los usuarios.
+ *
+ * Lo único que queda del lado del navegador es una marca legible, `qr_sesion`,
+ * que el servidor pone junto a las cookies de verdad. No es una credencial:
+ * solo dice "hay sesión", que es lo que la interfaz necesita para saber si
+ * enseña la pantalla o redirige al inicio. Robarla no sirve de nada.
  */
 
-const TOKEN_KEY = "qalitiradar.token";
-const REFRESH_KEY = "qalitiradar.refresh";
+const MARCA_DE_SESION = "qr_sesion";
 
-export function saveToken(token: string): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(TOKEN_KEY, token);
-}
-
-export function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(TOKEN_KEY);
-}
-
-export function saveRefreshToken(token: string): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(REFRESH_KEY, token);
-}
-
-export function getRefreshToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return window.localStorage.getItem(REFRESH_KEY);
-}
-
-/** Borra los tokens del navegador. Para cerrar sesión de verdad, `endSession`. */
-export function clearToken(): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(TOKEN_KEY);
-  window.localStorage.removeItem(REFRESH_KEY);
+/** True si el servidor dejó marca de sesión abierta. */
+export function haySesion(): boolean {
+  if (typeof document === "undefined") return false;
+  return document.cookie
+    .split(";")
+    .some((trozo) => trozo.trim().startsWith(`${MARCA_DE_SESION}=`));
 }
 
 /**
- * Cierra la sesión de verdad: la invalida en el servidor y luego borra los
- * tokens locales. Debe usarse siempre en vez de `clearToken` a secas, porque
- * borrar solo en el navegador deja el token de refresco vivo un mes.
+ * Olvida la sesión en el navegador sin avisar al servidor.
+ *
+ * Solo para cuando el servidor ya la ha dado por terminada (un 401): las
+ * cookies de verdad las borra él, y esto deja de enseñar pantallas que ya no
+ * se pueden cargar. Para cerrar sesión de verdad, `endSession`.
+ */
+export function clearToken(): void {
+  if (typeof document === "undefined") return;
+  document.cookie = `${MARCA_DE_SESION}=; Max-Age=0; path=/`;
+}
+
+/**
+ * Cierra la sesión de verdad: la invalida en el servidor, que es quien borra
+ * las cookies. Borrar solo en el navegador dejaría el token de refresco vivo
+ * un mes.
  */
 export async function endSession(): Promise<void> {
-  const refresco = getRefreshToken();
-  if (refresco) {
-    const { logout } = await import("@/lib/api");
-    await logout(refresco);
-  }
+  const { logout } = await import("@/lib/api");
+  await logout();
   clearToken();
 }
