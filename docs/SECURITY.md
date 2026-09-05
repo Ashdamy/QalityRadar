@@ -133,6 +133,20 @@ Los tokens estaban en `localStorage`. Ahí bastaba **un solo XSS** —un comenta
 
 **Verificado en un navegador real:** una prueba end-to-end comprueba que, con la sesión abierta, `localStorage` está vacío y `document.cookie` no contiene ni `qr_access` ni `qr_refresh`.
 
+### Rastro de lo que le pasa a una cuenta
+
+`backend/app/services/audit_service.py`
+
+Se anotan el registro, las entradas, las salidas, los intentos fallidos, los bloqueos por fuerza bruta y las vinculaciones con GitHub. Con eso se contesta la pregunta que se hace después de un susto: **si alguien entró donde no debía, cuándo y desde dónde**.
+
+Es más estrecho de lo que pedía la lista de pendientes, que hablaba de registrar *quién consultó qué*. Eso crece con cada petición, guarda mucho más dato personal y no contesta esa pregunta; lo que la contesta es el rastro de la cuenta.
+
+- **El correo de un intento contra una cuenta que no existe no se guarda.** Sería ir construyendo la lista de correos que alguien prueba, que es justo lo que no hace falta tener. El evento queda sin cuenta asociada.
+- **Quedarse sin intentos también deja rastro.** Sin eso, una tanda de fuerza bruta se ve como unos cuantos fallos y luego silencio, indistinguible de que el atacante se aburriera.
+- **El rastro nunca puede tumbar el inicio de sesión.** Si un fallo al anotar arrastrara la petición, un problema del registro dejaría a la gente sin poder entrar. Uno incompleto es peor que uno completo y mejor que un servicio caído.
+- **La dirección se valida antes de guardarla.** La columna es `INET` y rechaza lo que no sea una dirección; detrás de según qué proxy no llega ninguna. Si el valor no parsea se guarda nulo, porque perder la dirección es mucho mejor que perder el evento entero — y es exactamente lo que pasaba antes de comprobarlo.
+- **Se purga a los 90 días** con el resto del mantenimiento. Una IP es un dato personal y guardarla para siempre no ayuda a nadie.
+
 ### OAuth de GitHub
 
 - **Parámetro `state`** contra CSRF, guardado en Redis, **de un solo uso** y con 10 minutos de vida. Sin él, un tercero podía forzar el callback con un `code` suyo y dejar **su** cuenta de GitHub vinculada a **tu** sesión.
@@ -290,7 +304,7 @@ Esto es tan importante como lo anterior.
 
 **El worker tiene acceso al demonio de Docker.** Es inherente al diseño: quien logre ejecutar código como ese usuario es efectivamente root en la máquina. Se mitiga dedicando la máquina solo a esto, y es la razón de que el sandbox esté cerrado a cal y canto.
 
-**Sin auditoría de accesos.** No queda registro de quién consultó qué. Para un MVP es asumible; para datos de terceros, no.
+**No queda registro de quién consultó qué.** Sí lo hay de lo que le pasa a cada cuenta (§3), que es lo que sirve tras un incidente; el de lecturas se dejó fuera a propósito. Para datos de terceros haría falta.
 
 **El tope de 64 KB por petición se esquiva con `Transfer-Encoding: chunked`**, que no declara `Content-Length`. Es tarea del proxy inverso, que puede cortarlo sin haber leído nada.
 
@@ -299,7 +313,7 @@ Esto es tan importante como lo anterior.
 ## Cómo comprobarlo
 
 ```bash
-cd backend && pytest                                  # las 432 pruebas
+cd backend && pytest                                  # las 439 pruebas
 cd frontend && npx playwright test                    # los flujos, en un navegador real
 cd backend && pytest tests/test_sandbox.py            # aislamiento real contra Docker
 cd backend && pytest tests/test_url_validation.py     # SSRF

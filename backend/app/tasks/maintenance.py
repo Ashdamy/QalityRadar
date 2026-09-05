@@ -1,6 +1,7 @@
 """Tareas periodicas de mantenimiento."""
 
 from app.core.database import SessionLocal
+from app.services.audit_service import purge_old_events
 from app.services.retention_service import purge_old_analyses
 from app.services.session_service import purge_expired as purge_expired_tokens
 from app.services.share_service import purge_expired_links
@@ -26,6 +27,7 @@ def purge_old_analyses_task() -> dict:
             "analisis": purge_old_analyses(db),
             "tokens": purge_expired_tokens(db),
             "enlaces": purge_expired_links(db),
+            "eventos": purge_old_events(db),
         }
         # `purge_old_analyses` confirma por su cuenta; los otros dos no, para
         # que las dos limpiezas entren o no entren juntas.

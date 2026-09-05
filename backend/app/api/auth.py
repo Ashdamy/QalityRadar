@@ -26,6 +26,7 @@ from app.schemas.auth import (
     RegisterRequest,
     TokenResponse,
 )
+from app.services import audit_service
 from app.services import github_service
 from app.services import session_service
 from app.services.rate_limit_service import (
@@ -121,6 +122,10 @@ def register(
             status_code=status.HTTP_409_CONFLICT, detail="email already registered"
         ) from exc
     db.refresh(user)
+    audit_service.registrar(
+        db, audit_service.REGISTRO, user_id=user.id, ip=request.client.host if request.client else None
+    )
+    db.commit()
     return {"id": str(user.id), "email": user.email}
 
 
@@ -138,6 +143,8 @@ def login(
     try:
         check_login_allowed(payload.email, ip)
     except RateLimitExceeded as exc:
+        audit_service.registrar(db, audit_service.ENTRADA_BLOQUEADA, ip=ip)
+        db.commit()
         raise _demasiadas_peticiones(exc) from exc
 
     user = db.scalar(select(User).where(User.email == payload.email))
@@ -146,13 +153,20 @@ def login(
         # Tambien se cuenta cuando la cuenta no existe: si no, el contador
         # diria que emails estan registrados.
         record_login_failure(payload.email, ip)
+        # Sin `user_id`: no hay cuenta a la que colgarlo, y el correo probado no
+        # se guarda para no ir construyendo la lista de los que alguien prueba.
+        audit_service.registrar(db, audit_service.ENTRADA_FALLIDA, ip=ip)
+        db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials")
 
     if not verify_password(payload.password, user.password_hash):
         record_login_failure(payload.email, ip)
+        audit_service.registrar(db, audit_service.ENTRADA_FALLIDA, user_id=user.id, ip=ip)
+        db.commit()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials")
 
     clear_login_failures(payload.email)
+    audit_service.registrar(db, audit_service.ENTRADA, user_id=user.id, ip=ip)
     return _emitir_sesion(db, user.id, response)
 
 
@@ -216,6 +230,7 @@ def github_callback(
     # Con GitHub tambien hace falta el token de refresco. Sin el, quien entraba
     # por aqui se quedaba sin sesion a los 15 minutos y no habia forma de
     # renovarla sin volver a pasar por GitHub.
+    audit_service.registrar(db, audit_service.GITHUB_VINCULADO, user_id=user.id)
     return _emitir_sesion(db, user.id, response)
 
 
@@ -311,6 +326,12 @@ def logout(
     token = (payload.refresh_token if payload else None) or refresco_en_cookie
     if token:
         session_service.revoke(db, token)
+        try:
+            audit_service.registrar(db, audit_service.SALIDA, user_id=decode_refresh_token(token))
+        except Exception:  # noqa: BLE001
+            # Un token ilegible se cierra igual; simplemente no hay a quien
+            # colgarle el evento.
+            pass
         db.commit()
     # Las cookies se borran siempre, aunque no hubiera nada que revocar: si no,
     # el navegador seguiria mandando una sesion que el usuario dio por cerrada.
