@@ -16,7 +16,7 @@ el informe de falsos positivos.
 import re
 from pathlib import Path
 
-from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio, es_archivo_del_repositorio
+from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio, es_archivo_del_repositorio, leer_texto
 from app.analyzers.repository.structure import IGNORED_DIRECTORIES
 
 CODE_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".go", ".rb", ".php"}
@@ -65,7 +65,7 @@ class SecurityBasicsAnalyzer:
             if any(p.lower() in {"test", "tests", "__tests__", "spec"} for p in parts):
                 continue
             try:
-                text = path.read_text(encoding="utf-8", errors="replace")
+                text = leer_texto(path)
             except OSError:
                 continue
             code_files += 1
@@ -85,7 +85,7 @@ class SecurityBasicsAnalyzer:
         ]
         gitignore = repo_dir / ".gitignore"
         gitignore_text = (
-            gitignore.read_text(encoding="utf-8", errors="replace")
+            leer_texto(gitignore)
             if es_archivo_del_repositorio(gitignore, repo_dir)
             else ""
         )

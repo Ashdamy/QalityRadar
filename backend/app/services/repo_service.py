@@ -23,6 +23,14 @@ _CLONE_URL_PATTERN = re.compile(r"^https://github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-
 CLONE_TIMEOUT_SECONDS = 120
 
 
+class ErrorDeClonado(RuntimeError):
+    """Fallo al clonar, con un mensaje escrito para quien lo va a leer.
+
+    Existe para poder distinguirlo: cualquier otra excepcion que salga de un
+    analisis es de una libreria, y su texto no se le ensena a nadie.
+    """
+
+
 def validate_branch(branch: str) -> str:
     # El patron ya excluye la cadena vacia y cualquier cosa que empiece por
     # "-", que es como git interpreta un argumento en vez de una rama.
@@ -109,7 +117,9 @@ def clone_repository(clone_url: str, branch: str) -> Iterator[Path]:
             completed = _run_clone(safe_url, temp_dir, None)
 
         if completed.returncode != 0:
-            raise RuntimeError(f"no se pudo clonar el repositorio: {completed.stderr[:300]}")
+            raise ErrorDeClonado(
+                f"no se pudo clonar el repositorio: {completed.stderr[:300]}"
+            )
         yield temp_dir / "repo"
     finally:
         _cleanup_clone_dir(temp_dir)

@@ -9,7 +9,7 @@ mantenibilidad no se puede puntuar de forma honesta.
 from collections import Counter
 from pathlib import Path
 
-from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio, es_archivo_del_repositorio
+from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio, es_archivo_del_repositorio, leer_texto
 
 # Directorios que no son codigo del proyecto y distorsionarian el conteo.
 IGNORED_DIRECTORIES = {
@@ -183,11 +183,13 @@ class StructureAnalyzer:
 
 
 def _count_lines(path: Path) -> int:
-    try:
-        with path.open("r", encoding="utf-8", errors="replace") as handle:
-            return sum(1 for _ in handle)
-    except OSError:
-        return 0
+    """Cuenta lineas sobre el texto ya acotado.
+
+    Antes se recorria el archivo linea a linea, que acota la memoria salvo en
+    el caso que importa: un archivo de 500 MB sin un solo salto de linea es
+    una unica linea, y entraba entera en memoria.
+    """
+    return len(leer_texto(path).splitlines())
 
 
 def _pyproject_declares_tooling(repo_dir: Path) -> bool:
@@ -195,5 +197,5 @@ def _pyproject_declares_tooling(repo_dir: Path) -> bool:
     pyproject = repo_dir / "pyproject.toml"
     if not es_archivo_del_repositorio(pyproject, repo_dir):
         return False
-    content = pyproject.read_text(encoding="utf-8", errors="replace").lower()
+    content = leer_texto(pyproject).lower()
     return any(tool in content for tool in ("[tool.ruff", "[tool.black", "[tool.flake8", "[tool.pylint"))

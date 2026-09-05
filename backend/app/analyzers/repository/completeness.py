@@ -12,7 +12,7 @@ de forma estatica:
 import re
 from pathlib import Path
 
-from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio
+from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio, leer_texto
 from app.analyzers.repository.structure import IGNORED_DIRECTORIES
 
 CODE_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".go", ".rb", ".rs"}
@@ -44,7 +44,7 @@ class CompletenessAnalyzer:
             if any(part in IGNORED_DIRECTORIES for part in relative.parts):
                 continue
             try:
-                text = path.read_text(encoding="utf-8", errors="replace")
+                text = leer_texto(path)
             except OSError:
                 continue
             code_files += 1

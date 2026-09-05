@@ -38,6 +38,14 @@ Las herramientas de inspección (Gitleaks, Semgrep) corren dentro de un contened
 
 **Verificado, no solo declarado.** Hay pruebas que levantan Docker de verdad: un contenedor que intenta salir a internet falla, y uno que intenta escribir en el repositorio montado es rechazado. Están en `backend/tests/test_sandbox.py`.
 
+### Lo que se lee está acotado, y lo que se cuenta también
+
+**Tope de tamaño por archivo (1 MB).** Los analizadores limitaban *cuántos* archivos leen (1000–1500), pero no cuánto pesa cada uno: un repositorio con un solo archivo de 500 MB hacía que se cargara entero en memoria del worker y que después cinco analizadores lo recorrieran con expresiones regulares. El worker **no tiene límite de memoria** —el de 512 MB es del contenedor del sandbox, que no interviene aquí—, así que bastaba un repositorio público para tumbarlo y con él todos los análisis en curso. Un millón de bytes sobra para código fuente; lo que pasa de ahí son paquetes minificados o datos.
+
+**Los mensajes de error van por lista blanca.** Antes se mostraba `str(exc)` salvo que contuviera una ruta temporal, y esa lista negra solo tapaba lo que ya se conocía: el fallo de una librería llega con lo que la librería quiera contar, y los de base de datos y Redis traen dentro el host, el usuario y a veces la contraseña. Ahora, por defecto, no se enseña nada del error; solo pasan los que levanta este proyecto con un texto escrito para quien lo lee, y esos se siguen limpiando de rutas del clon.
+
+**Un analizador colgado no bloquea la máquina.** Las tareas de análisis llevan `time_limit=600` de Celery: una expresión regular que se atasca sobre HTML hostil se corta a los diez minutos y el hueco se devuelve. Es lo que hace que las expresiones regulares sobre contenido ajeno sean un problema de rendimiento y no una forma de tumbar el servicio.
+
 ### Los analizadores no siguen enlaces simbólicos
 
 `backend/app/analyzers/base.py`
@@ -288,7 +296,7 @@ Esto es tan importante como lo anterior.
 ## Cómo comprobarlo
 
 ```bash
-cd backend && pytest                                  # las 415 pruebas
+cd backend && pytest                                  # las 423 pruebas
 cd frontend && npx playwright test                    # los flujos, en un navegador real
 cd backend && pytest tests/test_sandbox.py            # aislamiento real contra Docker
 cd backend && pytest tests/test_url_validation.py     # SSRF

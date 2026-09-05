@@ -46,6 +46,35 @@ def esta_dentro(path: Path, repo_dir: Path) -> bool:
         return False
 
 
+# Sobra para codigo fuente. Lo que pasa de aqui son paquetes minificados o
+# datos, que no aportan nada a estas metricas.
+MAX_BYTES_POR_ARCHIVO = 1_000_000
+
+
+def leer_texto(path: Path) -> str:
+    """Lee un archivo del repositorio con un tope de tamano.
+
+    Los analizadores limitan **cuantos** archivos leen, pero no cuanto pesa
+    cada uno. Un repositorio con un solo archivo de 500 MB hacia que
+    `read_text` lo cargara entero en memoria del worker, y despues cinco
+    analizadores lo recorrieran con expresiones regulares.
+
+    El worker no tiene limite de memoria: el de 512 MB es del contenedor del
+    sandbox, que es otra cosa y no interviene aqui. Asi que bastaba un
+    repositorio publico para tumbarlo, y con el a todos los analisis en curso.
+
+    Devuelve cadena vacia si el archivo no se puede leer, que es como se venia
+    tratando: un archivo ilegible no es motivo para abortar el analisis.
+    """
+    try:
+        with path.open("rb") as fichero:
+            crudo = fichero.read(MAX_BYTES_POR_ARCHIVO)
+    except OSError:
+        return ""
+    # `replace` tambien cubre el caracter partido por la mitad al cortar.
+    return crudo.decode("utf-8", errors="replace")
+
+
 def es_archivo_del_repositorio(path: Path, repo_dir: Path) -> bool:
     """Para los archivos que se leen por nombre y no recorriendo.
 

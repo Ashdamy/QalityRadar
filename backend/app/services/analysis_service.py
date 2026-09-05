@@ -24,6 +24,7 @@ from app.analyzers.repository.security_basics import SecurityBasicsAnalyzer
 from app.analyzers.repository.structure import StructureAnalyzer
 from app.analyzers.repository.tests_analyzer import TestsAnalyzer
 from app.core.database import SessionLocal
+from app.utils.url_validation import UnsafeUrlError
 from app.services.notification_service import persist_notifications
 from app.services.rate_limit_service import release
 from app.models.analysis import Analysis, Dimension, Finding
@@ -31,7 +32,7 @@ from app.models.repository import Repository
 from app.core.config import get_settings
 from app.services.comparison_service import compare_analyses, find_previous_analysis
 from app.services.summary_service import build_analysis_summary
-from app.services.repo_service import clone_repository, read_head_commit
+from app.services.repo_service import ErrorDeClonado, clone_repository, read_head_commit
 from app.services.scoring_service import (
     REPOSITORY_WEIGHTS,
     calculate_confidence,
@@ -186,12 +187,35 @@ def _mark_failed(db: Session, analysis: Analysis, message: str) -> None:
     db.commit()
 
 
+# Los unicos errores cuyo texto se le ensena a alguien: los escribe este
+# proyecto, pensando en quien los va a leer.
+_ERRORES_CON_MENSAJE_PROPIO = (ErrorDeClonado, UnsafeUrlError, ValueError)
+
+_MENSAJE_GENERICO = "el analisis fallo por un error inesperado"
+
+
 def _safe_error_message(exc: Exception) -> str:
-    """Mensaje apto para mostrar al usuario: sin rutas internas ni tokens."""
+    """Mensaje apto para mostrar al usuario: sin rutas internas ni credenciales.
+
+    Antes se mostraba `str(exc)` salvo que contuviera una ruta temporal. Esa
+    lista negra solo tapaba lo que ya se conocia: el fallo de una libreria
+    llega con lo que la libreria quiera contar, y los de base de datos y Redis
+    traen dentro el host, el usuario y a veces la contrasena.
+
+    Ahora el criterio esta al reves: por defecto no se ensena nada del error, y
+    solo pasan los que levanta este proyecto. Cuesta un mensaje menos concreto
+    de vez en cuando; el otro criterio cuesta enterarse por un informe fallido
+    de en que host esta la base de datos y con que usuario se entra.
+    """
+    if not isinstance(exc, _ERRORES_CON_MENSAJE_PROPIO):
+        return _MENSAJE_GENERICO
+
     text = str(exc)
+    # Incluso los propios: el stderr de git trae la ruta del directorio
+    # temporal, que no le dice nada a nadie y si dice donde estamos.
     if "/tmp/" in text or "\\Temp\\" in text or "qaliti-clone-" in text:
         return "el analisis fallo al preparar el repositorio"
-    return text[:300] or "el analisis fallo por un error inesperado"
+    return text[:300] or _MENSAJE_GENERICO
 
 
 def _liberar_hueco(db, analysis_id: str) -> None:

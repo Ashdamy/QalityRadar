@@ -20,7 +20,7 @@ from pathlib import Path
 
 import httpx
 
-from app.analyzers.base import AnalyzerResult, FindingData, es_archivo_del_repositorio
+from app.analyzers.base import AnalyzerResult, FindingData, es_archivo_del_repositorio, leer_texto
 
 OSV_BATCH_URL = "https://api.osv.dev/v1/querybatch"
 OSV_TIMEOUT_SECONDS = 20
@@ -105,7 +105,7 @@ def _collect_packages(repo_dir: Path) -> list[dict]:
     package_json = repo_dir / "package.json"
     if es_archivo_del_repositorio(package_json, repo_dir):
         try:
-            data = json.loads(package_json.read_text(encoding="utf-8", errors="replace"))
+            data = json.loads(leer_texto(package_json))
         except (json.JSONDecodeError, OSError):
             data = {}
         for seccion in ("dependencies", "devDependencies"):
@@ -116,7 +116,7 @@ def _collect_packages(repo_dir: Path) -> list[dict]:
 
     requirements = repo_dir / "requirements.txt"
     if es_archivo_del_repositorio(requirements, repo_dir):
-        for linea in requirements.read_text(encoding="utf-8", errors="replace").splitlines():
+        for linea in leer_texto(requirements).splitlines():
             if linea.strip().startswith("#"):
                 continue
             match = _PY_REQUIREMENT.match(linea)
@@ -144,7 +144,7 @@ def _pyproject_packages(repo_dir: Path) -> list[dict]:
         return []
 
     try:
-        datos = tomllib.loads(pyproject.read_text(encoding="utf-8", errors="replace"))
+        datos = tomllib.loads(leer_texto(pyproject))
     except (tomllib.TOMLDecodeError, OSError):
         return []
 

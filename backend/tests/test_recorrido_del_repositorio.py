@@ -13,7 +13,14 @@ from pathlib import Path
 
 import pytest
 
-from app.analyzers.base import archivos_del_repositorio, esta_dentro
+from app.services.analysis_service import _safe_error_message
+from app.services.repo_service import ErrorDeClonado
+from app.analyzers.base import (
+    MAX_BYTES_POR_ARCHIVO,
+    archivos_del_repositorio,
+    esta_dentro,
+    leer_texto,
+)
 
 
 def _se_pueden_crear_enlaces() -> bool:
@@ -119,3 +126,90 @@ def test_los_archivos_normales_si_se_recorren(tmp_path):
     nombres = sorted(p.name for p in archivos_del_repositorio(repo))
 
     assert nombres == ["README.md", "app.py", "src"]
+
+
+# --------------------------------------------------------------------------
+# Tamano de lo que se lee
+# --------------------------------------------------------------------------
+
+
+def test_un_archivo_enorme_no_entra_entero_en_memoria(tmp_path):
+    """Los analizadores limitan cuantos archivos leen, pero no cuanto pesa
+    cada uno: un repositorio con un solo archivo gigante tumbaba el worker, y
+    con el todos los analisis en curso."""
+    gordo = tmp_path / "datos.py"
+    gordo.write_bytes(b"a" * (MAX_BYTES_POR_ARCHIVO + 500_000))
+
+    texto = leer_texto(gordo)
+
+    assert len(texto) == MAX_BYTES_POR_ARCHIVO
+
+
+def test_una_sola_linea_gigante_tampoco(tmp_path):
+    """El caso que se colaba: recorrer linea a linea acota la memoria salvo
+    cuando el archivo entero es una unica linea."""
+    gordo = tmp_path / "minificado.js"
+    gordo.write_bytes(b"x" * (MAX_BYTES_POR_ARCHIVO * 2))
+
+    assert len(leer_texto(gordo)) == MAX_BYTES_POR_ARCHIVO
+
+
+def test_un_archivo_normal_se_lee_entero(tmp_path):
+    codigo = tmp_path / "app.py"
+    codigo.write_text("print('hola')")
+
+    assert leer_texto(codigo) == "print('hola')"
+
+
+def test_un_archivo_ilegible_no_aborta_el_analisis(tmp_path):
+    assert leer_texto(tmp_path / "no-existe.py") == ""
+
+
+def test_un_caracter_partido_por_el_corte_no_revienta(tmp_path):
+    """El tope cae a mitad de un caracter multibyte mas veces de las que
+    parece: si eso lanzara, un repositorio con acentos tumbaria el analisis."""
+    archivo = tmp_path / "acentos.py"
+    archivo.write_bytes(b"a" * (MAX_BYTES_POR_ARCHIVO - 1) + "ñ".encode())
+
+    texto = leer_texto(archivo)
+
+    assert len(texto) == MAX_BYTES_POR_ARCHIVO
+    assert texto.endswith("�")
+
+
+# --------------------------------------------------------------------------
+# Lo que se le cuenta al usuario cuando un analisis falla
+# --------------------------------------------------------------------------
+
+
+def test_el_fallo_de_una_libreria_no_se_le_ensena_a_nadie():
+    """El criterio era al reves: se mostraba `str(exc)` salvo que trajera una
+    ruta temporal. Un fallo de la base de datos llega con el host, el usuario y
+    a veces la contrasena dentro del mensaje."""
+    escapado = Exception(
+        "connection to server at 10.0.0.5, port 5432 failed: "
+        "password authentication failed for user qalitiradar"
+    )
+
+    mensaje = _safe_error_message(escapado)
+
+    assert "10.0.0.5" not in mensaje
+    assert "qalitiradar" not in mensaje
+    assert mensaje == "el analisis fallo por un error inesperado"
+
+
+def test_un_error_propio_si_explica_lo_que_paso():
+    """Si no, el usuario no sabe que su repositorio no existe o que la rama
+    cambio de nombre, y no puede hacer nada al respecto."""
+    mensaje = _safe_error_message(ErrorDeClonado("no se pudo clonar el repositorio: not found"))
+
+    assert "no se pudo clonar el repositorio" in mensaje
+
+
+def test_ni_los_propios_ensenan_la_ruta_del_clon():
+    mensaje = _safe_error_message(
+        ErrorDeClonado("no se pudo clonar: /tmp/qaliti-clone-abc123/repo")
+    )
+
+    assert "qaliti-clone-" not in mensaje
+    assert "/tmp/" not in mensaje

@@ -9,7 +9,7 @@ Se leen los ficheros de configuracion; nunca se ejecutan.
 
 from pathlib import Path
 
-from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio, esta_dentro
+from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio, esta_dentro, leer_texto
 
 # Rutas donde vive la configuracion de los sistemas de CI mas usados.
 CI_LOCATIONS = {
@@ -105,7 +105,4 @@ class CicdAnalyzer:
 
 
 def _read(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return ""
+    return leer_texto(path)

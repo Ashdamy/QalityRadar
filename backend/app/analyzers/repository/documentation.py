@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from app.analyzers.base import AnalyzerResult, FindingData, es_archivo_del_repositorio
+from app.analyzers.base import AnalyzerResult, FindingData, es_archivo_del_repositorio, leer_texto
 
 README_NAMES = ("README.md", "README.rst", "README.txt", "README")
 LICENSE_NAMES = ("LICENSE", "LICENSE.md", "LICENSE.txt", "LICENCE", "COPYING")
@@ -23,14 +23,14 @@ class DocumentationAnalyzer:
 
     def analyze(self, repo_dir: Path) -> AnalyzerResult:
         readme_path = self._first_existing(repo_dir, README_NAMES)
-        readme_length = len(readme_path.read_text(encoding="utf-8", errors="replace")) if readme_path else 0
+        readme_length = len(leer_texto(readme_path)) if readme_path else 0
 
         has_architecture = any((repo_dir / name).exists() for name in ARCHITECTURE_NAMES) or (
             (repo_dir / "docs").is_dir() and any((repo_dir / "docs").glob("*.md"))
         )
 
         readme_text = (
-            readme_path.read_text(encoding="utf-8", errors="replace").lower() if readme_path else ""
+            leer_texto(readme_path).lower() if readme_path else ""
         )
         metrics = {
             "has_readme": readme_path is not None,

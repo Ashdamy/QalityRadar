@@ -11,7 +11,7 @@ import hashlib
 import re
 from pathlib import Path
 
-from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio
+from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio, leer_texto
 from app.analyzers.repository.structure import IGNORED_DIRECTORIES
 
 PYTHON_EXTENSIONS = {".py"}
@@ -179,10 +179,7 @@ class CodeQualityAnalyzer:
 
 
 def _read(path: Path) -> str:
-    try:
-        return path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return ""
+    return leer_texto(path)
 
 
 def _analyse_python(text: str, display: str) -> dict:
