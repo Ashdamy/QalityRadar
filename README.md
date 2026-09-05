@@ -200,6 +200,16 @@ El aislamiento está **verificado con pruebas reales contra Docker**, no solo de
 
 Al analizar una URL se resuelve el DNS y se valida la IP **en cada salto de redirección**, no solo en la dirección inicial, para que una redirección no pueda apuntar a la red interna.
 
+### Insignia para tu README
+
+Desde la pantalla de repositorios, el botón **Insignia** genera el markdown listo para pegar:
+
+```markdown
+[![Calidad](https://tu-dominio/api/badge/<token>.svg)](https://tu-dominio)
+```
+
+Muestra la nota del último análisis y se actualiza sola. No caduca —una insignia que se apaga deja una imagen rota en tu portada— y se apaga cuando quieras. Solo publica la cifra: ni el nombre del repositorio ni los hallazgos.
+
 El inventario completo de defensas —y, con la misma franqueza, lo que **no** está cubierto— está en [`docs/SECURITY.md`](docs/SECURITY.md).
 
 ---

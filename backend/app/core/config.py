@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     # por HTTP y una cookie `Secure` sobre HTTP se descarta en silencio.
     cookie_secure: bool = False
 
+    # Direccion publica de la aplicacion. Se usa para construir la URL de la
+    # insignia que el usuario pega en su README, asi que en produccion tiene
+    # que ser el dominio real: si apunta a localhost, la imagen no carga en
+    # ningun sitio salvo en la maquina de quien la genero.
+    public_base_url: str = "http://localhost:8000"
+
     @field_validator("jwt_secret", "encryption_key")
     @classmethod
     def _un_secreto_de_verdad(cls, valor: str, info) -> str:

@@ -217,6 +217,7 @@ Se cuentan **solo los fallos**, y por dos claves a la vez porque frenan ataques 
 - **Los enlaces compartidos son tokens de 256 bits** (`secrets.token_urlsafe(32)`), imposibles de adivinar. Caducan a los 7 días (30 como máximo) y se revocan uno a uno.
 - **Un token inexistente y uno caducado dan la misma respuesta.** Distinguirlos convertiría el endpoint en un oráculo sobre qué tokens han existido.
 - **Los enlaces caducados se borran a diario.** Uno caducado ya no abre nada, así que guardarlo solo acumula tokens que un día dieron acceso a un informe. Para quien lo tenga no cambia nada: un token que no consta y uno caducado dan la misma respuesta, que es justo lo que evita que el endpoint sirva de oráculo.
+- **La insignia del README es lo único público que no caduca**, y es deliberado: una que se apagara sola dejaría una imagen rota en la portada de un proyecto ajeno. Se revoca a mano. Para que eso sea aceptable, expone lo mínimo: **solo la cifra**, ni el nombre del repositorio ni los hallazgos, así que si el token se filtrara antes de publicarlo, lo que se lleva quien lo tenga es un número. Apunta al repositorio y no a un análisis, o se quedaría congelada en la nota de un día. Un token inexistente y uno revocado devuelven la misma imagen —«sin analizar»— en vez de un 404, que además de servir de oráculo dejaría la portada rota.
 - **`noindex` en las páginas de informe compartido.** El token protege de quien no lo tiene, pero no de un buscador que ya lo vio: si alguien pega el enlace donde Google rastree, el informe quedaría indexado **aunque el enlace caduque**.
 - **La documentación interactiva de la API se apaga en producción** (`ENABLE_API_DOCS=false`). No es una vulnerabilidad por sí sola, pero publicada regala el mapa completo de la API y le ahorra a un atacante todo el reconocimiento.
 
@@ -313,7 +314,7 @@ Esto es tan importante como lo anterior.
 ## Cómo comprobarlo
 
 ```bash
-cd backend && pytest                                  # las 439 pruebas
+cd backend && pytest                                  # las 453 pruebas
 cd frontend && npx playwright test                    # los flujos, en un navegador real
 cd backend && pytest tests/test_sandbox.py            # aislamiento real contra Docker
 cd backend && pytest tests/test_url_validation.py     # SSRF

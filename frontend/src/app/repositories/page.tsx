@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  createBadge,
   ApiError,
   getAnalysis,
   getGithubAuthorizationUrl,
@@ -71,6 +72,10 @@ export default function RepositoriesPage() {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Markdown de la insignia, ya listo para pegar en el README.
+  const [badge, setBadge] = useState<string | null>(null);
+  const [badgePending, setBadgePending] = useState(false);
+  const [badgeCopied, setBadgeCopied] = useState(false);
   const [githubPending, setGithubPending] = useState(false);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [analyzePending, setAnalyzePending] = useState(false);
@@ -134,6 +139,23 @@ export default function RepositoriesPage() {
     } catch {
       setGithubPending(false);
       setState({ kind: "error", message: "No se pudo iniciar la conexión con GitHub. Intenta de nuevo." });
+    }
+  }
+
+  async function handleBadge() {
+    if (!selectedId || badgePending) return;
+    setBadgePending(true);
+    setAnalyzeError(null);
+    try {
+      const { markdown } = await createBadge(selectedId);
+      setBadge(markdown);
+      setBadgeCopied(false);
+    } catch (error) {
+      setAnalyzeError(
+        error instanceof ApiError ? error.message : "No se pudo crear la insignia.",
+      );
+    } finally {
+      setBadgePending(false);
     }
   }
 
@@ -263,6 +285,14 @@ export default function RepositoriesPage() {
               />
               <button
                 type="button"
+                disabled={!hasSelection || badgePending}
+                onClick={handleBadge}
+                className="whitespace-nowrap rounded-[6px] border border-border bg-surface px-[18px] py-[9px] text-[13.5px] text-text disabled:cursor-not-allowed disabled:text-faint focus:outline-none focus:ring-[3px] focus:ring-accentDim"
+              >
+                {badgePending ? "Creando…" : "Insignia"}
+              </button>
+              <button
+                type="button"
                 disabled={!hasSelection}
                 onClick={() => selectedId && router.push(`/repositories/${selectedId}/history`)}
                 className="whitespace-nowrap rounded-[6px] border border-border bg-surface px-[18px] py-[9px] text-[13.5px] text-text disabled:cursor-not-allowed disabled:text-faint focus:outline-none focus:ring-[3px] focus:ring-accentDim"
@@ -279,6 +309,35 @@ export default function RepositoriesPage() {
                 {analyzePending ? "Analizando…" : "Analizar seleccionado"}
               </PrimaryButton>
             </div>
+
+            {badge && (
+              <div className="-mt-3 rounded-[6px] border border-border bg-bg p-3">
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    value={badge}
+                    onFocus={(e) => e.currentTarget.select()}
+                    aria-label="Markdown de la insignia"
+                    className="min-w-0 flex-1 bg-transparent font-mono text-[12px] text-muted focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(badge);
+                      setBadgeCopied(true);
+                      window.setTimeout(() => setBadgeCopied(false), 2000);
+                    }}
+                    className="shrink-0 rounded-[5px] border border-border px-2 py-[3px] text-[11.5px] text-muted hover:text-text focus:outline-none focus:ring-[3px] focus:ring-accentDim"
+                  >
+                    {badgeCopied ? "Copiado" : "Copiar"}
+                  </button>
+                </div>
+                <p className="mt-2 text-[11.5px] leading-[1.5] text-faint">
+                  Pégalo en el README. Muestra la nota del último análisis y se actualiza
+                  sola; no caduca, y puedes apagarla cuando quieras.
+                </p>
+              </div>
+            )}
 
             {analyzeError && (
               <p role="alert" className="-mt-3 text-[12.5px] text-[oklch(0.68_0.19_25)]">

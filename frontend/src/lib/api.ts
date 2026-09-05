@@ -346,6 +346,24 @@ export function analyzeCombined(repositoryId: string,
   });
 }
 
+// --- Insignia del README ---------------------------------------------------
+
+export interface Badge {
+  token: string;
+  image_url: string;
+  markdown: string;
+}
+
+/**
+ * Enciende la insignia del repositorio y devuelve el markdown para pegar.
+ *
+ * Pedirla dos veces devuelve la misma: el token no cambia, o la insignia ya
+ * pegada en un README dejaría de funcionar sin que nadie la tocara.
+ */
+export function createBadge(repositoryId: string): Promise<Badge> {
+  return request<Badge>(`/api/repositories/${repositoryId}/badge`, { method: "POST" });
+}
+
 // --- Compartir informes ---------------------------------------------------
 
 export interface ShareLink {
