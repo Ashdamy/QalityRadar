@@ -14,7 +14,7 @@ leyendo el codigo:
 import re
 from pathlib import Path
 
-from app.analyzers.base import AnalyzerResult, FindingData
+from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio
 from app.analyzers.repository.structure import IGNORED_DIRECTORIES
 
 CODE_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx"}
@@ -45,7 +45,7 @@ class ErrorHandlingAnalyzer:
         files_with_timeout = 0
         files_with_retry = 0
 
-        for path in sorted(repo_dir.rglob("*")):
+        for path in archivos_del_repositorio(repo_dir):
             if code_files >= MAX_FILES_TO_READ:
                 break
             if not path.is_file() or path.suffix.lower() not in CODE_EXTENSIONS:

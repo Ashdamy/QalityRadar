@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from app.analyzers.base import AnalyzerResult, FindingData
+from app.analyzers.base import AnalyzerResult, FindingData, es_archivo_del_repositorio
 
 README_NAMES = ("README.md", "README.rst", "README.txt", "README")
 LICENSE_NAMES = ("LICENSE", "LICENSE.md", "LICENSE.txt", "LICENCE", "COPYING")
@@ -83,6 +83,6 @@ class DocumentationAnalyzer:
     def _first_existing(self, repo_dir: Path, names: tuple[str, ...]) -> Path | None:
         for name in names:
             candidate = repo_dir / name
-            if candidate.is_file():
+            if es_archivo_del_repositorio(candidate, repo_dir):
                 return candidate
         return None

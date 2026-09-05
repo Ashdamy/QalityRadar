@@ -38,6 +38,30 @@ Las herramientas de inspección (Gitleaks, Semgrep) corren dentro de un contened
 
 **Verificado, no solo declarado.** Hay pruebas que levantan Docker de verdad: un contenedor que intenta salir a internet falla, y uno que intenta escribir en el repositorio montado es rechazado. Están en `backend/tests/test_sandbox.py`.
 
+### Los analizadores no siguen enlaces simbólicos
+
+`backend/app/analyzers/base.py`
+
+Aquí está la trampa de leer código ajeno, y es la que más cuesta ver: la regla del proyecto es que **el código analizado nunca se ejecuta**, pero sí se lee, y leer el archivo equivocado basta para filtrarlo.
+
+Los analizadores de Python (estructura, calidad, dependencias, pruebas…) **corren en el worker, no en el contenedor aislado**: lo que alcanzan es la máquina de verdad, la que tiene el `.env` con el `JWT_SECRET`, la clave de cifrado y las credenciales de la base de datos. Y `Path.rglob` sigue los enlaces simbólicos: un repositorio con
+
+```
+config.py -> /app/.env
+```
+
+hacía que el analizador leyera ese archivo y después informara de lo que había encontrado dentro.
+
+**Comprobado en el sistema de destino**, no razonado: en un contenedor `python:3.11-slim` igual al del despliegue, `rglob` devuelve el enlace y `read_text` entrega el contenido del archivo de fuera.
+
+Se cierra en un solo sitio, por donde pasan los ocho analizadores: se descartan los enlaces **y** se confirma que la ruta resuelta sigue dentro del clon. Dos comprobaciones y no una, porque la segunda no depende de cómo trate los enlaces la versión de Python que toque. Los archivos que se abren por nombre y no recorriendo —`package.json`, `requirements.txt`, `pyproject.toml`, el README, el `.gitignore`— pasan por la misma comprobación: un enlace con cualquiera de esos nombres servía igual.
+
+Las pruebas del ataque (`tests/test_recorrido_del_repositorio.py`) **se saltan en Windows**, que no deja crear enlaces sin privilegios. Se ejecutan en Linux, que es donde corre esto:
+
+```bash
+docker run --rm -v "$PWD/backend:/src:ro" -w /tmp python:3.11-slim   sh -c "pip install -q pytest && cp /src/tests/test_recorrido_del_repositorio.py .          && PYTHONPATH=/src python -m pytest test_recorrido_del_repositorio.py -q"
+```
+
 ### Inyección de argumentos
 
 El nombre de la imagen se valida contra un patrón y se rechaza si empieza por `-`. Además, el comando lleva `--` antes de la imagen: aunque algo se colara en la validación, Docker ya no puede interpretarlo como una opción.
@@ -264,7 +288,7 @@ Esto es tan importante como lo anterior.
 ## Cómo comprobarlo
 
 ```bash
-cd backend && pytest                                  # las 411 pruebas
+cd backend && pytest                                  # las 415 pruebas
 cd frontend && npx playwright test                    # los flujos, en un navegador real
 cd backend && pytest tests/test_sandbox.py            # aislamiento real contra Docker
 cd backend && pytest tests/test_url_validation.py     # SSRF

@@ -9,7 +9,7 @@ mantenibilidad no se puede puntuar de forma honesta.
 from collections import Counter
 from pathlib import Path
 
-from app.analyzers.base import AnalyzerResult, FindingData
+from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio, es_archivo_del_repositorio
 
 # Directorios que no son codigo del proyecto y distorsionarian el conteo.
 IGNORED_DIRECTORIES = {
@@ -58,7 +58,7 @@ class StructureAnalyzer:
         largest_file: tuple[str, int] = ("", 0)
         max_depth = 0
 
-        for path in repo_dir.rglob("*"):
+        for path in archivos_del_repositorio(repo_dir):
             relative = path.relative_to(repo_dir)
             if any(part in IGNORED_DIRECTORIES for part in relative.parts):
                 continue
@@ -193,7 +193,7 @@ def _count_lines(path: Path) -> int:
 def _pyproject_declares_tooling(repo_dir: Path) -> bool:
     """pyproject.toml suele contener la config de ruff/black en vez de un archivo aparte."""
     pyproject = repo_dir / "pyproject.toml"
-    if not pyproject.is_file():
+    if not es_archivo_del_repositorio(pyproject, repo_dir):
         return False
     content = pyproject.read_text(encoding="utf-8", errors="replace").lower()
     return any(tool in content for tool in ("[tool.ruff", "[tool.black", "[tool.flake8", "[tool.pylint"))

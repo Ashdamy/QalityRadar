@@ -13,7 +13,7 @@ Sub-caracteristicas de "Portability" en ISO/IEC 25010:
 import re
 from pathlib import Path
 
-from app.analyzers.base import AnalyzerResult, FindingData
+from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio
 from app.analyzers.repository.structure import IGNORED_DIRECTORIES
 
 CODE_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".go", ".rb"}
@@ -40,7 +40,7 @@ class PortabilityAnalyzer:
         hardcoded_paths: list[str] = []
         code_files = 0
 
-        for path in sorted(repo_dir.rglob("*")):
+        for path in archivos_del_repositorio(repo_dir):
             if code_files >= MAX_FILES_TO_READ:
                 break
             if not path.is_file() or path.suffix.lower() not in CODE_EXTENSIONS:

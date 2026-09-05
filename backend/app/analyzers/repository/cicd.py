@@ -9,7 +9,7 @@ Se leen los ficheros de configuracion; nunca se ejecutan.
 
 from pathlib import Path
 
-from app.analyzers.base import AnalyzerResult, FindingData
+from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio, esta_dentro
 
 # Rutas donde vive la configuracion de los sistemas de CI mas usados.
 CI_LOCATIONS = {
@@ -41,8 +41,15 @@ class CicdAnalyzer:
         for system, locations in CI_LOCATIONS.items():
             for location in locations:
                 target = repo_dir / location
+                if target.is_symlink() or not esta_dentro(target, repo_dir):
+                    # Un `.github` enlazado sacaria la lectura fuera del clon.
+                    continue
                 if target.is_dir():
-                    archivos = [p for p in target.rglob("*") if p.suffix.lower() in {".yml", ".yaml"}]
+                    archivos = [
+                        p
+                        for p in archivos_del_repositorio(target)
+                        if p.suffix.lower() in {".yml", ".yaml"}
+                    ]
                     if archivos:
                         detected.append(system)
                         config_texts.extend(_read(p) for p in archivos)

@@ -16,7 +16,7 @@ el informe de falsos positivos.
 import re
 from pathlib import Path
 
-from app.analyzers.base import AnalyzerResult, FindingData
+from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio, es_archivo_del_repositorio
 from app.analyzers.repository.structure import IGNORED_DIRECTORIES
 
 CODE_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".go", ".rb", ".php"}
@@ -52,7 +52,7 @@ class SecurityBasicsAnalyzer:
         sql_concat: list[str] = []
         code_files = 0
 
-        for path in sorted(repo_dir.rglob("*")):
+        for path in archivos_del_repositorio(repo_dir):
             if code_files >= MAX_FILES_TO_READ:
                 break
             if not path.is_file() or path.suffix.lower() not in CODE_EXTENSIONS:
@@ -84,7 +84,11 @@ class SecurityBasicsAnalyzer:
             name for name in COMMITTED_SECRET_FILES if (repo_dir / name).is_file()
         ]
         gitignore = repo_dir / ".gitignore"
-        gitignore_text = gitignore.read_text(encoding="utf-8", errors="replace") if gitignore.is_file() else ""
+        gitignore_text = (
+            gitignore.read_text(encoding="utf-8", errors="replace")
+            if es_archivo_del_repositorio(gitignore, repo_dir)
+            else ""
+        )
         gitignore_covers_env = ".env" in gitignore_text
 
         metrics = {

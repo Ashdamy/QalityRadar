@@ -20,7 +20,7 @@ from pathlib import Path
 
 import httpx
 
-from app.analyzers.base import AnalyzerResult, FindingData
+from app.analyzers.base import AnalyzerResult, FindingData, es_archivo_del_repositorio
 
 OSV_BATCH_URL = "https://api.osv.dev/v1/querybatch"
 OSV_TIMEOUT_SECONDS = 20
@@ -103,7 +103,7 @@ def _collect_packages(repo_dir: Path) -> list[dict]:
     packages: list[dict] = []
 
     package_json = repo_dir / "package.json"
-    if package_json.is_file():
+    if es_archivo_del_repositorio(package_json, repo_dir):
         try:
             data = json.loads(package_json.read_text(encoding="utf-8", errors="replace"))
         except (json.JSONDecodeError, OSError):
@@ -115,7 +115,7 @@ def _collect_packages(repo_dir: Path) -> list[dict]:
                 )
 
     requirements = repo_dir / "requirements.txt"
-    if requirements.is_file():
+    if es_archivo_del_repositorio(requirements, repo_dir):
         for linea in requirements.read_text(encoding="utf-8", errors="replace").splitlines():
             if linea.strip().startswith("#"):
                 continue
@@ -140,7 +140,7 @@ def _pyproject_packages(repo_dir: Path) -> list[dict]:
     encima perdian puntos por no declarar lo que si declaran.
     """
     pyproject = repo_dir / "pyproject.toml"
-    if not pyproject.is_file():
+    if not es_archivo_del_repositorio(pyproject, repo_dir):
         return []
 
     try:

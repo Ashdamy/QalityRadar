@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from app.analyzers.base import AnalyzerResult, FindingData
+from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio
 from app.analyzers.repository.structure import EXTENSION_TO_LANGUAGE, IGNORED_DIRECTORIES
 
 TEST_DIRECTORY_NAMES = {"test", "tests", "__tests__", "spec", "e2e", "cypress"}
@@ -31,7 +31,7 @@ class TestsAnalyzer:
         test_files: list[Path] = []
         source_files: list[Path] = []
 
-        for path in repo_dir.rglob("*"):
+        for path in archivos_del_repositorio(repo_dir):
             if not path.is_file():
                 continue
             relative = path.relative_to(repo_dir)

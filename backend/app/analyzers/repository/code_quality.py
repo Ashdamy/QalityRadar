@@ -11,7 +11,7 @@ import hashlib
 import re
 from pathlib import Path
 
-from app.analyzers.base import AnalyzerResult, FindingData
+from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio
 from app.analyzers.repository.structure import IGNORED_DIRECTORIES
 
 PYTHON_EXTENSIONS = {".py"}
@@ -49,7 +49,7 @@ class CodeQualityAnalyzer:
         content_hashes: dict[str, list[str]] = {}
         files_read = 0
 
-        for path in sorted(repo_dir.rglob("*")):
+        for path in archivos_del_repositorio(repo_dir):
             if files_read >= MAX_FILES_TO_READ:
                 break
             if not path.is_file():
