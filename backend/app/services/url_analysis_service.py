@@ -80,7 +80,19 @@ def run_url_analysis(analysis_id: str) -> None:
             )
             return
 
-        results = [analyzer.analyze(fetched) for analyzer in ANALYZERS]
+        # Cada analizador por su cuenta: uno que falle no puede llevarse por
+        # delante el informe entero. La puntuacion se normaliza sobre los pesos
+        # de lo realmente medido y la confianza baja sola.
+        results = []
+        for analyzer in ANALYZERS:
+            try:
+                results.append(analyzer.analyze(fetched))
+            except Exception:  # noqa: BLE001
+                continue
+
+        if not results:
+            _mark_failed(db, analysis, "no se pudo analizar la direccion")
+            return
 
         analysis.status = "scoring"
         db.commit()

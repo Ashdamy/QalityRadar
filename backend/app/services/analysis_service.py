@@ -55,6 +55,39 @@ ANALYZERS = (
 )
 
 
+def _sigue_vivo(db: Session, analysis: Analysis) -> bool:
+    """False si el usuario cancelo mientras esto corria.
+
+    Se mira en la base y no en el objeto en memoria porque quien cancela es
+    otro proceso: la peticion HTTP toca su propia sesion, y aqui hace falta
+    volver a leer para enterarse.
+    """
+    db.refresh(analysis)
+    return analysis.status != "cancelled"
+
+
+def _analizar_lo_que_se_pueda(repo_dir, analizadores) -> list[AnalyzerResult]:
+    """Ejecuta cada analizador por separado y se queda con los que respondan.
+
+    Antes iban en una sola comprension de lista: uno que lanzara —un
+    repositorio con algo que no se previo, una llamada a GitHub que falla— se
+    llevaba por delante el analisis entero, y el usuario se quedaba sin nada
+    habiendo gastado su cuota, el clonado y el contenedor.
+
+    Que un informe incompleto sea aceptable no es una concesion: la puntuacion
+    se normaliza **sobre los pesos de lo realmente medido**, y la confianza
+    baja sola al haber menos evidencia. El sistema ya sabia contar esto; solo
+    faltaba dejarle la oportunidad.
+    """
+    resultados: list[AnalyzerResult] = []
+    for analizador in analizadores:
+        try:
+            resultados.append(analizador.analyze(repo_dir))
+        except Exception:  # noqa: BLE001 - uno que falle no puede parar al resto
+            continue
+    return resultados
+
+
 def run_repository_analysis(analysis_id: str) -> None:
     db = SessionLocal()
     try:
@@ -66,24 +99,45 @@ def run_repository_analysis(analysis_id: str) -> None:
             _mark_failed(db, analysis, "el repositorio ya no existe")
             return
 
+        if not _sigue_vivo(db, analysis):
+            return
+
         analysis.status = "cloning"
         analysis.started_at = datetime.now(timezone.utc)
         db.commit()
 
         clone_url = f"https://github.com/{repository.full_name}"
         try:
-            with clone_repository(clone_url, repository.default_branch) as repo_dir:
+            # La rama que se pidio al lanzar el analisis; si no se pidio
+            # ninguna, la de por defecto del repositorio.
+            rama = analysis.branch or repository.default_branch
+            with clone_repository(clone_url, rama) as repo_dir:
+                # Clonar tarda, y en ese rato da tiempo a arrepentirse.
+                if not _sigue_vivo(db, analysis):
+                    return
+
                 analysis.status = "running"
                 db.commit()
 
                 commit_hash, commit_message = read_head_commit(repo_dir)
-                results = [analyzer.analyze(repo_dir) for analyzer in ANALYZERS]
-                # La actividad no esta en un clon superficial: se consulta a
-                # GitHub, y por eso este analizador necesita el nombre del
-                # repositorio y se construye aqui.
-                results.append(ActivityAnalyzer(repository.full_name).analyze())
+                results = _analizar_lo_que_se_pueda(
+                    repo_dir,
+                    # La actividad no esta en un clon superficial: se consulta a
+                    # GitHub, y por eso este analizador necesita el nombre del
+                    # repositorio y se construye aqui.
+                    [*ANALYZERS, ActivityAnalyzer(repository.full_name)],
+                )
         except Exception as exc:  # noqa: BLE001 - se guarda un mensaje seguro
             _mark_failed(db, analysis, _safe_error_message(exc))
+            return
+
+        if not _sigue_vivo(db, analysis):
+            return
+
+        if not results:
+            # Ninguno pudo con este repositorio. Eso ya no es un informe
+            # incompleto, es no tener informe.
+            _mark_failed(db, analysis, "no se pudo analizar el repositorio")
             return
 
         analysis.status = "scoring"
@@ -129,7 +183,7 @@ def run_repository_analysis(analysis_id: str) -> None:
         analysis.confidence_level = calculate_confidence(results)
         analysis.commit_hash = commit_hash
         analysis.commit_message = commit_message
-        analysis.branch = repository.default_branch
+        analysis.branch = rama
         analysis.raw_data = {dim: metrics for dim, (metrics, _) in merged.items()}
         analysis.status = "completed"
         analysis.completed_at = datetime.now(timezone.utc)

@@ -112,3 +112,16 @@ class ComparisonOut(BaseModel):
 class ShareLinkOut(BaseModel):
     token: str
     expires_at: str
+
+
+class AnalysisListItem(BaseModel):
+    """Una linea del listado de "mis analisis"."""
+
+    id: str
+    analysis_type: str
+    status: str
+    # Nombre del repositorio o direccion analizada, lo que corresponda: sin
+    # esto el listado seria una lista de identificadores sin significado.
+    target: str
+    overall_score: float | None = None
+    created_at: str

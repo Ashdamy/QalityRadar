@@ -127,6 +127,9 @@ async function request<T>(
     throw new ApiError(response.status, await parseErrorMessage(response));
   }
 
+  // 204 no trae cuerpo, y `response.json()` sobre uno vacío lanza.
+  if (response.status === 204) return undefined as T;
+
   return (await response.json()) as T;
 }
 
@@ -343,6 +346,43 @@ export function analyzeCombined(repositoryId: string,
   return request<{ analysis_id: string }>("/api/apps/analyze-combined", {
     method: "POST",
     body: JSON.stringify({ repository_id: repositoryId, url }),
+  });
+}
+
+// --- Control del analisis --------------------------------------------------
+
+export interface AnalysisListItem {
+  id: string;
+  analysis_type: "repository" | "url" | "combined";
+  status: string;
+  target: string;
+  overall_score: number | null;
+  created_at: string;
+}
+
+/** Los análisis de quien pregunta, del más reciente al más antiguo. */
+export function listAnalyses(limit = 20): Promise<AnalysisListItem[]> {
+  return request<AnalysisListItem[]>(`/api/analyses?limit=${limit}`);
+}
+
+/** Cancela uno en marcha y devuelve el hueco de cuota. */
+export async function cancelAnalysis(analysisId: string): Promise<void> {
+  await request<void>(`/api/analyses/${analysisId}/cancel`, { method: "POST" });
+}
+
+/**
+ * Reintenta uno que no terminó bien, reutilizando la misma fila: el enlace y
+ * el identificador que ya tenías siguen valiendo.
+ */
+export function retryAnalysis(analysisId: string): Promise<{ analysis_id: string }> {
+  return request(`/api/analyses/${analysisId}/retry`, { method: "POST" });
+}
+
+/** Borra la cuenta y todo lo que cuelga de ella. Irreversible. */
+export async function deleteAccount(password?: string): Promise<void> {
+  await request<void>("/api/auth/account", {
+    method: "DELETE",
+    body: JSON.stringify({ password: password ?? null }),
   });
 }
 

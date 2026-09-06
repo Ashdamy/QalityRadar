@@ -87,8 +87,14 @@ def _client() -> redis.Redis:
     return redis.Redis.from_url(get_settings().redis_url)
 
 
-def check_and_reserve(user_id: uuid.UUID, reservation: str) -> None:
+def check_and_reserve(user_id: uuid.UUID, reservation: str, *, contar: bool = True) -> None:
     """Comprueba los tres limites y reserva un hueco.
+
+    Con `contar=False` se toma el hueco de simultaneos pero el analisis no entra
+    en el historial horario ni diario. Es para reintentar uno que fallo: cobrar
+    dos veces por un corte de red no tiene sentido. Los limites de simultaneos y
+    el tope de la maquina se siguen respetando, que son los que protegen los
+    recursos; el numero de reintentos gratuitos lo acota quien llama.
 
     `reservation` es el identificador del analisis que se va a crear. Usarlo
     como marca evita guardar la reserva en ningun sitio: al terminar, el
@@ -105,6 +111,7 @@ def check_and_reserve(user_id: uuid.UUID, reservation: str) -> None:
         max_dia=MAX_PER_DAY,
         max_simultaneos=MAX_CONCURRENT,
         etiqueta="",
+        contar=contar,
     )
 
 
@@ -118,6 +125,7 @@ def _reservar(
     max_dia: int,
     max_simultaneos: int,
     etiqueta: str,
+    contar: bool = True,
 ) -> None:
     cliente = _client()
     ahora = time.time()
@@ -143,10 +151,15 @@ def _reservar(
             60,
         )
 
-    for ventana, maximo, unidad in (
-        (HOUR_SECONDS, max_hora, "por hora"),
-        (DAY_SECONDS, max_dia, "diarios"),
-    ):
+    # Un reintento no pasa por las ventanas horaria y diaria, pero si por el
+    # tope de simultaneos y por el de la maquina, que son los que protegen los
+    # recursos de verdad.
+    ventanas = (
+        ((HOUR_SECONDS, max_hora, "por hora"), (DAY_SECONDS, max_dia, "diarios"))
+        if contar
+        else ()
+    )
+    for ventana, maximo, unidad in ventanas:
         if cliente.zcount(historial, ahora - ventana, ahora) < maximo:
             continue
         mas_antiguo = cliente.zrangebyscore(
@@ -158,8 +171,9 @@ def _reservar(
             max(1, espera),
         )
 
-    cliente.zadd(historial, {reservation: ahora})
-    cliente.expire(historial, DAY_SECONDS)
+    if contar:
+        cliente.zadd(historial, {reservation: ahora})
+        cliente.expire(historial, DAY_SECONDS)
     cliente.zadd(en_curso, {reservation: ahora})
     cliente.expire(en_curso, _RUNNING_TTL)
     cliente.zadd(_GLOBAL_RUNNING_KEY, {reservation: ahora})

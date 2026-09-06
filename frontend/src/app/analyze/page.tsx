@@ -184,6 +184,14 @@ export default function AnalyzePage() {
           </span>
         </button>
 
+        <button
+          type="button"
+          onClick={() => router.push("/analyses")}
+          className="mt-3 text-[12.5px] text-muted underline underline-offset-2 hover:text-text focus:outline-none focus:ring-[3px] focus:ring-accentDim"
+        >
+          Ver todos tus análisis
+        </button>
+
         <p className="mt-8 max-w-[560px] text-center text-[12px] leading-[1.6] text-faint">
           Las puntuaciones son una aproximación al modelo de calidad ISO/IEC 25010. No constituyen
           una certificación oficial.

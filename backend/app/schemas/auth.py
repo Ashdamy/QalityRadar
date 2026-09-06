@@ -38,3 +38,9 @@ class RefreshRequest(BaseModel):
 
 class LogoutRequest(BaseModel):
     refresh_token: str | None = None
+
+
+class DeleteAccountRequest(BaseModel):
+    # Obligatoria si la cuenta tiene contrasena. Borrar es irreversible, y una
+    # sesion abierta en un ordenador prestado no deberia bastar.
+    password: str | None = None

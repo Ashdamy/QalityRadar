@@ -22,6 +22,7 @@ analysis_type_enum = ENUM(
 )
 analysis_status_enum = ENUM(
     "pending", "cloning", "running", "scoring", "completed", "failed", "timeout",
+    "cancelled",
     name="analysis_status", create_type=False,
 )
 finding_severity_enum = ENUM(
@@ -60,6 +61,10 @@ class Analysis(Base):
     # "manual" o "monitor": decide si al terminar hay que avisar al usuario.
     triggered_by: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
     status: Mapped[str] = mapped_column(analysis_status_enum, nullable=False, server_default="pending")
+    # Reintentos ya gastados. Los primeros no cuentan para la cuota horaria:
+    # si un analisis fallo por un corte de red, pagarlo el usuario no tiene
+    # sentido. El tope evita que eso sea un bucle infinito.
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     overall_score: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     confidence_level: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)
     commit_hash: Mapped[str | None] = mapped_column(String(40), nullable=True)

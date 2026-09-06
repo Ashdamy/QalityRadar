@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_db
+from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
 from app.core.security import (
     COOKIE_ACCESS,
@@ -20,6 +20,7 @@ from app.core.security import (
 )
 from app.models.user import User
 from app.schemas.auth import (
+    DeleteAccountRequest,
     LoginRequest,
     LogoutRequest,
     RefreshRequest,
@@ -335,4 +336,58 @@ def logout(
         db.commit()
     # Las cookies se borran siempre, aunque no hubiera nada que revocar: si no,
     # el navegador seguiria mandando una sesion que el usuario dio por cerrada.
+    _borrar_cookies(response)
+
+
+@router.delete("/github", status_code=status.HTTP_204_NO_CONTENT)
+def disconnect_github(
+    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> None:
+    """Retira el token de GitHub que guardamos cifrado.
+
+    No desvincula la identidad: se conserva `github_id` para que quien entro
+    por GitHub pueda seguir entrando. Borrar tambien eso dejaria fuera para
+    siempre a quien no tenga contrasena, que es peor problema que el que se
+    venia a resolver.
+
+    Sin token no se pueden listar repositorios hasta volver a conectar, y eso
+    es exactamente lo que el usuario esta pidiendo.
+    """
+    if current_user.github_access_token_encrypted is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="no hay ninguna cuenta de GitHub conectada"
+        )
+    current_user.github_access_token_encrypted = None
+    db.commit()
+
+
+@router.delete("/account", status_code=status.HTTP_204_NO_CONTENT)
+def delete_account(
+    response: Response,
+    payload: DeleteAccountRequest | None = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """Borra la cuenta y todo lo que cuelga de ella.
+
+    Se pide la contrasena si la cuenta tiene una: esto es irreversible, y una
+    sesion abierta en un ordenador prestado no deberia bastar para borrarla.
+    Las cuentas que entraron solo por GitHub no tienen contrasena que pedir, y
+    ahi la sesion es lo unico que hay.
+
+    No hace falta borrar a mano repositorios, analisis, hallazgos, monitores ni
+    sesiones: todas las claves ajenas van con ON DELETE CASCADE, asi que la
+    fila del usuario se lleva el resto por delante.
+    """
+    if current_user.password_hash is not None:
+        clave = payload.password if payload else None
+        if not clave or not verify_password(clave, current_user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, detail="la contrasena no es correcta"
+            )
+
+    db.delete(current_user)
+    db.commit()
+    # Las cookies se borran para que el navegador no siga mandando la sesion de
+    # una cuenta que ya no existe.
     _borrar_cookies(response)

@@ -200,6 +200,12 @@ El aislamiento está **verificado con pruebas reales contra Docker**, no solo de
 
 Al analizar una URL se resuelve el DNS y se valida la IP **en cada salto de redirección**, no solo en la dirección inicial, para que una redirección no pueda apuntar a la red interna.
 
+### Control sobre cada análisis
+
+Desde **Ver todos tus análisis** se llega a todo lo que has analizado, incluidos los de dirección, que antes no colgaban de ninguna pantalla. Desde ahí se puede **cancelar** uno en marcha —devuelve el hueco de cuota al momento— y **reintentar** uno que no terminó bien, reutilizando el mismo identificador para que los enlaces que ya repartiste sigan valiendo. Los primeros tres reintentos no gastan cuota: si falló por un corte de red, no tiene por qué pagarlo quien lo pidió.
+
+Al lanzar un análisis de repositorio se puede indicar **rama**, y si el commit no ha cambiado desde el último análisis reciente se devuelve ese en vez de repetirlo. Pasadas 24 horas se vuelve a analizar aunque el commit sea el mismo: el código no cambió, pero las vulnerabilidades conocidas de sus dependencias sí pueden haberlo hecho.
+
 ### Insignia para tu README
 
 Desde la pantalla de repositorios, el botón **Insignia** genera el markdown listo para pegar:
