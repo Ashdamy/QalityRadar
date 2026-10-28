@@ -42,6 +42,7 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [githubPending, setGithubPending] = useState(false);
 
@@ -57,6 +58,7 @@ export default function Home() {
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError(null);
+    setAviso(null);
 
     if (isRegister && password !== confirmPassword) {
       setError("Las contraseñas no coinciden.");
@@ -66,7 +68,13 @@ export default function Home() {
     setPending(true);
     try {
       if (isRegister) {
+        // La cuenta no sirve hasta abrir el enlace del correo: iniciar sesion
+        // ahora devolveria un 403.
         await register(email, password);
+        setAviso(`Te enviamos un enlace a ${email}. Ábrelo para activar la cuenta y luego inicia sesión.`);
+        setMode("login");
+        setPending(false);
+        return;
       }
       // La sesion la deja el servidor en cookies httpOnly; aqui no hay nada
       // que guardar.
@@ -210,6 +218,12 @@ export default function Home() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
               />
+            )}
+
+            {aviso && (
+              <p role="status" className="text-[12.5px] leading-[1.5] text-good">
+                {aviso}
+              </p>
             )}
 
             {error && (

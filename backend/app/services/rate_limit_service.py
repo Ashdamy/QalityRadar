@@ -57,6 +57,9 @@ _GLOBAL_RUNNING_KEY = "ratelimit:global:running"
 # cuenta, sin esto basta con crear varias para saltarselos.
 MAX_REGISTRATIONS_PER_IP_HOUR = 5
 _REGISTRATION_KEY = "ratelimit:registrations:{ip}"
+
+MAX_VERIFICATION_EMAILS_PER_HOUR = 3
+_VERIFICATION_KEY = "ratelimit:verification:{user_id}"
 # Fuerza bruta contra el inicio de sesion. bcrypt hace lento cada intento,
 # pero lento no es imposible: sin limite se pueden probar contrasenas toda la
 # noche contra la misma cuenta.
@@ -249,6 +252,25 @@ def check_registration_ip(ip: str | None) -> None:
             "Vuelve a intentarlo mas tarde.",
             HOUR_SECONDS,
         )
+
+    cliente.zadd(clave, {str(uuid.uuid4()): ahora})
+    cliente.expire(clave, HOUR_SECONDS)
+
+
+def check_verification_email(user_id: uuid.UUID) -> None:
+    """Limita cuantos correos de verificacion salen para una misma cuenta.
+
+    Se reenvia cada vez que alguien entra con la contrasena correcta sin haber
+    verificado. Sin tope, repetir el login seria una forma de usarnos para
+    llenarle el buzon a alguien, y de quemar la reputacion del remitente.
+    """
+    cliente = _client()
+    clave = _VERIFICATION_KEY.format(user_id=user_id)
+    ahora = time.time()
+    cliente.zremrangebyscore(clave, 0, ahora - HOUR_SECONDS)
+
+    if cliente.zcard(clave) >= MAX_VERIFICATION_EMAILS_PER_HOUR:
+        raise RateLimitExceeded("Ya se enviaron varios correos; revisa tu bandeja.", HOUR_SECONDS)
 
     cliente.zadd(clave, {str(uuid.uuid4()): ahora})
     cliente.expire(clave, HOUR_SECONDS)

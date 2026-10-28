@@ -77,6 +77,43 @@ def db_session_with_github_user():
         _delete()
 
 
+class Buzon:
+    """Lo que habria llegado al correo de cada usuario."""
+
+    def __init__(self):
+        self.correos: list[tuple[str, str]] = []
+        # Por defecto el usuario abre el enlace en cuanto llega. Asi las
+        # pruebas que registran y entran, que son muchas y no van de esto,
+        # siguen siendo registrar y entrar. Las que si van de esto lo apagan.
+        self.abrir_enlaces = True
+
+
+@pytest.fixture(autouse=True)
+def buzon(monkeypatch):
+    """Sustituye el envio por SMTP. En pruebas no hay servidor de correo."""
+    from datetime import datetime, timezone
+
+    from app.core.security import decode_email_verification_token
+    from app.services import verification_service
+
+    caja = Buzon()
+
+    def _recibir(destinatario: str, enlace: str) -> None:
+        caja.correos.append((destinatario, enlace))
+        if not caja.abrir_enlaces:
+            return
+        db = SessionLocal()
+        try:
+            usuario = db.get(User, decode_email_verification_token(enlace.split("token=", 1)[1]))
+            usuario.email_verified_at = datetime.now(timezone.utc)
+            db.commit()
+        finally:
+            db.close()
+
+    monkeypatch.setattr(verification_service, "send_verification_email", _recibir)
+    return caja
+
+
 @pytest.fixture(autouse=True)
 def _sin_limite_de_registros_por_ip():
     """Todas las pruebas llegan desde la misma IP (`testclient`), asi que a

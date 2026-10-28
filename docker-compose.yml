@@ -23,6 +23,13 @@ services:
       timeout: 5s
       retries: 5
 
+  # Bandeja falsa para desarrollo: atrapa los correos de verificacion en vez de
+  # mandarlos. Se leen en http://localhost:8025. En produccion no existe; ahi
+  # SMTP_HOST apunta a un proveedor real.
+  mailpit:
+    image: axllent/mailpit:v1.27
+    ports: ["8025:8025", "1025:1025"]
+
   backend:
     build: ./backend
     env_file: ./backend/.env

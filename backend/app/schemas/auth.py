@@ -14,6 +14,10 @@ class LoginRequest(BaseModel):
     password: str
 
 
+class VerifyEmailRequest(BaseModel):
+    token: str = Field(max_length=2048)
+
+
 class TokenResponse(BaseModel):
     """Los tokens van siempre en cookies httpOnly; en el cuerpo, solo a veces.
 

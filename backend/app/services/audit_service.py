@@ -26,6 +26,7 @@ ENTRADA_FALLIDA = "entrada_fallida"
 ENTRADA_BLOQUEADA = "entrada_bloqueada"
 SALIDA = "salida"
 GITHUB_VINCULADO = "github_vinculado"
+EMAIL_VERIFICADO = "email_verificado"
 
 # Una IP es un dato personal, y guardarla para siempre no ayuda a nadie: para
 # investigar un incidente sobra con los ultimos meses.

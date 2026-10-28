@@ -18,6 +18,9 @@ class User(Base):
     github_username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     github_access_token_encrypted: Mapped[str | None] = mapped_column(String, nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    # Nulo hasta que alguien abre el enlace del correo. Las cuentas de GitHub
+    # nacen verificadas: GitHub solo nos da correos que el ya verifico.
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     plan: Mapped[str] = mapped_column(String(20), nullable=False, server_default="free")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

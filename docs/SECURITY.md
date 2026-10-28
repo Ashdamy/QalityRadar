@@ -147,6 +147,23 @@ Es más estrecho de lo que pedía la lista de pendientes, que hablaba de registr
 - **La dirección se valida antes de guardarla.** La columna es `INET` y rechaza lo que no sea una dirección; detrás de según qué proxy no llega ninguna. Si el valor no parsea se guarda nulo, porque perder la dirección es mucho mejor que perder el evento entero — y es exactamente lo que pasaba antes de comprobarlo.
 - **Se purga a los 90 días** con el resto del mantenimiento. Una IP es un dato personal y guardarla para siempre no ayuda a nadie.
 
+### Verificación del correo
+
+`backend/app/services/verification_service.py`, `backend/app/api/auth.py`
+
+Los límites de uso son por cuenta, y crear una cuenta era escribir un correo cualquiera. Saltarse los límites era tan fácil como inventarse correos. Ahora cada cuenta con contraseña cuesta un buzón de verdad.
+
+- **Sin verificar no se entra.** El registro crea la cuenta y manda un enlace. Hasta abrirlo, `/login` responde `403` y no emite sesión.
+- **El `403` sale después de comprobar la contraseña, no antes.** Así solo sabe que la cuenta existe y está pendiente quien ya conoce la contraseña. Con una contraseña incorrecta sigue siendo el `401` de siempre.
+- **Volver a entrar reenvía el enlace**, con un máximo de 3 por hora y cuenta. No hace falta un endpoint aparte para pedir otro, y como exige la contraseña, nadie puede usarlo para llenarle el buzón a un tercero.
+- **El enlace es un JWT con su propia marca de tipo y caduca en 24 horas.** Se firma con el mismo secreto que los de sesión, así que sin la marca un token de acceso valdría como enlace. No tiene tabla: verificar dos veces no hace daño, y no hace falta recordar si ya se usó.
+- **El token va en el fragmento (`#token=`), no en la consulta.** El navegador nunca manda el fragmento al servidor, así que no queda en los logs de acceso ni en la cabecera `Referer`.
+- **Verificar no abre sesión.** El enlace suele abrirse en otro dispositivo, y quien lo abre solo ha demostrado tener el buzón, no la contraseña.
+- **Las cuentas sin verificar se borran a los 7 días**, en el mantenimiento diario. Si alguien registra un correo ajeno, ese correo no queda bloqueado para siempre. El propio correo le dice al dueño que no abra el enlace si no creó la cuenta.
+- **Entrar por GitHub sobre una cuenta sin verificar borra su contraseña.** Es el caso de la *pre-apropiación*: alguien registra tu correo con su contraseña y espera. Cuando entras por GitHub, la cuenta se vincula a ti, y sin este borrado su contraseña seguiría abriéndola. Las cuentas de GitHub nacen verificadas, porque GitHub solo nos entrega correos que él ya verificó.
+- **El correo sale en segundo plano**, después de responder. El registro no tarda lo que tarde el SMTP, y si el SMTP falla la petición no se cae: el fallo queda en el log y basta con volver a entrar para recibir otro enlace.
+- Las cuentas que existían antes de la migración `0020` se dan por verificadas.
+
 ### OAuth de GitHub
 
 - **Parámetro `state`** contra CSRF, guardado en Redis, **de un solo uso** y con 10 minutos de vida. Sin él, un tercero podía forzar el callback con un `code` suyo y dejar **su** cuenta de GitHub vinculada a **tu** sesión.
@@ -157,7 +174,7 @@ Es más estrecho de lo que pedía la lista de pendientes, que hablaba de registr
 
 ## 4. Autorización
 
-Todos los endpoints exigen sesión salvo cinco, y los cinco son públicos a propósito: registro, inicio de sesión, las dos rutas de OAuth, y la lectura de un informe compartido.
+Todos los endpoints exigen sesión salvo seis, y los seis son públicos a propósito: registro, inicio de sesión, verificación del correo, las dos rutas de OAuth, y la lectura de un informe compartido.
 
 - **Cada recurso comprueba su dueño.** No basta con tener sesión: hay que ser el propietario del análisis, del repositorio o del monitor.
 - **Se responde 404, no 403**, cuando el recurso es de otra persona. Un 403 confirmaría que existe.
@@ -189,6 +206,7 @@ Cada análisis clona un repositorio y levanta un contenedor. Sin límites, una s
 | **Simultáneos en toda la máquina** | **6** |
 | Análisis automáticos (vigilancia), por hora | 10, con cupo aparte |
 | Registros por hora y por IP | 5 |
+| Correos de verificación por hora y cuenta | 3 |
 | Fallos de inicio de sesión por hora y cuenta | 10 |
 | Fallos de inicio de sesión por hora e IP | 30 |
 | Proyectos vigilados por cuenta | 3 |
@@ -301,7 +319,7 @@ Es el argumento entero a favor de automatizar esto: llevaban meses ahí y nadie 
 
 Esto es tan importante como lo anterior.
 
-**No hay verificación de email.** Los límites de uso son por cuenta, así que quien tenga varias IP puede registrar varias cuentas y saltárselos. El límite por IP sube el coste del abuso; no lo elimina. Hacerlo bien exige infraestructura de correo.
+**Un buzón cuesta poco.** La verificación del correo (§3) obliga a tener un buzón real por cuenta, pero hay servicios de correo desechable que dan uno en segundos. Sube bastante el coste de saltarse los límites; no lo hace imposible. Bloquear dominios desechables sería el siguiente paso si llega a hacer falta.
 
 **El worker tiene acceso al demonio de Docker.** Es inherente al diseño: quien logre ejecutar código como ese usuario es efectivamente root en la máquina. Se mitiga dedicando la máquina solo a esto, y es la razón de que el sandbox esté cerrado a cal y canto.
 
@@ -314,7 +332,7 @@ Esto es tan importante como lo anterior.
 ## Cómo comprobarlo
 
 ```bash
-cd backend && pytest                                  # las 453 pruebas
+cd backend && pytest                                  # las 494 pruebas
 cd frontend && npx playwright test                    # los flujos, en un navegador real
 cd backend && pytest tests/test_sandbox.py            # aislamiento real contra Docker
 cd backend && pytest tests/test_url_validation.py     # SSRF

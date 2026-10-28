@@ -1,13 +1,13 @@
 # RESUME — Bitácora de QalitiRadar
 
 > Documento vivo. Se actualiza a medida que avanza el proyecto.
-> Última actualización: 2026-08-27 (Semana 1 backend completa)
+> Última actualización: 2026-10-25 (verificación del correo)
 
 ---
 
 ## ¿En qué etapa va el proyecto?
 
-**Fase actual: los tres modos de análisis funcionan de punta a punta. Queda la Semana 5 (compartir, límites de uso y despliegue).**
+**Fase actual: la aplicación está completa y endurecida para abrirla al público. Falta conectar un servidor de correo real y desplegar.**
 
 | Etapa | Estado |
 |---|---|
@@ -27,9 +27,11 @@
 | Semana 5 — Compartir, límites de uso, purga y avisos | ✅ Completada |
 | Pruebas end-to-end (Playwright) | ✅ 5 en verde |
 | Seguimiento continuo de proyectos | ✅ Completado |
+| Endurecimiento de seguridad (rama `seguridad/endurecimiento`) | ✅ Hecho, sin fusionar con `main` |
+| Verificación del correo | ✅ Hecha; ⏳ falta un SMTP real (en local va a Mailpit) |
 | Despliegue | ⏸️ A la espera de tu señal |
 
-**328 pruebas en verde** en el backend y **5 end-to-end** con navegador real; el frontend compila y pasa lint.
+**494 pruebas en verde** en el backend (3 se saltan) y **5 end-to-end** con navegador real; el frontend compila y pasa lint.
 
 ---
 
@@ -301,11 +303,28 @@ La escala ya discrimina: las referencias en los sesenta, el repositorio vacío e
 
 ---
 
+### 19. Endurecimiento y verificación del correo
+
+La rama `seguridad/endurecimiento` cierra lo que impedía abrirlo al público: la sesión pasa de `localStorage` a cookies httpOnly, los contenedores dejan de correr como root, un repositorio ajeno ya no puede hacer leer archivos del worker, el token de refresco se rota y se revoca de verdad, hay rastro de lo que le pasa a cada cuenta y un tope global de análisis simultáneos. El detalle está en [`docs/SECURITY.md`](docs/SECURITY.md).
+
+Faltaba lo que la propia documentación marcaba como hueco principal: **crear una cuenta era escribir un correo cualquiera**, y como los límites de uso son por cuenta, saltárselos era inventarse correos. Ahora una cuenta con contraseña no puede entrar hasta abrir el enlace que llega al correo. Volver a entrar reenvía el enlace (3 por hora como mucho), las cuentas sin confirmar se borran a los 7 días, y entrar por GitHub sobre una cuenta sin confirmar le borra la contraseña, para que quien registró tu correo antes que tú no se quede con la llave.
+
+En local los correos van a **Mailpit** (http://localhost:8025), una bandeja falsa que no entrega nada. Para que lleguen a un buzón real hace falta un SMTP de verdad (ver "Lo que sigue").
+
+---
+
 ## Lo que sigue
 
-1. **Despliegue**, cuando tú lo digas. La recomendación sigue siendo **Vercel para el frontend y Oracle Cloud Always Free para el backend**: Render y Railway no dan acceso al demonio de Docker, que el sandbox necesita.
-2. Al desplegar, la vigilancia mejora sola: con una dirección pública se pueden usar **webhooks de GitHub** y el análisis arrancaría a los segundos del push, en vez de esperar a la siguiente comprobación.
-3. Pendiente menor: la tabla `refresh_tokens` del modelo de datos no se usa. La renovación de sesión es sin estado, lo que funciona pero no permite revocar una sesión concreta al cerrarla.
+1. **Conectar un servidor de correo real** — pendiente. Hoy los correos de confirmación solo llegan a Mailpit. Dos caminos:
+   - **Gmail:** contraseña de aplicación en https://myaccount.google.com/apppasswords. A Santiago le salió *"La opción de configuración que buscas no está disponible para tu cuenta"*: casi siempre es que falta activar la verificación en dos pasos.
+   - **Brevo** (gratis, 300 al día, sin dominio propio): remitente verificado + clave SMTP, `SMTP_HOST=smtp-relay.brevo.com`.
+
+   Se configura en `backend/.env` (`SMTP_HOST`, `SMTP_PORT=587`, `SMTP_STARTTLS=true`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM`) y se reinicia la API. Sin SMTP en producción nadie puede registrarse con contraseña.
+2. **Fusionar `seguridad/endurecimiento` con `main` y subirla.** La rama solo existe en este ordenador.
+3. **Despliegue**, cuando tú lo digas. La recomendación sigue siendo **Vercel para el frontend y Oracle Cloud Always Free para el backend**: Render y Railway no dan acceso al demonio de Docker, que el sandbox necesita.
+4. Al desplegar, la vigilancia mejora sola: con una dirección pública se pueden usar **webhooks de GitHub** y el análisis arrancaría a los segundos del push, en vez de esperar a la siguiente comprobación.
+5. Al desplegar, el proxy inverso debe cortar las peticiones `chunked` de más de 64 KB (la API solo puede limitar las que declaran `Content-Length`), y `MAX_GLOBAL_CONCURRENT` se baja si la máquina tiene menos de 4 GB.
+6. Si el abuso llega a ser real: bloquear dominios de correo desechable, que hoy siguen colando.
 
 ---
 

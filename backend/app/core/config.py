@@ -62,6 +62,22 @@ class Settings(BaseSettings):
     # ningun sitio salvo en la maquina de quien la genero.
     public_base_url: str = "http://localhost:8000"
 
+    # Direccion del frontend. El enlace de verificacion del correo apunta ahi,
+    # asi que en produccion tiene que ser el dominio real.
+    frontend_base_url: str = "http://localhost:3000"
+
+    # Servidor de correo para el enlace de verificacion. Sin `smtp_host` no se
+    # envia nada y nadie que se registre con contrasena puede entrar: en local
+    # lo cubre el Mailpit del docker-compose.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    # Mailpit no habla TLS; cualquier proveedor real si, y sin el la contrasena
+    # del SMTP viajaria en claro.
+    smtp_starttls: bool = True
+    mail_from: str = "QalitiRadar <no-reply@localhost>"
+
     @field_validator("jwt_secret", "encryption_key")
     @classmethod
     def _un_secreto_de_verdad(cls, valor: str, info) -> str:

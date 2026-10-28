@@ -150,6 +150,13 @@ export function login(email: string, password: string): Promise<TokenResponse> {
   });
 }
 
+export function verifyEmail(token: string): Promise<{ email: string }> {
+  return request<{ email: string }>("/api/auth/verify-email", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
 export function getGithubAuthorizationUrl(): Promise<GithubAuthorizationUrlResponse> {
   return request<GithubAuthorizationUrlResponse>("/api/auth/github/login");
 }

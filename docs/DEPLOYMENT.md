@@ -81,7 +81,21 @@ ENABLE_API_DOCS=false
 
 # Tiene que ser el mismo que pongas en la OAuth App de GitHub, y con https.
 GITHUB_OAUTH_REDIRECT_URI=https://qalitiradar.vercel.app/auth/github/callback
+
+# El enlace de verificacion del correo apunta aqui.
+FRONTEND_BASE_URL=https://qalitiradar.vercel.app
+
+# Correo de verificacion. Cualquier proveedor SMTP sirve (Resend, Brevo,
+# Amazon SES...). STARTTLS siempre: sin el, la contrasena del SMTP viaja en claro.
+SMTP_HOST=smtp.tu-proveedor.com
+SMTP_PORT=587
+SMTP_USER=...
+SMTP_PASSWORD=...
+SMTP_STARTTLS=true
+MAIL_FROM=QalitiRadar <no-reply@tu-dominio.com>
 ```
+
+> **Sin `SMTP_HOST` nadie puede registrarse con contraseña.** La cuenta se crea, pero el enlace no sale y sin él no se entra. Lo único que avisa es una línea en el log: `SMTP_HOST sin configurar`. Entrar por GitHub sigue funcionando. Para que los correos no acaben en spam, configura SPF y DKIM del dominio de `MAIL_FROM` en tu proveedor.
 
 > **Pon `COOKIE_SECURE=true`.** La sesión viaja en cookies; sin esto viajan también por HTTP y cualquiera en la misma red puede leerlas. El frontend y la API deben quedar bajo el mismo dominio (por ejemplo `qalitiradar.com` y `api.qalitiradar.com`): las cookies usan `SameSite=Lax`, que es lo que las protege de CSRF, y con dominios distintos el navegador no las enviaría.
 
@@ -145,7 +159,7 @@ Estas defensas no hacían falta mientras el proyecto corría en un ordenador pro
 | Riesgo | Cómo se ataja |
 |---|---|
 | Diez cuentas coincidiendo tumban la máquina | **Tope global de 6 análisis simultáneos**, además de los límites por usuario |
-| Crear cuentas en cadena para saltarse los límites | **5 registros por hora y por IP** |
+| Crear cuentas en cadena para saltarse los límites | **Verificación del correo** y 5 registros por hora y por IP |
 | Contraseñas de un carácter | **Mínimo 8** en el registro |
 | Un token robado sirve 30 días | **Cerrar sesión lo invalida en el servidor**, no solo en el navegador |
 | Google indexando informes compartidos | **`noindex`** en `/r/[token]` |
@@ -155,7 +169,7 @@ Estas defensas no hacían falta mientras el proyecto corría en un ordenador pro
 
 Sobre el tope global: `MAX_GLOBAL_CONCURRENT = 6` está pensado para una máquina de 4 GB. Cada análisis reserva 512 MB, así que en el peor caso son 3 GB más PostgreSQL. **Si despliegas en una máquina más pequeña, baja ese número** en `app/services/rate_limit_service.py`.
 
-Sobre el registro por IP: no sustituye a verificar el email, que sigue siendo lo suyo si esto llega a tener uso real. Sube el coste del abuso, no lo elimina — alguien con varias IP puede saltárselo.
+Sobre el registro: cada cuenta con contraseña necesita un buzón real, y además solo se pueden crear 5 por hora desde la misma IP. Un correo desechable sigue colando, así que esto sube el coste del abuso pero no lo elimina.
 
 El inventario completo de defensas, con lo que **no** está cubierto, está en [`SECURITY.md`](SECURITY.md).
 

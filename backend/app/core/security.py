@@ -15,6 +15,8 @@ BCRYPT_MAX_BYTES = 72
 # tendria 30 dias de acceso en vez de un solo canje.
 ACCESS_TOKEN_TYPE = "access"
 REFRESH_TOKEN_TYPE = "refresh"
+EMAIL_VERIFICATION_TOKEN_TYPE = "email_verification"
+EMAIL_VERIFICATION_HOURS = 24
 
 # La sesion viaja en cookies httpOnly, no en localStorage: lo que JavaScript no
 # puede leer, un XSS no puede robar. Antes bastaba con un `alert` inyectado
@@ -85,6 +87,16 @@ def create_refresh_token(user_id: uuid.UUID) -> str:
     )
 
 
+def create_email_verification_token(user_id: uuid.UUID) -> str:
+    # Firmado y con caducidad, sin tabla: verificar dos veces no hace dano, asi
+    # que no hace falta recordar si ya se uso.
+    return _create_token(
+        user_id,
+        EMAIL_VERIFICATION_TOKEN_TYPE,
+        timedelta(hours=EMAIL_VERIFICATION_HOURS),
+    )
+
+
 def _decode(token: str, expected_type: str) -> uuid.UUID:
     settings = get_settings()
     payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
@@ -104,3 +116,7 @@ def decode_access_token(token: str) -> uuid.UUID:
 
 def decode_refresh_token(token: str) -> uuid.UUID:
     return _decode(token, REFRESH_TOKEN_TYPE)
+
+
+def decode_email_verification_token(token: str) -> uuid.UUID:
+    return _decode(token, EMAIL_VERIFICATION_TOKEN_TYPE)

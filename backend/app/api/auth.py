@@ -1,7 +1,18 @@
 import uuid
+from datetime import datetime, timezone
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Cookie,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -14,6 +25,7 @@ from app.core.security import (
     COOKIE_SESION,
     create_access_token,
     create_refresh_token,
+    decode_email_verification_token,
     decode_refresh_token,
     hash_password,
     verify_password,
@@ -26,14 +38,17 @@ from app.schemas.auth import (
     RefreshRequest,
     RegisterRequest,
     TokenResponse,
+    VerifyEmailRequest,
 )
 from app.services import audit_service
 from app.services import github_service
 from app.services import session_service
+from app.services import verification_service
 from app.services.rate_limit_service import (
     RateLimitExceeded,
     check_login_allowed,
     check_registration_ip,
+    check_verification_email,
     clear_login_failures,
     record_login_failure,
 )
@@ -94,9 +109,20 @@ def _borrar_cookies(response: Response) -> None:
         response.delete_cookie(nombre, path="/")
 
 
+def _programar_verificacion(tareas: BackgroundTasks, user: User) -> None:
+    tareas.add_task(
+        verification_service.send_verification_email,
+        user.email,
+        verification_service.build_link(user.id),
+    )
+
+
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 def register(
-    payload: RegisterRequest, request: Request, db: Session = Depends(get_db)
+    payload: RegisterRequest,
+    request: Request,
+    tareas: BackgroundTasks,
+    db: Session = Depends(get_db),
 ) -> dict:
     # Los limites de uso son por cuenta, asi que sin esto basta con crear
     # varias desde el mismo sitio para saltarselos.
@@ -127,6 +153,9 @@ def register(
         db, audit_service.REGISTRO, user_id=user.id, ip=request.client.host if request.client else None
     )
     db.commit()
+    # Sin cuota que mirar: es el primer correo de una cuenta recien creada, y
+    # crear cuentas ya esta limitado por IP.
+    _programar_verificacion(tareas, user)
     return {"id": str(user.id), "email": user.email}
 
 
@@ -167,8 +196,65 @@ def login(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials")
 
     clear_login_failures(payload.email)
+
+    if user.email_verified_at is None:
+        # Se mira despues de la contrasena, no antes: asi solo se entera de que
+        # la cuenta existe y esta pendiente quien ya sabe la contrasena.
+        #
+        # Y se reenvia el enlace: es la forma de pedir otro sin un endpoint
+        # aparte, y de paso exige la contrasena, de modo que nadie puede
+        # mandarle correos a una cuenta ajena. Se devuelve la respuesta en vez
+        # de lanzar la excepcion porque al lanzarla FastAPI descarta las
+        # tareas en segundo plano.
+        tareas = BackgroundTasks()
+        try:
+            check_verification_email(user.id)
+            _programar_verificacion(tareas, user)
+        except RateLimitExceeded:
+            pass
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={
+                "detail": f"Confirma tu correo antes de entrar: te enviamos un enlace a {user.email}."
+            },
+            background=tareas,
+        )
+
     audit_service.registrar(db, audit_service.ENTRADA, user_id=user.id, ip=ip)
     return _emitir_sesion(db, user.id, response)
+
+
+@router.post("/verify-email")
+def verify_email(payload: VerifyEmailRequest, request: Request, db: Session = Depends(get_db)) -> dict:
+    """Marca el correo como verificado.
+
+    No abre sesion: el enlace se puede abrir en otro dispositivo (el movil
+    donde se lee el correo) y quien lo abre no ha demostrado saber la
+    contrasena, solo tener el buzon.
+    """
+    invalido = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="El enlace no es valido o ha caducado. Inicia sesion y te enviaremos otro.",
+    )
+    try:
+        user_id = decode_email_verification_token(payload.token)
+    except Exception as exc:  # noqa: BLE001
+        raise invalido from exc
+
+    user = db.get(User, user_id)
+    if user is None:
+        raise invalido
+
+    if user.email_verified_at is None:
+        user.email_verified_at = datetime.now(timezone.utc)
+        audit_service.registrar(
+            db,
+            audit_service.EMAIL_VERIFICADO,
+            user_id=user.id,
+            ip=request.client.host if request.client else None,
+        )
+        db.commit()
+    return {"email": user.email}
 
 
 @router.get("/github/login")
@@ -220,7 +306,17 @@ def github_callback(
             user = User(id=uuid.uuid4(), email=email, github_id=github_user["id"])
         else:
             user.github_id = github_user["id"]
+            if user.email_verified_at is None:
+                # Alguien registro este correo con contrasena y nunca lo
+                # verifico: no hay nada que diga que fue su dueno. Si se
+                # conservara la contrasena, quien la puso entraria en la
+                # cuenta que el dueno acaba de reclamar por GitHub. Se borra;
+                # el dueno de verdad puede entrar por GitHub.
+                user.password_hash = None
 
+    # GitHub solo entrega correos que el ya verifico.
+    if user.email_verified_at is None:
+        user.email_verified_at = datetime.now(timezone.utc)
     user.github_username = github_user["login"]
     user.avatar_url = github_user.get("avatar_url")
     user.github_access_token_encrypted = encrypt_token(github_token)
