@@ -84,13 +84,13 @@ def _limpieza():
 @pytest.mark.parametrize("clave", ["a", "1234567"])
 def test_una_contrasena_corta_se_rechaza(clave):
     """Se podia registrar una cuenta con una contrasena de un solo caracter."""
-    respuesta = client.post("/api/auth/register", json={"email": _EMAIL, "password": clave})
+    respuesta = client.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": clave})
     assert respuesta.status_code == 422
 
 
 def test_una_contrasena_de_ocho_caracteres_se_acepta():
     """El limite es ocho inclusive: no hay que estrecharlo de mas."""
-    respuesta = client.post("/api/auth/register", json={"email": _EMAIL, "password": "12345678"})
+    respuesta = client.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": "12345678"})
     assert respuesta.status_code == 201
 
 
@@ -100,7 +100,7 @@ def test_una_contrasena_de_ocho_caracteres_se_acepta():
 
 
 def _crear_sesion() -> dict:
-    client.post("/api/auth/register", json={"email": _EMAIL, "password": _PASSWORD})
+    client.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": _PASSWORD})
     return client.post(
         "/api/auth/login", json={"email": _EMAIL, "password": _PASSWORD}
     ).json()
@@ -365,7 +365,7 @@ def test_entrar_bien_borra_los_fallos_de_esa_cuenta():
 def test_el_endpoint_de_login_responde_429_al_pasarse():
     """De punta a punta: el limite tiene que llegar al cliente como 429 con
     Retry-After, no como un 401 mas."""
-    client.post("/api/auth/register", json={"email": _EMAIL, "password": _PASSWORD})
+    client.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": _PASSWORD})
 
     for _ in range(MAX_LOGIN_FAILURES_PER_EMAIL_HOUR):
         fallo = client.post("/api/auth/login", json={"email": _EMAIL, "password": "no-es-esta"})
@@ -564,7 +564,7 @@ def _cookies_de_login():
     hace falta ver exactamente lo que manda el servidor en esta respuesta.
     """
     limpio = TestClient(app)
-    limpio.post("/api/auth/register", json={"email": _EMAIL, "password": _PASSWORD})
+    limpio.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": _PASSWORD})
     respuesta = limpio.post(
         "/api/auth/login", json={"email": _EMAIL, "password": _PASSWORD}
     )

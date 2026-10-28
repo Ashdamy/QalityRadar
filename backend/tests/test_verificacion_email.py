@@ -52,7 +52,7 @@ def _token(enlace: str) -> str:
 
 def test_sin_verificar_no_se_entra_y_se_reenvia_el_enlace(buzon):
     navegador = TestClient(app)
-    assert navegador.post("/api/auth/register", json={"email": _EMAIL, "password": _PASSWORD}).status_code == 201
+    assert navegador.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": _PASSWORD}).status_code == 201
     assert [d for d, _ in buzon.correos] == [_EMAIL]
 
     respuesta = navegador.post("/api/auth/login", json={"email": _EMAIL, "password": _PASSWORD})
@@ -66,7 +66,7 @@ def test_la_contrasena_mala_sigue_siendo_401_y_no_manda_correo(buzon):
     # El 403 solo lo ve quien sabe la contrasena: si no, diria que cuentas
     # estan pendientes.
     navegador = TestClient(app)
-    navegador.post("/api/auth/register", json={"email": _EMAIL, "password": _PASSWORD})
+    navegador.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": _PASSWORD})
 
     respuesta = navegador.post("/api/auth/login", json={"email": _EMAIL, "password": "otra-cosa-123"})
 
@@ -76,7 +76,7 @@ def test_la_contrasena_mala_sigue_siendo_401_y_no_manda_correo(buzon):
 
 def test_con_el_enlace_se_verifica_y_ya_se_entra(buzon):
     navegador = TestClient(app)
-    navegador.post("/api/auth/register", json={"email": _EMAIL, "password": _PASSWORD})
+    navegador.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": _PASSWORD})
     _, enlace = buzon.correos[0]
     assert "/verificar-email#token=" in enlace
 
@@ -91,7 +91,7 @@ def test_con_el_enlace_se_verifica_y_ya_se_entra(buzon):
 
 def test_otro_tipo_de_token_no_verifica(buzon):
     navegador = TestClient(app)
-    navegador.post("/api/auth/register", json={"email": _EMAIL, "password": _PASSWORD})
+    navegador.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": _PASSWORD})
     db = SessionLocal()
     try:
         user_id = db.scalar(select(User.id).where(User.email == _EMAIL))
@@ -106,7 +106,7 @@ def test_otro_tipo_de_token_no_verifica(buzon):
 
 def test_reenviar_tiene_tope(buzon):
     navegador = TestClient(app)
-    navegador.post("/api/auth/register", json={"email": _EMAIL, "password": _PASSWORD})
+    navegador.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": _PASSWORD})
 
     for _ in range(MAX_VERIFICATION_EMAILS_PER_HOUR + 3):
         respuesta = navegador.post("/api/auth/login", json={"email": _EMAIL, "password": _PASSWORD})
@@ -118,7 +118,7 @@ def test_reenviar_tiene_tope(buzon):
 def test_github_sobre_una_cuenta_sin_verificar_borra_la_contrasena(monkeypatch, buzon):
     # Alguien registra el correo de otro con su propia contrasena. Cuando el
     # dueno entra por GitHub, esa contrasena no puede seguir abriendo la cuenta.
-    TestClient(app).post("/api/auth/register", json={"email": _EMAIL, "password": _PASSWORD})
+    TestClient(app).post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": _PASSWORD})
 
     monkeypatch.setattr(github_service, "exchange_code_for_token", lambda code: "gho_fake")
     monkeypatch.setattr(

@@ -48,7 +48,7 @@ def _token(enlace: str) -> str:
 
 def _registrado() -> TestClient:
     navegador = TestClient(app)
-    navegador.post("/api/auth/register", json={"email": _EMAIL, "password": _VIEJA})
+    navegador.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": _VIEJA})
     return navegador
 
 

@@ -30,7 +30,7 @@ def _limpio():
 
 def _dentro() -> TestClient:
     navegador = TestClient(app)
-    navegador.post("/api/auth/register", json={"email": _EMAIL, "password": _VIEJA})
+    navegador.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": _VIEJA})
     navegador.post("/api/auth/login", json={"email": _EMAIL, "password": _VIEJA})
     return navegador
 

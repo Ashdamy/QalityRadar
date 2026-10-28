@@ -40,7 +40,7 @@ def cuenta():
 
     _borrar()
     navegador = TestClient(app)
-    navegador.post("/api/auth/register", json={"email": _EMAIL, "password": _PASSWORD})
+    navegador.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": _PASSWORD})
     navegador.post("/api/auth/login", json={"email": _EMAIL, "password": _PASSWORD})
 
     db = SessionLocal()
@@ -84,7 +84,7 @@ def _estado(analysis_id):
 
 def _otra_cuenta(correo):
     otro = TestClient(app)
-    otro.post("/api/auth/register", json={"email": correo, "password": _PASSWORD})
+    otro.post("/api/auth/register", json={"accept_privacy": True, "email": correo, "password": _PASSWORD})
     otro.post("/api/auth/login", json={"email": correo, "password": _PASSWORD})
     return otro
 

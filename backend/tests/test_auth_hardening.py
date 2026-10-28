@@ -107,7 +107,7 @@ def test_consumir_un_state_vacio_no_revienta():
 def test_el_registro_rechaza_una_contrasena_demasiado_larga():
     respuesta = client.post(
         "/api/auth/register",
-        json={"email": _EMAIL, "password": "a" * 73},
+        json={"accept_privacy": True, "email": _EMAIL, "password": "a" * 73},
     )
     assert respuesta.status_code == 422
 
@@ -115,7 +115,7 @@ def test_el_registro_rechaza_una_contrasena_demasiado_larga():
 def test_una_contrasena_larga_en_el_login_da_401_y_no_500():
     """bcrypt lanza ValueError por encima de 72 bytes, y eso llegaba al
     cliente como un error del servidor."""
-    client.post("/api/auth/register", json={"email": _EMAIL, "password": "correcta123"})
+    client.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": "correcta123"})
     respuesta = client.post(
         "/api/auth/login",
         json={"email": _EMAIL, "password": "a" * 200},
@@ -139,9 +139,9 @@ def test_una_contrasena_de_72_bytes_sigue_siendo_valida():
 
 
 def test_registrar_dos_veces_el_mismo_email_da_409():
-    primera = client.post("/api/auth/register", json={"email": _EMAIL, "password": "clave12345"})
+    primera = client.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": "clave12345"})
     assert primera.status_code == 201
-    segunda = client.post("/api/auth/register", json={"email": _EMAIL, "password": "otra12345"})
+    segunda = client.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": "otra12345"})
     assert segunda.status_code == 409
 
 
@@ -150,7 +150,7 @@ def test_la_restriccion_de_la_tabla_se_traduce_a_409_y_no_a_500():
     asi que la unica defensa que queda es el indice unico."""
     from app.api import auth as auth_api
 
-    client.post("/api/auth/register", json={"email": _EMAIL, "password": "clave12345"})
+    client.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": "clave12345"})
 
     original = auth_api.select
 
@@ -162,7 +162,7 @@ def test_la_restriccion_de_la_tabla_se_traduce_a_409_y_no_a_500():
     auth_api.select = select_que_no_ve_la_fila
     try:
         respuesta = client.post(
-            "/api/auth/register", json={"email": _EMAIL, "password": "otra12345"}
+            "/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": "otra12345"}
         )
     finally:
         auth_api.select = original
@@ -176,7 +176,7 @@ def test_la_restriccion_de_la_tabla_se_traduce_a_409_y_no_a_500():
 
 
 def test_el_login_devuelve_los_dos_tokens():
-    client.post("/api/auth/register", json={"email": _EMAIL, "password": "clave12345"})
+    client.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": "clave12345"})
     cuerpo = client.post(
         "/api/auth/login", json={"email": _EMAIL, "password": "clave12345"}
     ).json()
@@ -210,7 +210,7 @@ def test_los_tipos_de_token_no_se_llaman_igual():
 
 
 def test_refrescar_devuelve_un_token_de_acceso_usable():
-    client.post("/api/auth/register", json={"email": _EMAIL, "password": "clave12345"})
+    client.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": "clave12345"})
     tokens = client.post(
         "/api/auth/login", json={"email": _EMAIL, "password": "clave12345"}
     ).json()
@@ -233,7 +233,7 @@ def test_refrescar_con_un_token_invalido_da_401():
 
 def test_refrescar_con_un_token_de_acceso_da_401():
     """El endpoint no debe aceptar el token equivocado aunque sea valido."""
-    client.post("/api/auth/register", json={"email": _EMAIL, "password": "clave12345"})
+    client.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": "clave12345"})
     tokens = client.post(
         "/api/auth/login", json={"email": _EMAIL, "password": "clave12345"}
     ).json()

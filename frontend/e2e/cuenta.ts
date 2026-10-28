@@ -31,6 +31,7 @@ export async function crearCuentaYEntrar(page: Page, email: string, contrasena: 
   await page.locator("#email").fill(email);
   await page.locator("#password").fill(contrasena);
   await page.locator("#confirmPassword").fill(contrasena);
+  await page.locator("#acepto").check();
   await page.getByRole("button", { name: "Crear cuenta" }).last().click();
   await expect(page.getByText(`Te enviamos un enlace a ${email}`)).toBeVisible({ timeout: 60_000 });
 

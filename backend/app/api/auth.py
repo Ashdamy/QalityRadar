@@ -66,6 +66,10 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 GITHUB_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
 GITHUB_OAUTH_SCOPES = "public_repo read:user user:email"
 
+# Fecha de la politica de privacidad vigente. Se guarda con cada aceptacion;
+# al cambiar el texto de forma sustancial, se cambia aqui.
+PRIVACY_POLICY_VERSION = "2026-10-28"
+
 # Computado una sola vez, en import, para que el costo de bcrypt se pague
 # igual en el path de "usuario no existe" que en el de "password incorrecta"
 # y no se pueda distinguir por tiempo de respuesta cual email esta registrado.
@@ -141,7 +145,13 @@ def register(
     if existing is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="email already registered")
 
-    user = User(id=uuid.uuid4(), email=payload.email, password_hash=hash_password(payload.password))
+    user = User(
+        id=uuid.uuid4(),
+        email=payload.email,
+        password_hash=hash_password(payload.password),
+        privacy_accepted_at=datetime.now(timezone.utc),
+        privacy_version=PRIVACY_POLICY_VERSION,
+    )
     db.add(user)
     try:
         db.commit()
@@ -391,6 +401,11 @@ def github_callback(
     # GitHub solo entrega correos que el ya verifico.
     if user.email_verified_at is None:
         user.email_verified_at = datetime.now(timezone.utc)
+    # El boton de GitHub lleva al lado el aviso de que continuar es aceptar la
+    # politica: es la "conducta inequivoca" que admite el Decreto 1377, art. 7.
+    if user.privacy_accepted_at is None:
+        user.privacy_accepted_at = datetime.now(timezone.utc)
+        user.privacy_version = PRIVACY_POLICY_VERSION
     user.github_username = github_user["login"]
     user.avatar_url = github_user.get("avatar_url")
     user.github_access_token_encrypted = encrypt_token(github_token)

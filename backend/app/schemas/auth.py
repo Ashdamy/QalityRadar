@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -7,6 +9,9 @@ class RegisterRequest(BaseModel):
     # llegaria como un 500. El minimo es una decision nuestra: sin el se podia
     # registrar una cuenta con una contrasena de un solo caracter.
     password: str = Field(min_length=8, max_length=72)
+    # La Ley 1581 pide autorizacion expresa: sin la casilla marcada no hay
+    # cuenta. `Literal[True]` hace que un `false` o su ausencia sean un 422.
+    accept_privacy: Literal[True]
 
 
 class LoginRequest(BaseModel):

@@ -119,7 +119,7 @@ def test_github_callback_links_existing_password_account_by_email(monkeypatch):
     permanently locking that person out of GitHub login."""
 
     register_response = client.post(
-        "/api/auth/register", json={"email": LINK_EMAIL, "password": "s3cur3-passw0rd"}
+        "/api/auth/register", json={"accept_privacy": True, "email": LINK_EMAIL, "password": "s3cur3-passw0rd"}
     )
     assert register_response.status_code == 201
 

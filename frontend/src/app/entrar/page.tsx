@@ -221,6 +221,30 @@ export default function Home() {
               />
             )}
 
+            {isRegister && (
+              // La Ley 1581 pide autorizacion expresa: casilla sin marcar por
+              // defecto y obligatoria. El backend tambien la exige.
+              <label htmlFor="acepto" className="flex items-start gap-[10px] text-[12.5px] leading-[1.5] text-muted">
+                <input
+                  id="acepto"
+                  type="checkbox"
+                  required
+                  className="mt-[3px] h-4 w-4 flex-none accent-[var(--accent)]"
+                />
+                <span>
+                  He leído y acepto la{" "}
+                  <Link href="/privacidad" target="_blank" className="text-accent hover:underline">
+                    Política de privacidad
+                  </Link>{" "}
+                  y los{" "}
+                  <Link href="/terminos" target="_blank" className="text-accent hover:underline">
+                    Términos de uso
+                  </Link>
+                  , y autorizo el tratamiento de mis datos personales.
+                </span>
+              </label>
+            )}
+
             {!isRegister && (
               <Link
                 href="/recuperar-contrasena"
@@ -265,8 +289,16 @@ export default function Home() {
             />
           </form>
 
-          <p className="mt-[22px] text-center text-[12.5px] text-faint">
-            Solo se solicita acceso de lectura a repositorios públicos.
+          <p className="mt-[22px] text-center text-[12.5px] leading-[1.6] text-muted">
+            Solo se solicita acceso de lectura a repositorios públicos. Al continuar con GitHub aceptas la{" "}
+            <Link href="/privacidad" className="text-accent hover:underline">
+              Política de privacidad
+            </Link>{" "}
+            y los{" "}
+            <Link href="/terminos" className="text-accent hover:underline">
+              Términos de uso
+            </Link>
+            .
           </p>
         </div>
       </div>

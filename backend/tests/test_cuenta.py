@@ -37,7 +37,7 @@ def cuenta():
 
     _borrar()
     navegador = TestClient(app)
-    navegador.post("/api/auth/register", json={"email": _EMAIL, "password": _PASSWORD})
+    navegador.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": _PASSWORD})
     navegador.post("/api/auth/login", json={"email": _EMAIL, "password": _PASSWORD})
 
     db = SessionLocal()

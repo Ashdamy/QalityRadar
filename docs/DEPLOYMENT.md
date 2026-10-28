@@ -144,6 +144,8 @@ Importa el repositorio en Vercel y configura:
   - `NEXT_PUBLIC_API_URL=https://api.tu-dominio.com`
   - `NEXT_PUBLIC_SITE_URL=https://tu-dominio.com`. Sale en el sitemap, en `robots.txt` y en las etiquetas para compartir en redes. Si se queda en `localhost`, Google indexa direcciones que no existen.
 
+> **Antes de abrirlo al público, rellena los datos legales.** `frontend/src/app/privacidad/page.tsx` y `frontend/src/app/terminos/page.tsx` tienen marcadores entre corchetes: tipo de sociedad, NIT, dirección, ciudad, teléfono, correo de privacidad y de contacto, área responsable, proveedor de correo y de alojamiento con sus países. La Ley 1581 exige identificar al responsable; publicarlas con corchetes es no cumplirla. Conviene que un abogado revise ambos textos.
+
 Una vez publicada, da de alta el dominio en [Google Search Console](https://search.google.com/search-console) y envía `https://tu-dominio.com/sitemap.xml`. Es lo que hace que Google la encuentre en días en vez de semanas.
 
 ### 8. Actualizar la OAuth App de GitHub

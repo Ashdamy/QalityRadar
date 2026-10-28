@@ -58,7 +58,7 @@ def _eventos(user_id=None):
 
 def _crear_cuenta(cliente):
     respuesta = cliente.post(
-        "/api/auth/register", json={"email": _EMAIL, "password": _PASSWORD}
+        "/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": _PASSWORD}
     )
     assert respuesta.status_code == 201
     return uuid.UUID(respuesta.json()["id"])

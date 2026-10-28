@@ -137,9 +137,11 @@ export function register(
   email: string,
   password: string,
 ): Promise<RegisterResponse> {
+  // Solo se llama con la casilla marcada: el formulario no deja enviar sin
+  // ella, y el backend rechaza el registro si falta.
   return request<RegisterResponse>("/api/auth/register", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, accept_privacy: true }),
   });
 }
 

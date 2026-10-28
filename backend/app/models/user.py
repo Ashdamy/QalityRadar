@@ -21,6 +21,10 @@ class User(Base):
     # Nulo hasta que alguien abre el enlace del correo. Las cuentas de GitHub
     # nacen verificadas: GitHub solo nos da correos que el ya verifico.
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Prueba de la autorizacion que pide la Ley 1581: cuando y que version de
+    # la politica de privacidad se acepto.
+    privacy_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    privacy_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
     plan: Mapped[str] = mapped_column(String(20), nullable=False, server_default="free")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

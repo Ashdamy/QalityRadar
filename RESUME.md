@@ -1,13 +1,13 @@
 # RESUME — Bitácora de QalitiRadar
 
 > Documento vivo. Se actualiza a medida que avanza el proyecto.
-> Última actualización: 2026-10-25 (verificación del correo)
+> Última actualización: 2026-10-28 (imprescindibles para abrir al público)
 
 ---
 
 ## ¿En qué etapa va el proyecto?
 
-**Fase actual: la aplicación está completa y endurecida para abrirla al público. Falta conectar un servidor de correo real y desplegar.**
+**Fase actual: lista para abrirse al público a falta de rellenar los datos legales de la empresa y desplegar.**
 
 | Etapa | Estado |
 |---|---|
@@ -25,13 +25,17 @@
 | Deuda de seguridad (OAuth `state`, bcrypt, carrera) | ✅ Cerrada |
 | Sesiones con renovación automática | ✅ Implementadas |
 | Semana 5 — Compartir, límites de uso, purga y avisos | ✅ Completada |
-| Pruebas end-to-end (Playwright) | ✅ 5 en verde |
+| Pruebas end-to-end (Playwright) | ⚠️ Adaptadas a la verificación de correo, sin ejecutar todavía |
 | Seguimiento continuo de proyectos | ✅ Completado |
-| Endurecimiento de seguridad (rama `seguridad/endurecimiento`) | ✅ Hecho, sin fusionar con `main` |
-| Verificación del correo | ✅ Hecha; ⏳ falta un SMTP real (en local va a Mailpit) |
+| Endurecimiento de seguridad | ✅ Fusionado en `main` |
+| Verificación del correo | ✅ Hecha; en local sale por Gmail |
+| Recuperar contraseña | ✅ Hecho |
+| Página "Mi cuenta" | ✅ Hecha |
+| Landing pública y SEO básico | ✅ Hecha (`/`; el login pasa a `/entrar`) |
+| Política de privacidad y términos (Ley 1581) | ✅ Escritos; ⏳ faltan los datos de la empresa |
 | Despliegue | ⏸️ A la espera de tu señal |
 
-**494 pruebas en verde** en el backend (3 se saltan) y **5 end-to-end** con navegador real; el frontend compila y pasa lint.
+**509 pruebas en verde** en el backend (3 se saltan); el frontend compila y pasa lint.
 
 ---
 
@@ -315,16 +319,14 @@ En local los correos van a **Mailpit** (http://localhost:8025), una bandeja fals
 
 ## Lo que sigue
 
-1. **Conectar un servidor de correo real** — pendiente. Hoy los correos de confirmación solo llegan a Mailpit. Dos caminos:
-   - **Gmail:** contraseña de aplicación en https://myaccount.google.com/apppasswords. A Santiago le salió *"La opción de configuración que buscas no está disponible para tu cuenta"*: casi siempre es que falta activar la verificación en dos pasos.
-   - **Brevo** (gratis, 300 al día, sin dominio propio): remitente verificado + clave SMTP, `SMTP_HOST=smtp-relay.brevo.com`.
-
-   Se configura en `backend/.env` (`SMTP_HOST`, `SMTP_PORT=587`, `SMTP_STARTTLS=true`, `SMTP_USER`, `SMTP_PASSWORD`, `MAIL_FROM`) y se reinicia la API. Sin SMTP en producción nadie puede registrarse con contraseña.
-2. **Fusionar `seguridad/endurecimiento` con `main` y subirla.** La rama solo existe en este ordenador.
-3. **Despliegue**, cuando tú lo digas. La recomendación sigue siendo **Vercel para el frontend y Oracle Cloud Always Free para el backend**: Render y Railway no dan acceso al demonio de Docker, que el sandbox necesita.
-4. Al desplegar, la vigilancia mejora sola: con una dirección pública se pueden usar **webhooks de GitHub** y el análisis arrancaría a los segundos del push, en vez de esperar a la siguiente comprobación.
-5. Al desplegar, el proxy inverso debe cortar las peticiones `chunked` de más de 64 KB (la API solo puede limitar las que declaran `Content-Length`), y `MAX_GLOBAL_CONCURRENT` se baja si la máquina tiene menos de 4 GB.
-6. Si el abuso llega a ser real: bloquear dominios de correo desechable, que hoy siguen colando.
+1. **Rellenar los datos legales de la empresa** en `/privacidad` y `/terminos`: tipo de sociedad, NIT, dirección, ciudad, teléfono, correos de privacidad y contacto, proveedor de correo y de alojamiento. La Ley 1581 exige identificar al responsable. Conviene que un abogado revise los textos.
+2. **Ejecutar las pruebas end-to-end**: están adaptadas a la verificación de correo pero leen el enlace de Mailpit, así que hay que poner Mailpit en `backend/.env` mientras corren (con Gmail mandarían correos reales a @example.com).
+3. **Subir `main` a GitHub.** Hoy solo existe en este ordenador.
+4. **Correo de producción:** Gmail sirve para probar; en producción, un proveedor con dominio propio (Brevo, Resend…).
+5. **Despliegue**, cuando tú lo digas: Vercel para el frontend y Oracle Cloud Always Free para el backend. Poner `NEXT_PUBLIC_SITE_URL` y dar de alta el dominio en Google Search Console.
+6. Al desplegar: webhooks de GitHub para la vigilancia, el proxy inverso cortando peticiones `chunked` de más de 64 KB, y `MAX_GLOBAL_CONCURRENT` ajustado a la RAM.
+7. **Repositorios privados**, anunciados en la landing como "en camino".
+8. Siguientes mejoras de valor: avisos por correo, integración con pull requests, puerta de calidad, equipos.
 
 ---
 

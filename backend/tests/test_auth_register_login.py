@@ -33,7 +33,7 @@ def _clean_test_users():
 
 def test_register_then_login_succeeds():
     register_response = client.post(
-        "/api/auth/register", json={"email": "juan@example.com", "password": "s3cur3-passw0rd"}
+        "/api/auth/register", json={"accept_privacy": True, "email": "juan@example.com", "password": "s3cur3-passw0rd"}
     )
     assert register_response.status_code == 201
     assert register_response.json()["email"] == "juan@example.com"
@@ -46,14 +46,14 @@ def test_register_then_login_succeeds():
 
 
 def test_login_with_wrong_password_returns_401():
-    client.post("/api/auth/register", json={"email": "maria@example.com", "password": "correct-password"})
+    client.post("/api/auth/register", json={"accept_privacy": True, "email": "maria@example.com", "password": "correct-password"})
     response = client.post("/api/auth/login", json={"email": "maria@example.com", "password": "wrong-password"})
     assert response.status_code == 401
 
 
 def test_register_with_duplicate_email_returns_409():
-    client.post("/api/auth/register", json={"email": "dup@example.com", "password": "password-one"})
-    response = client.post("/api/auth/register", json={"email": "dup@example.com", "password": "password-two"})
+    client.post("/api/auth/register", json={"accept_privacy": True, "email": "dup@example.com", "password": "password-one"})
+    response = client.post("/api/auth/register", json={"accept_privacy": True, "email": "dup@example.com", "password": "password-two"})
     assert response.status_code == 409
 
 
@@ -63,7 +63,7 @@ def test_register_with_password_over_72_bytes_returns_422():
     validation layer as a 422 instead."""
 
     response = client.post(
-        "/api/auth/register", json={"email": "toolongpassword@example.com", "password": "x" * 73}
+        "/api/auth/register", json={"accept_privacy": True, "email": "toolongpassword@example.com", "password": "x" * 73}
     )
     assert response.status_code == 422
 

@@ -45,7 +45,7 @@ def sesion_con_repositorio():
 
     _borrar()
     navegador = TestClient(app)
-    navegador.post("/api/auth/register", json={"email": _EMAIL, "password": _PASSWORD})
+    navegador.post("/api/auth/register", json={"accept_privacy": True, "email": _EMAIL, "password": _PASSWORD})
     navegador.post("/api/auth/login", json={"email": _EMAIL, "password": _PASSWORD})
 
     db = SessionLocal()
@@ -153,7 +153,7 @@ def test_la_insignia_de_otro_no_se_toca(sesion_con_repositorio):
     _, repo_id = sesion_con_repositorio
 
     ajeno = TestClient(app)
-    ajeno.post("/api/auth/register", json={"email": "otro-insignia@example.com", "password": _PASSWORD})
+    ajeno.post("/api/auth/register", json={"accept_privacy": True, "email": "otro-insignia@example.com", "password": _PASSWORD})
     ajeno.post("/api/auth/login", json={"email": "otro-insignia@example.com", "password": _PASSWORD})
     try:
         assert ajeno.post(f"/api/repositories/{repo_id}/badge").status_code == 404
