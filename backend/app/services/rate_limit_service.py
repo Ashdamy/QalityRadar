@@ -60,6 +60,11 @@ _REGISTRATION_KEY = "ratelimit:registrations:{ip}"
 
 MAX_VERIFICATION_EMAILS_PER_HOUR = 3
 _VERIFICATION_KEY = "ratelimit:verification:{user_id}"
+
+MAX_RESET_EMAILS_PER_EMAIL_HOUR = 3
+MAX_RESET_REQUESTS_PER_IP_HOUR = 10
+_RESET_EMAIL_KEY = "ratelimit:reset:email:{huella}"
+_RESET_IP_KEY = "ratelimit:reset:ip:{ip}"
 # Fuerza bruta contra el inicio de sesion. bcrypt hace lento cada intento,
 # pero lento no es imposible: sin limite se pueden probar contrasenas toda la
 # noche contra la misma cuenta.
@@ -274,6 +279,29 @@ def check_verification_email(user_id: uuid.UUID) -> None:
 
     cliente.zadd(clave, {str(uuid.uuid4()): ahora})
     cliente.expire(clave, HOUR_SECONDS)
+
+
+def check_password_reset(email: str, ip: str | None) -> None:
+    """Limita las peticiones de "olvide mi contrasena".
+
+    Por correo, para no poder usarnos para llenarle el buzon a alguien; por IP,
+    para no poder recorrer una lista de correos mandando enlaces a todos. Solo
+    cuenta si caben las dos: un intento rechazado no gasta cupo.
+    """
+    cliente = _client()
+    ahora = time.time()
+    claves = [(_RESET_EMAIL_KEY.format(huella=_huella_de_email(email)), MAX_RESET_EMAILS_PER_EMAIL_HOUR)]
+    if ip:
+        claves.append((_RESET_IP_KEY.format(ip=ip), MAX_RESET_REQUESTS_PER_IP_HOUR))
+
+    for clave, maximo in claves:
+        cliente.zremrangebyscore(clave, 0, ahora - HOUR_SECONDS)
+        if cliente.zcard(clave) >= maximo:
+            raise RateLimitExceeded("Demasiadas peticiones; vuelve a intentarlo mas tarde.", HOUR_SECONDS)
+
+    for clave, _ in claves:
+        cliente.zadd(clave, {str(uuid.uuid4()): ahora})
+        cliente.expire(clave, HOUR_SECONDS)
 
 
 def global_running() -> int:

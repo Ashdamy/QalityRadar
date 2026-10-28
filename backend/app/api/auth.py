@@ -26,17 +26,21 @@ from app.core.security import (
     create_access_token,
     create_refresh_token,
     decode_email_verification_token,
+    decode_password_reset_token,
     decode_refresh_token,
     hash_password,
+    password_fingerprint,
     verify_password,
 )
 from app.models.user import User
 from app.schemas.auth import (
     DeleteAccountRequest,
+    ForgotPasswordRequest,
     LoginRequest,
     LogoutRequest,
     RefreshRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     TokenResponse,
     VerifyEmailRequest,
 )
@@ -47,6 +51,7 @@ from app.services import verification_service
 from app.services.rate_limit_service import (
     RateLimitExceeded,
     check_login_allowed,
+    check_password_reset,
     check_registration_ip,
     check_verification_email,
     clear_login_failures,
@@ -255,6 +260,74 @@ def verify_email(payload: VerifyEmailRequest, request: Request, db: Session = De
         )
         db.commit()
     return {"email": user.email}
+
+
+@router.post("/password/forgot", status_code=status.HTTP_202_ACCEPTED)
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    request: Request,
+    tareas: BackgroundTasks,
+    db: Session = Depends(get_db),
+) -> dict:
+    """Manda un enlace para elegir contrasena nueva.
+
+    Responde siempre lo mismo, exista la cuenta o no, y tambien cuando se pasa
+    del limite: si no, serviria para averiguar que correos estan registrados.
+    El correo sale en segundo plano para que el tiempo de respuesta tampoco lo
+    delate.
+    """
+    respuesta = {"detail": "Si hay una cuenta con ese correo, te enviamos un enlace."}
+    try:
+        check_password_reset(payload.email, request.client.host if request.client else None)
+    except RateLimitExceeded:
+        return respuesta
+
+    user = db.scalar(select(User).where(User.email == payload.email))
+    if user is not None:
+        # Tambien a las cuentas que solo entran por GitHub: quien tiene el
+        # buzon es el dueno, y asi puede anadirse una contrasena.
+        tareas.add_task(
+            verification_service.send_password_reset_email,
+            user.email,
+            verification_service.build_reset_link(user),
+        )
+    return respuesta
+
+
+@router.post("/password/reset", status_code=status.HTTP_204_NO_CONTENT)
+def reset_password(
+    payload: ResetPasswordRequest, request: Request, db: Session = Depends(get_db)
+) -> None:
+    invalido = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="El enlace no es valido, ya se uso o ha caducado. Pide otro.",
+    )
+    try:
+        user_id, huella = decode_password_reset_token(payload.token)
+    except Exception as exc:  # noqa: BLE001
+        raise invalido from exc
+
+    user = db.get(User, user_id)
+    # La huella ata el enlace a la contrasena que habia al pedirlo: en cuanto
+    # cambia, deja de valer. Es lo que lo hace de un solo uso.
+    if user is None or huella != password_fingerprint(user.password_hash):
+        raise invalido
+
+    user.password_hash = hash_password(payload.password)
+    # Abrir el enlace demuestra tener el buzon, que es lo que pide verificar.
+    if user.email_verified_at is None:
+        user.email_verified_at = datetime.now(timezone.utc)
+    # Si alguien la estaba usando, se queda fuera: quien restablece suele
+    # hacerlo porque sospecha.
+    session_service.revoke_all_for_user(db, user.id)
+    audit_service.registrar(
+        db,
+        audit_service.CONTRASENA_CAMBIADA,
+        user_id=user.id,
+        ip=request.client.host if request.client else None,
+    )
+    db.commit()
+    clear_login_failures(user.email)
 
 
 @router.get("/github/login")

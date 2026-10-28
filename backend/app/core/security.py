@@ -1,3 +1,4 @@
+import hashlib
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -17,6 +18,8 @@ ACCESS_TOKEN_TYPE = "access"
 REFRESH_TOKEN_TYPE = "refresh"
 EMAIL_VERIFICATION_TOKEN_TYPE = "email_verification"
 EMAIL_VERIFICATION_HOURS = 24
+PASSWORD_RESET_TOKEN_TYPE = "password_reset"
+PASSWORD_RESET_MINUTES = 60
 
 # La sesion viaja en cookies httpOnly, no en localStorage: lo que JavaScript no
 # puede leer, un XSS no puede robar. Antes bastaba con un `alert` inyectado
@@ -51,10 +54,13 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def _create_token(user_id: uuid.UUID, token_type: str, lifetime: timedelta) -> str:
+def _create_token(
+    user_id: uuid.UUID, token_type: str, lifetime: timedelta, extra: dict | None = None
+) -> str:
     settings = get_settings()
     now = datetime.now(timezone.utc)
     payload = {
+        **(extra or {}),
         "sub": str(user_id),
         "type": token_type,
         # Identificador unico del token. Sin el, dos tokens del mismo usuario
@@ -97,7 +103,35 @@ def create_email_verification_token(user_id: uuid.UUID) -> str:
     )
 
 
+def password_fingerprint(password_hash: str | None) -> str:
+    """Resume la contrasena actual sin revelarla.
+
+    Va dentro del enlace de restablecer: en cuanto la contrasena cambia, la
+    huella deja de coincidir y el enlace muere. Asi es de un solo uso sin
+    tener que guardarlo en ninguna tabla.
+    """
+    return hashlib.sha256((password_hash or "").encode()).hexdigest()[:16]
+
+
+def create_password_reset_token(user_id: uuid.UUID, password_hash: str | None) -> str:
+    return _create_token(
+        user_id,
+        PASSWORD_RESET_TOKEN_TYPE,
+        timedelta(minutes=PASSWORD_RESET_MINUTES),
+        extra={"ph": password_fingerprint(password_hash)},
+    )
+
+
+def decode_password_reset_token(token: str) -> tuple[uuid.UUID, str]:
+    payload = _payload(token, PASSWORD_RESET_TOKEN_TYPE)
+    return uuid.UUID(payload["sub"]), payload.get("ph", "")
+
+
 def _decode(token: str, expected_type: str) -> uuid.UUID:
+    return uuid.UUID(_payload(token, expected_type)["sub"])
+
+
+def _payload(token: str, expected_type: str) -> dict:
     settings = get_settings()
     payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
     # Un token sin marca se rechaza. Hubo un periodo en que se trataba como
@@ -107,7 +141,7 @@ def _decode(token: str, expected_type: str) -> uuid.UUID:
     tipo = payload.get("type")
     if tipo != expected_type:
         raise InvalidTokenType(f"se esperaba un token de tipo {expected_type}, llego {tipo}")
-    return uuid.UUID(payload["sub"])
+    return payload
 
 
 def decode_access_token(token: str) -> uuid.UUID:

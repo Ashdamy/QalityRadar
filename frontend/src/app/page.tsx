@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ApiError, getGithubAuthorizationUrl, login, register } from "@/lib/api";
 import { haySesion } from "@/lib/auth";
@@ -218,6 +219,15 @@ export default function Home() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
               />
+            )}
+
+            {!isRegister && (
+              <Link
+                href="/recuperar-contrasena"
+                className="-mt-[4px] self-end text-[12.5px] text-muted hover:text-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+              >
+                ¿Olvidaste tu contraseña?
+              </Link>
             )}
 
             {aviso && (

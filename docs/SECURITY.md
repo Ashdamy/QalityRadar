@@ -164,6 +164,20 @@ Los límites de uso son por cuenta, y crear una cuenta era escribir un correo cu
 - **El correo sale en segundo plano**, después de responder. El registro no tarda lo que tarde el SMTP, y si el SMTP falla la petición no se cae: el fallo queda en el log y basta con volver a entrar para recibir otro enlace.
 - Las cuentas que existían antes de la migración `0020` se dan por verificadas.
 
+### Olvidé mi contraseña
+
+`POST /api/auth/password/forgot` y `POST /api/auth/password/reset`
+
+Sin esto, quien olvidaba la contraseña perdía la cuenta.
+
+- **Responde siempre lo mismo**, exista la cuenta o no, y también cuando se pasa del límite. Si no, serviría para averiguar qué correos están registrados. El correo sale en segundo plano para que el tiempo de respuesta tampoco lo delate.
+- **El enlace es de un solo uso sin tener tabla.** El JWT lleva una huella (16 caracteres de SHA-256) del hash de la contraseña que había al pedirlo. En cuanto la contraseña cambia, la huella deja de coincidir y el enlace muere; también mueren los demás enlaces pedidos antes. Caduca en 60 minutos y lleva su propia marca de tipo, como el resto.
+- **Límite de 3 peticiones por hora y correo, y 10 por hora e IP.** El de correo evita llenarle el buzón a alguien; el de IP, recorrer una lista de correos mandando enlaces. Al pasarse, la respuesta es la misma de siempre.
+- **Restablecer cierra todas las sesiones abiertas.** Quien lo hace suele sospechar algo, y la sesión de un intruso no debe sobrevivir al cambio. El token de acceso que ya tuviera dura como mucho sus 15 minutos.
+- **Restablecer verifica el correo** de una cuenta pendiente: abrir el enlace prueba lo mismo, que el buzón es suyo. Y cierra el caso de la pre-apropiación también por este lado: la contraseña que puso quien registró el correo ajeno se sustituye.
+- **También sirve a las cuentas que solo entran por GitHub**: quien tiene el buzón es el dueño, y así puede añadirse una contraseña.
+- El token va en el fragmento (`#token=`), igual que el de verificación.
+
 ### OAuth de GitHub
 
 - **Parámetro `state`** contra CSRF, guardado en Redis, **de un solo uso** y con 10 minutos de vida. Sin él, un tercero podía forzar el callback con un `code` suyo y dejar **su** cuenta de GitHub vinculada a **tu** sesión.
@@ -174,7 +188,7 @@ Los límites de uso son por cuenta, y crear una cuenta era escribir un correo cu
 
 ## 4. Autorización
 
-Todos los endpoints exigen sesión salvo seis, y los seis son públicos a propósito: registro, inicio de sesión, verificación del correo, las dos rutas de OAuth, y la lectura de un informe compartido.
+Todos los endpoints exigen sesión salvo ocho, y los ocho son públicos a propósito: registro, inicio de sesión, verificación del correo, pedir y usar el enlace de restablecer la contraseña, las dos rutas de OAuth, y la lectura de un informe compartido.
 
 - **Cada recurso comprueba su dueño.** No basta con tener sesión: hay que ser el propietario del análisis, del repositorio o del monitor.
 - **Se responde 404, no 403**, cuando el recurso es de otra persona. Un 403 confirmaría que existe.
@@ -207,6 +221,8 @@ Cada análisis clona un repositorio y levanta un contenedor. Sin límites, una s
 | Análisis automáticos (vigilancia), por hora | 10, con cupo aparte |
 | Registros por hora y por IP | 5 |
 | Correos de verificación por hora y cuenta | 3 |
+| Enlaces de restablecer contraseña por hora y correo | 3 |
+| Peticiones de restablecer contraseña por hora e IP | 10 |
 | Fallos de inicio de sesión por hora y cuenta | 10 |
 | Fallos de inicio de sesión por hora e IP | 30 |
 | Proyectos vigilados por cuenta | 3 |

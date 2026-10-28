@@ -157,6 +157,20 @@ export function verifyEmail(token: string): Promise<{ email: string }> {
   });
 }
 
+export function forgotPassword(email: string): Promise<{ detail: string }> {
+  return request<{ detail: string }>("/api/auth/password/forgot", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function resetPassword(token: string, password: string): Promise<void> {
+  return request<void>("/api/auth/password/reset", {
+    method: "POST",
+    body: JSON.stringify({ token, password }),
+  });
+}
+
 export function getGithubAuthorizationUrl(): Promise<GithubAuthorizationUrlResponse> {
   return request<GithubAuthorizationUrlResponse>("/api/auth/github/login");
 }

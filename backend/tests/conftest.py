@@ -82,6 +82,7 @@ class Buzon:
 
     def __init__(self):
         self.correos: list[tuple[str, str]] = []
+        self.restablecer: list[tuple[str, str]] = []
         # Por defecto el usuario abre el enlace en cuanto llega. Asi las
         # pruebas que registran y entran, que son muchas y no van de esto,
         # siguen siendo registrar y entrar. Las que si van de esto lo apagan.
@@ -111,6 +112,11 @@ def buzon(monkeypatch):
             db.close()
 
     monkeypatch.setattr(verification_service, "send_verification_email", _recibir)
+    monkeypatch.setattr(
+        verification_service,
+        "send_password_reset_email",
+        lambda destinatario, enlace: caja.restablecer.append((destinatario, enlace)),
+    )
     return caja
 
 

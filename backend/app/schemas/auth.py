@@ -18,6 +18,20 @@ class VerifyEmailRequest(BaseModel):
     token: str = Field(max_length=2048)
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str = Field(max_length=2048)
+    password: str = Field(min_length=8, max_length=72)
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=72)
+
+
 class TokenResponse(BaseModel):
     """Los tokens van siempre en cookies httpOnly; en el cuerpo, solo a veces.
 
