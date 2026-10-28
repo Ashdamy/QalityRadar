@@ -34,6 +34,7 @@ from app.core.security import (
 )
 from app.models.user import User
 from app.schemas.auth import (
+    ChangePasswordRequest,
     DeleteAccountRequest,
     ForgotPasswordRequest,
     LoginRequest,
@@ -559,4 +560,71 @@ def delete_account(
     db.commit()
     # Las cookies se borran para que el navegador no siga mandando la sesion de
     # una cuenta que ya no existe.
+    _borrar_cookies(response)
+
+
+@router.get("/me")
+def me(current_user: User = Depends(get_current_user)) -> dict:
+    """Lo que la pagina "Mi cuenta" necesita saber. Nunca el token de GitHub."""
+    return {
+        "email": current_user.email,
+        "email_verified": current_user.email_verified_at is not None,
+        "has_password": current_user.password_hash is not None,
+        "github_username": current_user.github_username,
+        "github_connected": current_user.github_access_token_encrypted is not None,
+        "created_at": current_user.created_at,
+    }
+
+
+@router.post("/password/change", response_model=TokenResponse)
+def change_password(
+    payload: ChangePasswordRequest,
+    request: Request,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> TokenResponse:
+    """Cambia la contrasena y cierra las demas sesiones.
+
+    Pide la actual: una sesion abierta en un ordenador ajeno no debe bastar
+    para quedarse la cuenta. Por lo mismo, una cuenta sin contrasena (solo
+    GitHub) no la crea desde aqui sino con el enlace por correo, que prueba
+    tener el buzon.
+    """
+    if current_user.password_hash is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tu cuenta no tiene contrasena. Crea una con 'Olvidaste tu contrasena?'.",
+        )
+    ip = request.client.host if request.client else None
+    # Comparte contador con el login: si no, este endpoint seria una forma de
+    # probar contrasenas sin limite con una sesion robada.
+    try:
+        check_login_allowed(current_user.email, ip)
+    except RateLimitExceeded as exc:
+        raise _demasiadas_peticiones(exc) from exc
+    if not verify_password(payload.current_password, current_user.password_hash):
+        record_login_failure(current_user.email, ip)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="La contrasena actual no es correcta."
+        )
+
+    current_user.password_hash = hash_password(payload.new_password)
+    session_service.revoke_all_for_user(db, current_user.id)
+    audit_service.registrar(db, audit_service.CONTRASENA_CAMBIADA, user_id=current_user.id, ip=ip)
+    db.commit()
+    # Las demas sesiones caen; esta sigue con una pareja de tokens nueva.
+    return _emitir_sesion(db, current_user.id, response)
+
+
+@router.post("/logout-all", status_code=status.HTTP_204_NO_CONTENT)
+def logout_all(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """Cierra la sesion en todos los dispositivos, este incluido."""
+    session_service.revoke_all_for_user(db, current_user.id)
+    audit_service.registrar(db, audit_service.SALIDA, user_id=current_user.id)
+    db.commit()
     _borrar_cookies(response)

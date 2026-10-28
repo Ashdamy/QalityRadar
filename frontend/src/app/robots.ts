@@ -14,6 +14,7 @@ export default function robots(): MetadataRoute.Robots {
         "/analyses",
         "/repositories",
         "/monitors",
+        "/cuenta",
         "/r/",
         "/auth/",
         "/verificar-email",

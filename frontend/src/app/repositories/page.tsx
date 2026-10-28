@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 import { clearToken, endSession, haySesion } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
+import Link from "next/link";
 import { NotificationBell } from "@/components/NotificationBell";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { GithubButton } from "@/components/GithubButton";
@@ -223,6 +224,7 @@ export default function RepositoriesPage() {
         </button>
         <div className="flex items-center gap-[14px]">
           <NotificationBell />
+          <Link href="/cuenta" className="text-[13px] text-muted hover:text-text focus:outline-none focus:ring-[3px] focus:ring-accentDim">Mi cuenta</Link>
           <div className="h-[26px] w-[26px] rounded-[6px] border border-border bg-surface2" aria-hidden="true" />
           <button
             type="button"

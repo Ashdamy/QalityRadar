@@ -15,6 +15,7 @@ import {
 } from "@/lib/api";
 import { clearToken, endSession, haySesion } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
+import Link from "next/link";
 import { NotificationBell } from "@/components/NotificationBell";
 import { Sparkline } from "@/components/Sparkline";
 
@@ -330,6 +331,7 @@ export default function MonitorsPage() {
         </button>
         <div className="flex items-center gap-3">
           <NotificationBell />
+          <Link href="/cuenta" className="text-[13px] text-muted hover:text-text focus:outline-none focus:ring-[3px] focus:ring-accentDim">Mi cuenta</Link>
           <button
             type="button"
             onClick={async () => {

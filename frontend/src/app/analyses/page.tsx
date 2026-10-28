@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import {
   ApiError,
   cancelAnalysis,
-  deleteAccount,
   listAnalyses,
   retryAnalysis,
   type AnalysisListItem,
@@ -48,11 +47,6 @@ export default function AnalysesPage() {
   const [items, setItems] = useState<AnalysisListItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
-  // Borrar la cuenta es irreversible, así que va detrás de un paso extra y de
-  // la contraseña, no de un solo clic.
-  const [borrando, setBorrando] = useState(false);
-  const [clave, setClave] = useState("");
-  const [errorCuenta, setErrorCuenta] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -201,68 +195,6 @@ export default function AnalysesPage() {
           ))}
         </ul>
 
-        <div className="mt-12 border-t border-border pt-6">
-          {!borrando ? (
-            <button
-              type="button"
-              onClick={() => setBorrando(true)}
-              className="text-[12.5px] text-faint underline underline-offset-2 hover:text-[oklch(0.68_0.19_25)] focus:outline-none focus:ring-[3px] focus:ring-accentDim"
-            >
-              Borrar mi cuenta
-            </button>
-          ) : (
-            <div className="max-w-[440px]">
-              <p className="mb-3 text-[12.5px] leading-[1.6] text-muted">
-                Se borra la cuenta y todo lo que cuelga de ella: repositorios, análisis,
-                informes compartidos y el token de GitHub. <strong>No se puede deshacer.</strong>
-              </p>
-              <div className="flex items-center gap-2">
-                <input
-                  type="password"
-                  value={clave}
-                  onChange={(e) => setClave(e.target.value)}
-                  placeholder="Tu contraseña"
-                  aria-label="Contraseña para confirmar el borrado"
-                  className="min-w-0 flex-1 rounded-[6px] border border-border bg-surface px-[10px] py-[7px] text-[13px] text-text placeholder:text-faint focus:border-accent focus:outline-none focus:ring-[3px] focus:ring-accentDim"
-                />
-                <button
-                  type="button"
-                  onClick={async () => {
-                    setErrorCuenta(null);
-                    try {
-                      await deleteAccount(clave || undefined);
-                      clearToken();
-                      router.replace("/entrar");
-                    } catch (err) {
-                      setErrorCuenta(
-                        err instanceof ApiError ? err.message : "No se pudo borrar la cuenta.",
-                      );
-                    }
-                  }}
-                  className="shrink-0 rounded-[6px] border border-[oklch(0.68_0.19_25)] px-3 py-[7px] text-[12.5px] text-[oklch(0.68_0.19_25)] focus:outline-none focus:ring-[3px] focus:ring-accentDim"
-                >
-                  Borrar definitivamente
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBorrando(false);
-                    setClave("");
-                    setErrorCuenta(null);
-                  }}
-                  className="shrink-0 text-[12.5px] text-muted hover:text-text focus:outline-none focus:ring-[3px] focus:ring-accentDim"
-                >
-                  Cancelar
-                </button>
-              </div>
-              {errorCuenta && (
-                <p role="alert" className="mt-2 text-[12.5px] text-[oklch(0.68_0.19_25)]">
-                  {errorCuenta}
-                </p>
-              )}
-            </div>
-          )}
-        </div>
       </div>
     </main>
   );

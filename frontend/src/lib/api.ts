@@ -399,6 +399,36 @@ export function retryAnalysis(analysisId: string): Promise<{ analysis_id: string
   return request(`/api/analyses/${analysisId}/retry`, { method: "POST" });
 }
 
+export interface Me {
+  email: string;
+  email_verified: boolean;
+  has_password: boolean;
+  github_username: string | null;
+  github_connected: boolean;
+  created_at: string;
+}
+
+export function getMe(): Promise<Me> {
+  return request<Me>("/api/auth/me");
+}
+
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  await request<TokenResponse>("/api/auth/password/change", {
+    method: "POST",
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  });
+}
+
+/** Cierra la sesión en todos los dispositivos, este incluido. */
+export async function logoutAll(): Promise<void> {
+  await request<void>("/api/auth/logout-all", { method: "POST" });
+}
+
+/** Retira el token de GitHub guardado. La identidad se conserva para poder seguir entrando. */
+export async function disconnectGithub(): Promise<void> {
+  await request<void>("/api/auth/github", { method: "DELETE" });
+}
+
 /** Borra la cuenta y todo lo que cuelga de ella. Irreversible. */
 export async function deleteAccount(password?: string): Promise<void> {
   await request<void>("/api/auth/account", {

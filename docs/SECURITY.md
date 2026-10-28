@@ -178,6 +178,16 @@ Sin esto, quien olvidaba la contraseña perdía la cuenta.
 - **También sirve a las cuentas que solo entran por GitHub**: quien tiene el buzón es el dueño, y así puede añadirse una contraseña.
 - El token va en el fragmento (`#token=`), igual que el de verificación.
 
+### Mi cuenta
+
+`GET /api/auth/me`, `POST /api/auth/password/change`, `POST /api/auth/logout-all`
+
+- **`/me` devuelve lo justo** para la página: correo, si está verificado, si tiene contraseña y si GitHub está conectado. Nunca el token de GitHub, ni siquiera cifrado.
+- **Cambiar la contraseña pide la actual.** Una sesión abierta en un ordenador ajeno no debe bastar para quedarse la cuenta. Los fallos cuentan en el **mismo contador que el login**: si no, con una sesión robada este endpoint serviría para probar contraseñas sin límite.
+- **Una cuenta sin contraseña (solo GitHub) no la crea desde aquí**, sino con el enlace por correo, que prueba tener el buzón. Por el mismo motivo: si bastara la sesión, quien la robara se añadiría una contraseña y conservaría el acceso aunque el dueño desconectara GitHub.
+- **Cambiar la contraseña cierra las demás sesiones**; la del navegador que la cambió sigue con una pareja de tokens nueva.
+- **"Cerrar en todas partes"** revoca todos los tokens de refresco de la cuenta, el propio incluido. Los de acceso ya emitidos duran como mucho sus 15 minutos.
+
 ### OAuth de GitHub
 
 - **Parámetro `state`** contra CSRF, guardado en Redis, **de un solo uso** y con 10 minutos de vida. Sin él, un tercero podía forzar el callback con un `code` suyo y dejar **su** cuenta de GitHub vinculada a **tu** sesión.
