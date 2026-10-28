@@ -17,7 +17,7 @@ export function AuthCard({ title, children }: { title: string; children: ReactNo
         </div>
         {children}
         <Link
-          href="/"
+          href="/entrar"
           className="self-center text-[13px] text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
         >
           ← Volver a iniciar sesión

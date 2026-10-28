@@ -92,7 +92,7 @@ export default function AnalyzePage() {
   // Si no hay sesion se redirige; la pantalla se dibuja igual y desaparece
   // enseguida, que es preferible a mantener un estado solo para ocultarla.
   useEffect(() => {
-    if (!haySesion()) router.replace("/");
+    if (!haySesion()) router.replace("/entrar");
   }, [router]);
 
   return (

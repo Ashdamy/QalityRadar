@@ -70,7 +70,7 @@ export default function AnalyzeUrlPage() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
 
   useEffect(() => {
-    if (!haySesion()) router.replace("/");
+    if (!haySesion()) router.replace("/entrar");
   }, [router]);
 
   async function handleSubmit(event: React.FormEvent) {

@@ -140,7 +140,11 @@ api.tu-dominio.com {
 Importa el repositorio en Vercel y configura:
 
 - **Root Directory:** `frontend`
-- **Variable de entorno:** `NEXT_PUBLIC_API_URL=https://api.tu-dominio.com`
+- **Variables de entorno:**
+  - `NEXT_PUBLIC_API_URL=https://api.tu-dominio.com`
+  - `NEXT_PUBLIC_SITE_URL=https://tu-dominio.com`. Sale en el sitemap, en `robots.txt` y en las etiquetas para compartir en redes. Si se queda en `localhost`, Google indexa direcciones que no existen.
+
+Una vez publicada, da de alta el dominio en [Google Search Console](https://search.google.com/search-console) y envía `https://tu-dominio.com/sitemap.xml`. Es lo que hace que Google la encuentre en días en vez de semanas.
 
 ### 8. Actualizar la OAuth App de GitHub
 

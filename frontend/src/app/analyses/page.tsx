@@ -60,7 +60,7 @@ export default function AnalysesPage() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         clearToken();
-        router.replace("/");
+        router.replace("/entrar");
         return;
       }
       setError("No se pudieron cargar tus análisis.");
@@ -70,7 +70,7 @@ export default function AnalysesPage() {
 
   useEffect(() => {
     if (!haySesion()) {
-      router.replace("/");
+      router.replace("/entrar");
       return;
     }
 
@@ -85,7 +85,7 @@ export default function AnalysesPage() {
         if (!vivo) return;
         if (err instanceof ApiError && err.status === 401) {
           clearToken();
-          router.replace("/");
+          router.replace("/entrar");
           return;
         }
         setError("No se pudieron cargar tus análisis.");
@@ -232,7 +232,7 @@ export default function AnalysesPage() {
                     try {
                       await deleteAccount(clave || undefined);
                       clearToken();
-                      router.replace("/");
+                      router.replace("/entrar");
                     } catch (err) {
                       setErrorCuenta(
                         err instanceof ApiError ? err.message : "No se pudo borrar la cuenta.",

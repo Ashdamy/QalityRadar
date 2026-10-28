@@ -59,7 +59,7 @@ export default function HistoryPage() {
 
   useEffect(() => {
     if (!haySesion()) {
-      router.replace("/");
+      router.replace("/entrar");
       return;
     }
     let cancelled = false;
@@ -76,7 +76,7 @@ export default function HistoryPage() {
         if (cancelled) return;
         if (error instanceof ApiError && error.status === 401) {
           clearToken();
-          router.replace("/");
+          router.replace("/entrar");
           return;
         }
         setState({

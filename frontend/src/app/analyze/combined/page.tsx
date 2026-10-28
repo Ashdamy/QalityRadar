@@ -54,7 +54,7 @@ export default function AnalyzeCombinedPage() {
 
   useEffect(() => {
     if (!haySesion()) {
-      router.replace("/");
+      router.replace("/entrar");
       return;
     }
     listRepositories()
@@ -67,7 +67,7 @@ export default function AnalyzeCombinedPage() {
         // donde no esta.
         if (err instanceof ApiError && err.status === 401) {
           clearToken();
-          router.replace("/");
+          router.replace("/entrar");
           return;
         }
         setRepositorios([]);
@@ -100,7 +100,7 @@ export default function AnalyzeCombinedPage() {
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         clearToken();
-        router.replace("/");
+        router.replace("/entrar");
         return;
       }
       setAnalysis(null);

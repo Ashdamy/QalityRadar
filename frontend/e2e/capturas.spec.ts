@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
+import { crearCuentaYEntrar } from "./cuenta";
 
 /**
  * Genera las capturas del README recorriendo la aplicación de verdad.
@@ -44,17 +45,12 @@ test("captura el recorrido completo", async ({ page }) => {
   test.setTimeout(240_000);
 
   // 1. Entrada
-  await page.goto("/");
+  await page.goto("/entrar");
   await expect(page.getByRole("button", { name: "Crear cuenta" }).first()).toBeVisible();
   await guardar(page, "01-inicio-sesion");
 
   // 2. Elección de modo
-  await page.getByRole("button", { name: "Crear cuenta" }).first().click();
-  await page.locator("#email").fill(emailNuevo());
-  await page.locator("#password").fill(CONTRASENA);
-  await page.locator("#confirmPassword").fill(CONTRASENA);
-  await page.getByRole("button", { name: "Crear cuenta" }).last().click();
-  await expect(page).toHaveURL(/\/analyze/, { timeout: 60_000 });
+  await crearCuentaYEntrar(page, emailNuevo(), CONTRASENA);
   await expect(page.getByRole("heading", { name: "¿Qué quieres analizar?" })).toBeVisible();
   await guardar(page, "02-modos-de-analisis");
 

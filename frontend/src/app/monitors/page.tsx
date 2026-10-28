@@ -229,7 +229,7 @@ export default function MonitorsPage() {
     (err: unknown) => {
       if (err instanceof ApiError && err.status === 401) {
         clearToken();
-        router.replace("/");
+        router.replace("/entrar");
         return;
       }
       setError("No se pudo cargar el seguimiento.");
@@ -251,7 +251,7 @@ export default function MonitorsPage() {
 
   useEffect(() => {
     if (!haySesion()) {
-      router.replace("/");
+      router.replace("/entrar");
       return;
     }
 

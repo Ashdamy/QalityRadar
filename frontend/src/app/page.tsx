@@ -1,275 +1,466 @@
-"use client";
-
-import { useEffect, useState, type FormEvent } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ApiError, getGithubAuthorizationUrl, login, register } from "@/lib/api";
-import { haySesion } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
-import { TextField } from "@/components/TextField";
-import { PrimaryButton } from "@/components/PrimaryButton";
-import { GithubButton } from "@/components/GithubButton";
+import { ModosDeAnalisis } from "@/components/ModosDeAnalisis";
+import { SITE_DESCRIPTION, SITE_URL } from "@/lib/sitio";
 
-const DIMENSIONS = [
-  "Adecuación",
-  "Fiabilidad",
-  "Seguridad",
-  "Mantenibilidad",
-  "Portabilidad",
-  "Actividad",
+// Pagina de servidor a proposito: llega a Google ya renderizada. Lo unico
+// interactivo, el selector de modos, es un componente de cliente aparte.
+export const metadata: Metadata = {
+  title: { absolute: "QalitiRadar — Mide la calidad de tu software con ISO/IEC 25010" },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: "/" },
+};
+
+const DATOS_ESTRUCTURADOS = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "QalitiRadar",
+  url: SITE_URL,
+  applicationCategory: "DeveloperApplication",
+  operatingSystem: "Web",
+  inLanguage: "es",
+  description: SITE_DESCRIPTION,
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+};
+
+const PASOS = [
+  {
+    titulo: "Conecta",
+    texto:
+      "Entra con GitHub y elige un repositorio, o pega la URL de tu aplicación. Solo pedimos permiso de lectura.",
+  },
+  {
+    titulo: "Analizamos en una caja cerrada",
+    texto:
+      "El código se lee en un contenedor aislado, sin red y sin permisos. Nunca se instala ni se ejecuta nada tuyo. Al terminar, se borra.",
+  },
+  {
+    titulo: "Recibe la nota y el plan",
+    texto:
+      "Una nota por dimensión, los hallazgos ordenados por gravedad y un plan de mejora con lo que más sube la nota primero.",
+  },
 ];
 
-type Mode = "login" | "register";
+const DIMENSIONES = [
+  {
+    nombre: "Seguridad",
+    texto:
+      "Secretos filtrados, patrones inseguros, dependencias con vulnerabilidades conocidas y cabeceras de seguridad.",
+  },
+  {
+    nombre: "Fiabilidad",
+    texto: "Pruebas, integración continua y manejo de errores: lo que evita que un cambio rompa lo que ya funcionaba.",
+  },
+  {
+    nombre: "Mantenibilidad",
+    texto: "Estructura, tamaño de archivos, deuda marcada en el código y facilidad para que otra persona lo entienda.",
+  },
+  {
+    nombre: "Rendimiento",
+    texto: "Lo que tarda tu aplicación en cargar y responder, medido sobre la versión que ven tus usuarios.",
+  },
+  {
+    nombre: "Accesibilidad",
+    texto: "Contraste, etiquetas y navegación con teclado: si todas las personas pueden usar lo que construiste.",
+  },
+  {
+    nombre: "Y seis más",
+    texto:
+      "Adecuación funcional, portabilidad, actividad del proyecto, usabilidad, compatibilidad y la seguridad de producción.",
+  },
+];
 
-function genericErrorMessage(err: unknown): string {
-  if (err instanceof ApiError) {
-    // FastAPI's validation errors (422) put a structured array in `detail`
-    // rather than a string, so the shared API client's parseErrorMessage
-    // falls back to a bare "Request failed with status 422". Give the one
-    // 422 case in this contract (password too long) a proper message
-    // instead of surfacing that fallback.
-    if (err.status === 422) {
-      return "La contraseña no puede superar los 72 caracteres.";
-    }
-    return err.message;
-  }
-  return "No se pudo contactar al servidor. Intenta de nuevo.";
+const CALIBRACION = [
+  { proyecto: "axios/axios", nota: 68 },
+  { proyecto: "pallets/flask", nota: 64 },
+  { proyecto: "octocat/Hello-World", nota: 7 },
+];
+
+const FUNCIONES = [
+  {
+    titulo: "Histórico y comparación",
+    texto: "Mira cómo evoluciona la nota y qué mejoró o empeoró entre dos análisis.",
+    icono: <path d="M3 21L10 13L15 17L25 6" />,
+  },
+  {
+    titulo: "Vigilancia continua",
+    texto: "Analiza solo cuando hay commits nuevos y te avisa si la calidad cae.",
+    icono: <path d="M14 4a7 7 0 0 0-7 7v5l-2 3h18l-2-3v-5a7 7 0 0 0-7-7zM11 22a3 3 0 0 0 6 0" />,
+  },
+  {
+    titulo: "Informe en PDF y enlace",
+    texto: "Descárgalo o compártelo con un enlace temporal. Ideal para clientes y auditorías.",
+    icono: <path d="M8 3h9l5 5v17H8zM17 3v5h5M11 15h8M11 19h8" />,
+  },
+  {
+    titulo: "Insignia para tu README",
+    texto: "Muestra la nota en tu repositorio. Se actualiza sola con cada análisis.",
+    icono: (
+      <>
+        <rect x="3" y="9" width="22" height="10" rx="3" />
+        <path d="M14 9v10" />
+      </>
+    ),
+  },
+];
+
+const GARANTIAS = [
+  ["Nunca ejecutamos tu código.", "Solo se lee, dentro de un contenedor sin red, sin permisos y con tiempo limitado."],
+  ["Permiso mínimo en GitHub.", "Solo lectura. Puedes desconectarlo cuando quieras."],
+  ["Nada se queda donde no debe.", "El clon se borra al terminar y el token de GitHub se guarda cifrado."],
+  ["Tu cuenta, bajo tu control.", "Bórrala y se va todo: análisis, informes y enlaces."],
+];
+
+const PREGUNTAS = [
+  {
+    pregunta: "¿Cuánto cuesta?",
+    respuesta:
+      "Es gratis. Para que el servicio siga siendo rápido para todos, cada cuenta puede lanzar 5 análisis por hora y 20 al día, y tener hasta 3 proyectos en seguimiento.",
+  },
+  {
+    pregunta: "¿Funciona con repositorios privados?",
+    respuesta:
+      "Por ahora, solo con repositorios públicos de GitHub; los privados están en camino. Mientras tanto, puedes analizar la versión desplegada de cualquier aplicación con el modo URL.",
+  },
+  {
+    pregunta: "¿En qué se diferencia de un linter?",
+    respuesta:
+      "Un linter revisa líneas de código. QalitiRadar mira el proyecto entero —pruebas, dependencias, documentación, actividad— y también la aplicación en producción, y lo resume en una nota comparable en el tiempo.",
+  },
+  {
+    pregunta: "¿Es una certificación ISO?",
+    respuesta:
+      "No. Es una aproximación al modelo ISO/IEC 25010 hecha con análisis automático. Sirve para saber dónde estás y qué mejorar; no sustituye una auditoría oficial.",
+  },
+  {
+    pregunta: "¿Qué pasa con mi código?",
+    respuesta:
+      "Se clona en un contenedor aislado, se lee y se borra al terminar. Nunca se instalan dependencias ni se ejecuta nada del repositorio.",
+  },
+];
+
+function Check() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 14 14" aria-hidden="true" className="mt-1 flex-none">
+      <path
+        d="M2 7.5L5.5 11L12 3"
+        className="stroke-good"
+        fill="none"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
-export default function Home() {
-  const router = useRouter();
-  const [mode, setMode] = useState<Mode>("login");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [aviso, setAviso] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const [githubPending, setGithubPending] = useState(false);
+function Etiqueta({ children }: { children: React.ReactNode }) {
+  return <p className="mb-3.5 font-mono text-[13px] tracking-[0.08em] text-accent">{children}</p>;
+}
 
-  useEffect(() => {
-    if (haySesion()) {
-      router.replace("/analyze");
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+const H2 = "text-[32px] font-bold leading-[1.12] tracking-[-0.02em] md:text-[42px]";
+const BOTON =
+  "inline-flex min-h-[48px] items-center gap-2.5 rounded-[10px] px-[22px] text-base focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
+const BOTON_PRIMARIO = `${BOTON} bg-accent font-semibold text-onAccent hover:bg-accentStrong`;
+const BOTON_SECUNDARIO = `${BOTON} border border-border font-medium text-text hover:border-muted`;
+const CUADRICULA =
+  "pointer-events-none absolute inset-0 [background-image:linear-gradient(var(--color-border)_1px,transparent_1px),linear-gradient(90deg,var(--color-border)_1px,transparent_1px)] [background-size:40px_40px]";
 
-  const isRegister = mode === "register";
-
-  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setError(null);
-    setAviso(null);
-
-    if (isRegister && password !== confirmPassword) {
-      setError("Las contraseñas no coinciden.");
-      return;
-    }
-
-    setPending(true);
-    try {
-      if (isRegister) {
-        // La cuenta no sirve hasta abrir el enlace del correo: iniciar sesion
-        // ahora devolveria un 403.
-        await register(email, password);
-        setAviso(`Te enviamos un enlace a ${email}. Ábrelo para activar la cuenta y luego inicia sesión.`);
-        setMode("login");
-        setPending(false);
-        return;
-      }
-      // La sesion la deja el servidor en cookies httpOnly; aqui no hay nada
-      // que guardar.
-      await login(email, password);
-      router.push("/analyze");
-    } catch (err) {
-      setError(genericErrorMessage(err));
-      setPending(false);
-    }
-  }
-
-  async function handleGithub() {
-    setError(null);
-    setGithubPending(true);
-    try {
-      const { authorization_url } = await getGithubAuthorizationUrl();
-      window.location.href = authorization_url;
-    } catch (err) {
-      setError(genericErrorMessage(err));
-      setGithubPending(false);
-    }
-  }
-
+export default function Landing() {
   return (
-    <main className="grid min-h-screen w-full grid-cols-1 bg-bg text-text md:grid-cols-[1.05fr_1fr]">
-      {/* LEFT: brand / radar panel */}
-      <div className="relative flex flex-col justify-between overflow-hidden border-border bg-panel p-[48px] md:border-r">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-25 [background-image:linear-gradient(var(--color-border)_1px,transparent_1px),linear-gradient(90deg,var(--color-border)_1px,transparent_1px)] [background-size:32px_32px]"
-          aria-hidden="true"
-        />
+    <div className="w-full bg-bg text-text">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(DATOS_ESTRUCTURADOS) }}
+      />
 
-        <div className="relative flex items-center gap-[10px]">
-          <RadarMark size={22} />
-          <span className="text-[15px] font-semibold tracking-[0.01em]">QalitiRadar</span>
-        </div>
-
-        <div className="relative flex flex-1 items-center justify-center py-16">
-          <svg width="320" height="320" viewBox="0 0 320 320" className="max-w-full overflow-visible">
-            <circle cx="160" cy="160" r="140" className="stroke-border" strokeWidth="1" fill="none" />
-            <circle cx="160" cy="160" r="104" className="stroke-border" strokeWidth="1" fill="none" />
-            <circle cx="160" cy="160" r="68" className="stroke-border" strokeWidth="1" fill="none" />
-            <circle cx="160" cy="160" r="32" className="stroke-border" strokeWidth="1" fill="none" />
-            <line x1="160" y1="20" x2="160" y2="300" className="stroke-border" strokeWidth="1" />
-            <line x1="20" y1="160" x2="300" y2="160" className="stroke-border" strokeWidth="1" />
-
-            <g className="animate-radar-sweep">
-              <path
-                d="M 160 160 L 160 20 A 140 140 0 0 1 253 57 Z"
-                className="fill-accent"
-                opacity="0.10"
-              />
-              <line x1="160" y1="160" x2="253" y2="57" className="stroke-accent" strokeWidth="1.4" opacity="0.8" />
-            </g>
-
-            <circle cx="205" cy="95" r="4" className="fill-accent" />
-            <circle cx="120" cy="205" r="3" className="fill-muted" />
-            <circle cx="230" cy="190" r="3" className="fill-muted" />
-            <circle cx="105" cy="120" r="3.5" className="fill-accent" opacity="0.7" />
-          </svg>
-        </div>
-
-        <div className="relative flex flex-col gap-[8px]">
-          <div className="font-mono text-[12.5px] tracking-[0.02em] text-muted">
-            ISO/IEC 25010 &middot; DIMENSIONES ANALIZADAS
+      <header className="sticky top-0 z-10 border-b border-border bg-bg/90 backdrop-blur">
+        <nav aria-label="Principal" className="mx-auto flex max-w-[1200px] items-center justify-between gap-6 px-6 py-3.5">
+          <Link href="/" className="flex items-center gap-2.5 text-text">
+            <RadarMark size={22} />
+            <span className="text-base font-semibold tracking-[0.01em]">QalitiRadar</span>
+          </Link>
+          <div className="hidden items-center gap-7 text-sm md:flex">
+            <a href="#modos" className="text-muted hover:text-text">Cómo funciona</a>
+            <a href="#dimensiones" className="text-muted hover:text-text">Qué mide</a>
+            <a href="#escala" className="text-muted hover:text-text">La escala</a>
+            <a href="#preguntas" className="text-muted hover:text-text">Preguntas</a>
           </div>
-          <div className="flex flex-wrap gap-x-[10px] gap-y-[6px] font-mono text-[12.5px] text-faint">
-            {DIMENSIONS.flatMap((dimension, i) => [
-              <span key={dimension}>{dimension}</span>,
-              ...(i < DIMENSIONS.length - 1 ? [<span key={`${dimension}-dot`}>&middot;</span>] : []),
-            ])}
-          </div>
-        </div>
-      </div>
-
-      {/* RIGHT: auth form */}
-      <div className="flex items-center justify-center p-[48px]">
-        <div className="w-full max-w-[360px]">
-          <div className="mb-[28px] flex gap-[24px] border-b border-border">
-            <button
-              type="button"
-              onClick={() => setMode("login")}
-              aria-pressed={!isRegister}
-              className={`-mb-px cursor-pointer border-b-2 pb-[12px] font-sans text-sm font-semibold ${
-                isRegister ? "border-transparent text-muted" : "border-accent text-text"
-              }`}
-            >
+          <div className="flex items-center gap-2 text-sm">
+            <Link href="/entrar" className="hidden px-3.5 py-2.5 text-text hover:text-accent sm:inline">
               Iniciar sesión
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("register")}
-              aria-pressed={isRegister}
-              className={`-mb-px cursor-pointer border-b-2 pb-[12px] font-sans text-sm font-semibold ${
-                isRegister ? "border-accent text-text" : "border-transparent text-muted"
-              }`}
+            </Link>
+            <Link
+              href="/entrar"
+              className="inline-flex min-h-[44px] items-center rounded-lg bg-accent px-4 font-semibold text-onAccent hover:bg-accentStrong"
             >
-              Crear cuenta
-            </button>
+              Analizar gratis
+            </Link>
           </div>
+        </nav>
+      </header>
 
-          <h1 className="mb-[4px] text-[19px] font-semibold tracking-[-0.01em]">
-            {isRegister ? "Crea tu cuenta" : "Bienvenido de vuelta"}
-          </h1>
-          <p className="mb-[24px] text-[13.5px] leading-[1.5] text-muted">
-            {isRegister
-              ? "Regístrate para empezar a analizar la calidad de tus proyectos."
-              : "Ingresa a tu cuenta para ver tus análisis."}
-          </p>
-
-          <form onSubmit={handleSubmit} className="flex flex-col gap-[14px]">
-            <TextField
-              id="email"
-              label="Correo electrónico"
-              type="email"
-              placeholder="tu@empresa.com"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <TextField
-              id="password"
-              label="Contraseña"
-              type="password"
-              placeholder="••••••••••••"
-              autoComplete={isRegister ? "new-password" : "current-password"}
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-
-            {isRegister && (
-              <TextField
-                id="confirmPassword"
-                label="Confirmar contraseña"
-                type="password"
-                placeholder="••••••••••••"
-                autoComplete="new-password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
-            )}
-
-            {!isRegister && (
-              <Link
-                href="/recuperar-contrasena"
-                className="-mt-[4px] self-end text-[12.5px] text-muted hover:text-text hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
-              >
-                ¿Olvidaste tu contraseña?
-              </Link>
-            )}
-
-            {aviso && (
-              <p role="status" className="text-[12.5px] leading-[1.5] text-good">
-                {aviso}
+      <main>
+        <section className="relative overflow-hidden border-b border-border px-6 py-[72px] md:py-28">
+          <div className={`${CUADRICULA} opacity-20`} aria-hidden="true" />
+          <div className="relative mx-auto flex max-w-[1200px] flex-col items-center gap-14 lg:flex-row">
+            <div className="min-w-0 flex-1">
+              <Etiqueta>ISO/IEC 25010 · CÓDIGO Y PRODUCCIÓN</Etiqueta>
+              <h1 className="mb-[22px] text-[40px] font-bold leading-[1.05] tracking-[-0.025em] md:text-[60px]">
+                Mide la calidad de tu software antes de que la midan tus usuarios.
+              </h1>
+              <p className="mb-[34px] max-w-[560px] text-[19px] leading-[1.6] text-muted">
+                Conecta un repositorio de GitHub o pega la URL de tu aplicación. En minutos tienes una nota de
+                0 a 100, los problemas que la bajan y qué arreglar primero. Sin instalar nada.
               </p>
-            )}
-
-            {error && (
-              <p role="alert" className="text-[12.5px] leading-[1.5] text-bad">
-                {error}
-              </p>
-            )}
-
-            <PrimaryButton type="submit" disabled={pending} className="mt-[6px]">
-              {pending
-                ? isRegister
-                  ? "Creando cuenta…"
-                  : "Iniciando sesión…"
-                : isRegister
-                  ? "Crear cuenta"
-                  : "Iniciar sesión"}
-            </PrimaryButton>
-
-            <div className="my-[6px] flex items-center gap-[12px]">
-              <div className="h-px flex-1 bg-border" />
-              <span className="text-xs text-faint">o</span>
-              <div className="h-px flex-1 bg-border" />
+              <div className="mb-[26px] flex flex-wrap gap-3">
+                <Link href="/entrar" className={BOTON_PRIMARIO}>
+                  Analizar mi proyecto gratis <span aria-hidden="true">→</span>
+                </Link>
+                <a href="#modos" className={BOTON_SECUNDARIO}>
+                  Ver qué analiza
+                </a>
+              </div>
+              <ul className="flex flex-wrap gap-x-5 gap-y-2 text-[13.5px] text-muted">
+                <li className="flex items-center gap-2"><Check />Gratis</li>
+                <li className="flex items-center gap-2"><Check />Tu código nunca se ejecuta</li>
+                <li className="flex items-center gap-2"><Check />Solo lectura</li>
+              </ul>
             </div>
 
-            <GithubButton
-              label="Continuar con GitHub"
-              onClick={handleGithub}
-              disabled={githubPending}
-            />
-          </form>
+            <div className="flex min-w-0 flex-1 justify-center">
+              <svg
+                viewBox="-70 -24 460 368"
+                className="h-auto w-full max-w-[520px]"
+                role="img"
+                aria-label="Radar de calidad barriendo seis dimensiones"
+              >
+                <g fill="none" className="stroke-border" strokeWidth="1">
+                  <polygon points="160,20 281.2,90 281.2,230 160,300 38.8,230 38.8,90" />
+                  <polygon points="160,55 250.9,107.5 250.9,212.5 160,265 69.1,212.5 69.1,107.5" />
+                  <polygon points="160,90 220.6,125 220.6,195 160,230 99.4,195 99.4,125" />
+                  <polygon points="160,125 190.3,142.5 190.3,177.5 160,195 129.7,177.5 129.7,142.5" />
+                  <line x1="160" y1="20" x2="160" y2="300" />
+                  <line x1="38.8" y1="90" x2="281.2" y2="230" />
+                  <line x1="38.8" y1="230" x2="281.2" y2="90" />
+                </g>
+                <g className="animate-radar-sweep">
+                  <path d="M160 160 L160 20 A140 140 0 0 1 281.2 90 Z" className="fill-accent" opacity="0.1" />
+                  <line x1="160" y1="160" x2="281.2" y2="90" className="stroke-accent" strokeWidth="1.2" opacity="0.85" />
+                </g>
+                <polygon
+                  points="160,65.8 238.9,114.2 243.4,208.4 160,244 90,200.1 84.3,115.5"
+                  className="fill-accent stroke-accent"
+                  fillOpacity="0.16"
+                  strokeWidth="1.4"
+                />
+                <g className="fill-muted font-mono" fontSize="9">
+                  <text x="160" y="8" textAnchor="middle">ADECUACIÓN</text>
+                  <text x="290" y="86">FIABILIDAD</text>
+                  <text x="290" y="240">SEGURIDAD</text>
+                  <text x="160" y="320" textAnchor="middle">MANTENIBILIDAD</text>
+                  <text x="30" y="240" textAnchor="end">PORTABILIDAD</text>
+                  <text x="30" y="86" textAnchor="end">ACTIVIDAD</text>
+                </g>
+              </svg>
+            </div>
+          </div>
+        </section>
 
-          <p className="mt-[22px] text-center text-[12.5px] text-faint">
-            Solo se solicita acceso de lectura a repositorios públicos.
+        <section aria-label="Herramientas en las que se apoya" className="border-b border-border bg-panel px-6 py-7">
+          <p className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-center gap-x-10 gap-y-3.5 font-mono text-sm text-muted">
+            <span className="text-text">Analiza con herramientas abiertas y probadas:</span>
+            <span>Gitleaks</span>
+            <span>Semgrep</span>
+            <span>OSV</span>
+            <span>Lighthouse</span>
+            <span>GitHub API</span>
           </p>
+        </section>
+
+        <section id="modos" className="scroll-mt-20 px-6 py-[72px] md:py-28">
+          <div className="mx-auto max-w-[1200px]">
+            <Etiqueta>TRES FORMAS DE MIRAR</Etiqueta>
+            <h2 className={`${H2} mb-4 max-w-[760px]`}>El código cuenta una historia. Producción, otra.</h2>
+            <p className="mb-10 max-w-[700px] text-lg text-muted">
+              Analiza el repositorio, la aplicación desplegada o las dos a la vez. Cuando no coinciden, QalitiRadar te
+              explica por qué.
+            </p>
+            <ModosDeAnalisis />
+          </div>
+        </section>
+
+        <section className="border-y border-border bg-panel px-6 py-[72px] md:py-28">
+          <div className="mx-auto max-w-[1200px]">
+            <Etiqueta>EN TRES PASOS</Etiqueta>
+            <h2 className={`${H2} mb-12`}>De un enlace a un plan de mejora.</h2>
+            <ol className="grid grid-cols-1 gap-6 md:grid-cols-3">
+              {PASOS.map((paso, i) => (
+                <li key={paso.titulo} className={`border-t-2 pt-6 ${i === 0 ? "border-accent" : "border-border"}`}>
+                  <p className={`mb-3 font-mono text-sm ${i === 0 ? "text-accent" : "text-muted"}`}>0{i + 1}</p>
+                  <h3 className="mb-2.5 text-[21px] font-semibold">{paso.titulo}</h3>
+                  <p className="text-muted">{paso.texto}</p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </section>
+
+        <section id="dimensiones" className="scroll-mt-20 px-6 py-[72px] md:py-28">
+          <div className="mx-auto max-w-[1200px]">
+            <Etiqueta>QUÉ MIDE</Etiqueta>
+            <h2 className={`${H2} mb-4 max-w-[760px]`}>Once dimensiones, un solo informe.</h2>
+            <p className="mb-12 max-w-[700px] text-lg text-muted">
+              Basado en ISO/IEC 25010, el estándar internacional de calidad del producto software.
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {DIMENSIONES.map((d) => (
+                <div key={d.nombre} className="rounded-xl border border-border bg-surface p-6">
+                  <h3 className="mb-2 text-lg font-semibold">{d.nombre}</h3>
+                  <p className="text-[15px] text-muted">{d.texto}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="escala" className="scroll-mt-20 border-y border-border bg-panel px-6 py-[72px] md:py-28">
+          <div className="mx-auto grid max-w-[1200px] grid-cols-1 items-center gap-16 lg:grid-cols-2">
+            <div>
+              <Etiqueta>UNA ESCALA EXIGENTE</Etiqueta>
+              <h2 className={`${H2} mb-5`}>Los puntos se ganan, no se regalan.</h2>
+              <p className="mb-4 text-[17px] text-muted">
+                Cada dimensión parte de cero y solo sube con evidencia real. Un repositorio vacío no saca buena nota por
+                no tener problemas: saca mala nota porque no demuestra nada.
+              </p>
+              <p className="text-[17px] text-muted">
+                Y un problema grave pone techo: un hallazgo crítico limita la nota a 40, por bien que esté todo lo
+                demás. Un secreto filtrado no se compensa con buena documentación.
+              </p>
+            </div>
+            <figure className="rounded-2xl border border-border bg-surface p-8">
+              <figcaption className="mb-5 text-sm text-muted">Contrastada con proyectos de calidad conocida</figcaption>
+              <div className="flex flex-col gap-5">
+                {CALIBRACION.map((c) => (
+                  <div key={c.proyecto}>
+                    <div className="mb-2 flex justify-between font-mono text-sm">
+                      <span>{c.proyecto}</span>
+                      <span className="font-medium">{c.nota}</span>
+                    </div>
+                    <div className="h-2 rounded bg-surface2">
+                      <div
+                        className={`h-full rounded ${c.nota < 20 ? "bg-muted" : "bg-accent"}`}
+                        style={{ width: `${c.nota}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-6 text-[13px] text-muted">
+                Aproximación al modelo ISO/IEC 25010. No es una certificación oficial.
+              </p>
+            </figure>
+          </div>
+        </section>
+
+        <section className="px-6 py-[72px] md:py-28">
+          <div className="mx-auto max-w-[1200px]">
+            <Etiqueta>MÁS ALLÁ DE UNA FOTO</Etiqueta>
+            <h2 className={`${H2} mb-12 max-w-[760px]`}>La calidad cambia con cada commit. QalitiRadar te lo cuenta.</h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {FUNCIONES.map((f) => (
+                <div key={f.titulo} className="rounded-xl border border-border p-6">
+                  <svg
+                    width="28"
+                    height="28"
+                    viewBox="0 0 28 28"
+                    aria-hidden="true"
+                    fill="none"
+                    className="stroke-accent"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    {f.icono}
+                  </svg>
+                  <h3 className="mb-2 mt-4 text-[17px] font-semibold">{f.titulo}</h3>
+                  <p className="text-[14.5px] text-muted">{f.texto}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="border-y border-border bg-panel px-6 py-[72px] md:py-24">
+          <div className="mx-auto grid max-w-[1200px] grid-cols-1 gap-12 lg:grid-cols-2 lg:gap-16">
+            <div>
+              <Etiqueta>TU CÓDIGO, A SALVO</Etiqueta>
+              <h2 className="text-[30px] font-bold leading-[1.15] tracking-[-0.02em] md:text-[38px]">
+                Le pedimos a tu código lo mismo que nos exigimos a nosotros.
+              </h2>
+            </div>
+            <ul className="flex flex-col gap-[18px] text-base text-muted">
+              {GARANTIAS.map(([titulo, texto]) => (
+                <li key={titulo} className="flex gap-3">
+                  <Check />
+                  <span>
+                    <strong className="font-semibold text-text">{titulo}</strong> {texto}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section id="preguntas" className="scroll-mt-20 px-6 py-[72px] md:py-28">
+          <div className="mx-auto max-w-[820px]">
+            <h2 className={`${H2} mb-8 text-center`}>Preguntas frecuentes</h2>
+            <div className="border-t border-border">
+              {PREGUNTAS.map((p) => (
+                <details key={p.pregunta} className="group border-b border-border px-1 py-5">
+                  <summary className="flex min-h-[44px] cursor-pointer list-none items-center justify-between gap-4 text-[17.5px] font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden">
+                    {p.pregunta}
+                    <span aria-hidden="true" className="text-2xl text-muted transition-transform duration-150 group-open:rotate-45">
+                      +
+                    </span>
+                  </summary>
+                  <p className="mt-3 text-muted">{p.respuesta}</p>
+                </details>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="relative overflow-hidden border-t border-border px-6 py-[72px] md:py-28">
+          <div className={`${CUADRICULA} opacity-[0.18]`} aria-hidden="true" />
+          <div className="relative mx-auto max-w-[760px] text-center">
+            <h2 className="mb-[18px] text-[36px] font-bold leading-[1.08] tracking-[-0.025em] md:text-5xl">
+              ¿Cuánto saca tu proyecto?
+            </h2>
+            <p className="mb-[34px] text-[19px] text-muted">Averígualo en unos minutos. Gratis y sin instalar nada.</p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <Link href="/entrar" className={BOTON_PRIMARIO}>
+                Empezar con GitHub
+              </Link>
+              <Link href="/entrar" className={BOTON_SECUNDARIO}>
+                Crear cuenta con correo
+              </Link>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="border-t border-border bg-panel px-6 py-10">
+        <div className="mx-auto flex max-w-[1200px] flex-wrap items-center justify-between gap-5 text-sm text-muted">
+          <span>© 2026 QalitiRadar</span>
+          <nav aria-label="Pie de página" className="flex flex-wrap gap-6">
+            <Link href="/privacidad" className="hover:text-text">Privacidad</Link>
+            <Link href="/terminos" className="hover:text-text">Términos</Link>
+            <a href="https://github.com/Ashdamy/QalitiRadar" className="hover:text-text">GitHub</a>
+          </nav>
         </div>
-      </div>
-    </main>
+      </footer>
+    </div>
   );
 }

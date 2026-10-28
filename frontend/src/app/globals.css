@@ -64,6 +64,12 @@
   animation: radar-spin 1.6s linear infinite;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .animate-radar-sweep {
+    animation: none;
+  }
+}
+
 body {
   background: var(--bg);
   color: var(--text);

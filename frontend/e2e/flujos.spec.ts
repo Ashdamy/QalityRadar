@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { crearCuentaYEntrar as crearCuentaVerificadaYEntrar } from "./cuenta";
 
 /**
  * Recorridos completos contra la aplicación real: navegador → frontend →
@@ -31,15 +32,7 @@ function emailNuevo(): string {
 const URL_OBJETIVO = "https://example.com";
 
 async function crearCuentaYEntrar(page: Page) {
-  await page.goto("/");
-  await page.getByRole("button", { name: "Crear cuenta" }).first().click();
-  await page.locator("#email").fill(emailNuevo());
-  await page.locator("#password").fill(CONTRASENA);
-  await page.locator("#confirmPassword").fill(CONTRASENA);
-  await page.getByRole("button", { name: "Crear cuenta" }).last().click();
-  // Margen amplio: en desarrollo, Next compila cada ruta la primera vez que
-  // se visita, y esa compilacion puede tardar mas que el registro entero.
-  await expect(page).toHaveURL(/\/analyze/, { timeout: 60_000 });
+  await crearCuentaVerificadaYEntrar(page, emailNuevo(), CONTRASENA);
 }
 
 // Se visitan todas las rutas una vez antes de empezar. En desarrollo, la
@@ -48,7 +41,7 @@ async function crearCuentaYEntrar(page: Page) {
 test.beforeAll(async ({ browser }) => {
   const contexto = await browser.newContext();
   const pagina = await contexto.newPage();
-  for (const ruta of ["/", "/analyze", "/analyze/url", "/analyze/combined", "/repositories"]) {
+  for (const ruta of ["/entrar", "/verificar-email", "/analyze", "/analyze/url", "/analyze/combined", "/repositories"]) {
     await pagina.goto(ruta).catch(() => {});
   }
   await contexto.close();
@@ -129,7 +122,7 @@ test.describe("Puertas de acceso", () => {
   test("las pantallas con sesión redirigen si no la hay", async ({ page }) => {
     for (const ruta of ["/analyze", "/analyze/url", "/analyze/combined", "/repositories"]) {
       await page.goto(ruta);
-      await expect(page).toHaveURL("http://localhost:3000/", { timeout: 15_000 });
+      await expect(page).toHaveURL("http://localhost:3000/entrar", { timeout: 15_000 });
     }
   });
 

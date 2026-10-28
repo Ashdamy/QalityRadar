@@ -83,7 +83,7 @@ export default function RepositoriesPage() {
 
   useEffect(() => {
     if (!haySesion()) {
-      router.replace("/");
+      router.replace("/entrar");
       return;
     }
 
@@ -97,7 +97,7 @@ export default function RepositoriesPage() {
         if (err instanceof ApiError) {
           if (err.status === 401) {
             clearToken();
-            router.replace("/");
+            router.replace("/entrar");
             return;
           }
           if (err.status === 400) {

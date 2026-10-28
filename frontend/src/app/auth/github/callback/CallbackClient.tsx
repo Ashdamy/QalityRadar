@@ -107,7 +107,7 @@ export function CallbackClient() {
               <p className="text-[13px] leading-[1.5] text-muted">{errorMessage}</p>
             </div>
             <Link
-              href="/"
+              href="/entrar"
               className="text-[13px] text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
             >
               ← Volver a intentarlo
