@@ -210,6 +210,7 @@ def copy_results_into(
                 score=dimension.score,
                 weight=weights.get(dimension.name, dimension.weight),
                 raw_metrics=dimension.raw_metrics,
+                subcharacteristics=dimension.subcharacteristics,
             )
         )
 

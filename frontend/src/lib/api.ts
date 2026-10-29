@@ -202,10 +202,22 @@ export interface AnalysisFinding {
   recommendation: string | null;
 }
 
+export interface Subcaracteristica {
+  name: string;
+  // Nulos cuando no se mide: "sin medir", nunca 0.
+  earned: number | null;
+  max: number | null;
+  measured: boolean;
+  // false en los grupos que suman puntos pero no son de la norma.
+  iso: boolean;
+}
+
 export interface AnalysisDimension {
   name: string;
   score: number;
   weight: number;
+  // Nulo en los análisis anteriores al desglose.
+  subcharacteristics?: Subcaracteristica[] | null;
 }
 
 export interface Correspondence {

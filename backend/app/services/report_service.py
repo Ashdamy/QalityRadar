@@ -44,6 +44,29 @@ def filas_de_dimensiones(dimensions) -> list[list[str]]:
         filas.append([dimension_label(clave), "sin medir", "—"])
     return filas
 
+
+def filas_de_subcaracteristicas(dimensions) -> list[list[str]]:
+    """Desglose de cada dimension: una fila de titulo y una por subcaracteristica.
+
+    Las que suman puntos sin ser de la norma llevan una nota en la tercera
+    columna; las no medidas dicen "sin medir", no 0. Los analisis anteriores
+    al desglose no lo tienen y no aportan filas.
+    """
+    filas: list[list[str]] = []
+    for d in sorted(dimensions, key=lambda x: -float(x.score)):
+        subs = getattr(d, "subcharacteristics", None)
+        if not subs:
+            continue
+        filas.append([dimension_label(d.name), "", ""])
+        for s in subs:
+            if not s["measured"]:
+                filas.append([s["name"], "sin medir", ""])
+            else:
+                filas.append(
+                    [s["name"], f"{s['earned']:g}/{s['max']:g}", "" if s["iso"] else "no es ISO"]
+                )
+    return filas
+
 SEVERITY_LABELS = {
     "critical": "Crítico",
     "high": "Alto",
@@ -181,7 +204,7 @@ def build_analysis_report(
         story.append(Paragraph(_escape(analysis.summary_text), estilo_cuerpo))
 
     # -- Dimensiones ---------------------------------------------------------
-    story.append(Paragraph("Dimensiones ISO/IEC 25010", estilo_h2))
+    story.append(Paragraph("Características ISO/IEC 25010:2023", estilo_h2))
 
     filas = filas_de_dimensiones(dimensions)
     estilos_fila = [
@@ -210,6 +233,34 @@ def build_analysis_report(
         )
     )
     story.append(tabla)
+
+    # -- Desglose por subcaracteristica -------------------------------------
+    desglose = filas_de_subcaracteristicas(dimensions)
+    if desglose:
+        story.append(Paragraph("Desglose por subcaracterística", estilo_h2))
+        titulos = [i for i, fila in enumerate(desglose) if fila[1] == ""]
+        tabla_desglose = Table(desglose, colWidths=[95 * mm, 35 * mm, 30 * mm])
+        tabla_desglose.setStyle(
+            TableStyle(
+                [
+                    ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+                    ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+                    ("TEXTCOLOR", (2, 0), (2, -1), FAINT),
+                    ("LEFTPADDING", (0, 0), (0, -1), 12),
+                    ("TOPPADDING", (0, 0), (-1, -1), 2),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                    *[("FONTNAME", (0, i), (0, i), "Helvetica-Bold") for i in titulos],
+                    *[("LEFTPADDING", (0, i), (0, i), 0) for i in titulos],
+                    *[("TOPPADDING", (0, i), (-1, i), 7) for i in titulos],
+                    *[
+                        ("TEXTCOLOR", (1, i), (1, i), FAINT)
+                        for i, fila in enumerate(desglose)
+                        if fila[1] == "sin medir"
+                    ],
+                ]
+            )
+        )
+        story.append(tabla_desglose)
 
     # -- Hallazgos -----------------------------------------------------------
     story.append(Paragraph(f"Hallazgos ({len(findings)})", estilo_h2))
@@ -256,7 +307,7 @@ def build_analysis_report(
     story.append(
         Paragraph(
             f"Generado por QalitiRadar el {generado}. Esta puntuación es una "
-            f"<b>aproximación</b> basada en el modelo de calidad ISO/IEC 25010 y cubre "
+            f"<b>aproximación</b> basada en el modelo de calidad ISO/IEC 25010:2023 y cubre "
             f"{len(dimensions)} de sus dimensiones. <b>No constituye una certificación "
             f"oficial</b> ni sustituye una evaluación formal. Los resultados pueden "
             f"contener falsos positivos y falsos negativos.",

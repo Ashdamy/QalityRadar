@@ -50,99 +50,129 @@ Es la característica nueva de 2023: que el sistema no ponga en peligro a person
 
 ---
 
+## Desglose por subcaracterística
+
+Cada dimensión se guarda con su desglose: cuántos puntos sacó en cada subcaracterística y de cuántos posibles. La suma del desglose es exactamente la nota de la dimensión. Se ve en el panel (pulsando cada dimensión), en el informe compartido y en el PDF.
+
+Tres tipos de fila:
+
+- **Subcaracterística medida**: puntos ganados / máximo.
+- **Grupo que no es de la norma** (marcado "no es ISO"): suma puntos porque mide algo útil —la gobernanza del proyecto, el CI/CD—, pero ISO/IEC 25010 no lo recoge y no se le hace pasar por lo que no es.
+- **Subcaracterística sin medir**: la norma la define y aquí no se comprueba. Se lista para que se vea el hueco, **sin puntos**: un 0 diría "se miró y está mal", y la verdad es "no se miró".
+
+**Dónde se guarda:** en una columna JSONB propia, `dimensions.subcharacteristics` (migración `0022`), y no dentro de `raw_metrics`. `raw_metrics` es lo que midieron los analizadores, la *entrada* de la puntuación, y además se copia a `analyses.raw_data`, que lee la comprobación de correspondencia del modo combinado. El desglose es el *resultado*; mezclarlos haría que una clave calculada pudiera tomarse por una medida. Los análisis anteriores a la migración no tienen desglose y no se recalcula hacia atrás: sus métricas se puntuaron con rúbricas que pudieron cambiar, y un desglose que no cuadrase con la nota guardada sería peor que ninguno.
+
+**El desglose no cambió ninguna nota.** Se comprobó puntuando 11.000 combinaciones aleatorias de métricas antes y después del cambio (cero diferencias) y se fija con los análisis reales de calibración en [`tests/test_subcaracteristicas.py`](../backend/tests/test_subcaracteristicas.py).
+
+---
+
 ## Adecuación funcional (peso 15%)
 
 *¿El producto hace lo que necesita, y se puede saber qué hace?*
 
-| Sub-característica ISO | Qué observamos | Puntos |
+| Subcaracterística (2023) | Qué observamos | Puntos |
 |---|---|---|
-| **Pertinencia funcional** | Existe README | 8 |
+| **Pertinencia funcional** (60) | Existe README | 8 |
 | | Extensión del README (por tramos) | hasta 14 |
 | | Incluye instrucciones de instalación | 12 |
 | | Incluye sección de uso | 10 |
 | | Incluye ejemplos de código | 8 |
 | | Hay un directorio de ejemplos | 8 |
-| **Gobernanza del proyecto** | LICENSE | 10 |
+| **Completitud funcional** (18) | Sin funciones declaradas y no implementadas | 10 |
+| | Pocas marcas TODO/FIXME por archivo | hasta 8 |
+| **Gobernanza del proyecto** (22) · *no es ISO* | LICENSE | 10 |
 | | CONTRIBUTING | 4 |
 | | CHANGELOG | 3 |
 | | Documentación de arquitectura | 3 |
 | | Documentación de API (OpenAPI/Swagger) | 2 |
-| **Completitud funcional** | Sin funciones declaradas y no implementadas | 10 |
-| | Pocas marcas TODO/FIXME por archivo | hasta 8 |
+| **Corrección funcional** | — | *sin medir* |
 
-*Limitación conocida:* no podemos verificar la **corrección funcional** (que el software haga lo correcto) sin ejecutarlo. Los tests son una prueba indirecta y se puntúan bajo fiabilidad.
+La completitud solo puntúa si de verdad se escaneó código. La **corrección funcional** (que el software haga lo correcto) no se puede verificar sin ejecutarlo; los tests son una prueba indirecta y se puntúan en fiabilidad.
 
 ## Fiabilidad (peso 20%)
 
 *¿Se comporta como debe, durante el tiempo que debe, y se recupera de los fallos?*
 
-| Sub-característica ISO | Qué observamos | Puntos |
+| Subcaracterística (2023) | Qué observamos | Puntos |
 |---|---|---|
-| **Madurez** | Existen tests | 12 |
+| **Ausencia de fallos** (55) · *la "madurez" de 2011* | Existen tests | 12 |
 | | Proporción de tests frente a código (por tramos) | hasta 21 |
 | | Hay tests de integración | 12 |
 | | Hay tests end-to-end | 10 |
-| **Tolerancia a fallos** | Proporción de archivos con manejo de errores | hasta 14 |
+| **Tolerancia a fallos** (30) | Proporción de archivos con manejo de errores | hasta 14 |
 | | Ningún bloque descarta errores en silencio | 8 |
 | | Ninguna captura de excepción sin tipo | 4 |
 | | Se usan timeouts | 2 |
 | | Se usan reintentos | 2 |
-| **Recuperabilidad** | Proporción de archivos con logging | hasta 10 |
+| **Recuperabilidad** (15) | Proporción de archivos con logging | hasta 10 |
 | | Hay migraciones de base de datos (cambios reversibles) | 5 |
+| **Disponibilidad** | — | *sin medir* |
 
-*Limitación conocida:* la **disponibilidad** solo se puede medir sobre un sistema en ejecución.
+La **disponibilidad** solo se puede medir sobre un sistema en ejecución.
 
 ## Mantenibilidad (peso 20%)
 
 *¿Se puede entender, modificar y probar sin romperlo?*
 
-| Sub-característica ISO | Qué observamos | Puntos |
+| Subcaracterística (2023) | Qué observamos | Puntos |
 |---|---|---|
-| **Modularidad** | Media de líneas por archivo (por tramos) | hasta 12 |
+| **Modularidad** (38) | Media de líneas por archivo (por tramos) | hasta 12 |
 | | Tamaño del archivo más grande | hasta 10 |
 | | Media de líneas por función | hasta 8 |
 | | Estructura real de carpetas | 5 |
 | | Forma del proyecto identificable | 3 |
-| **Analizabilidad** | Proporción de comentarios | hasta 11 |
+| **Analizabilidad** (30) | Proporción de comentarios | hasta 11 |
 | | Proporción de funciones documentadas | hasta 9 |
 | | Profundidad máxima de anidamiento | hasta 10 |
-| **Modificabilidad** | Configuración de linter o formateador | 10 |
+| **Modificabilidad** (32) | Configuración de linter o formateador | 10 |
 | | `.gitignore` | 5 |
 | | Manifiesto de dependencias | 5 |
 | | Proporción de anotaciones de tipo | hasta 8 |
 | | Sin archivos duplicados | 4 |
+| **Reusabilidad** | — | *sin medir* |
+| **Capacidad de prueba** | — | *sin medir* |
 
-*Limitación conocida:* la **reusabilidad** y la **testabilidad** se aproximan indirectamente; medir acoplamiento real requeriría análisis de grafo de dependencias, previsto para más adelante.
+Medir la reusabilidad exigiría un grafo de dependencias entre módulos; la capacidad de prueba, analizar el acoplamiento del código con lo que lo rodea.
 
 ## Seguridad (peso 20%)
 
 *¿Protege la información y resiste el uso indebido?*
 
-| Sub-característica ISO | Qué observamos | Puntos |
+| Subcaracterística (2023) | Qué observamos | Puntos |
 |---|---|---|
-| **Confidencialidad** | Sin archivos de credenciales versionados | 25 |
-| | Sin credenciales escritas en el código | 20 |
-| | `.gitignore` protege los `.env` | 10 |
-| **Integridad** | Sin ejecución de código dinámico (`eval`, `exec`) | 18 |
-| | Sin SQL construido por concatenación | 17 |
-| | Dependencias fijadas con lockfile | 10 |
+| **Confidencialidad** (50) | Sin archivos de credenciales versionados | 14 |
+| | Sin credenciales escritas en el código | 10 |
+| | `.gitignore` protege los `.env` | 6 |
+| | Gitleaks no encuentra secretos (solo si llegó a ejecutarse) | 20 |
+| **Integridad** (50) | Sin ejecución de código dinámico (`eval`, `exec`) | 12 |
+| | Sin SQL construido por concatenación | 12 |
+| | Dependencias fijadas con lockfile | 8 |
+| | Ninguna dependencia con vulnerabilidad conocida en OSV (solo si se consultó) | 18 |
+| **No repudio**, **Responsabilidad**, **Autenticidad** | — | *sin medir* |
+| **Resistencia** (nueva en 2023) | — | *sin medir* en el repositorio |
 
-*Cobertura parcial declarada:* Gitleaks y Semgrep, que analizan el historial completo y aplican cientos de reglas, llegan en la Semana 2B. Lo actual detecta lo evidente y es deliberadamente conservador para no llenar el informe de falsos positivos. Las sub-características de **no repudio**, **responsabilidad** y **autenticidad** no se cubren todavía.
+Lo que un escáner no llega a ejecutar no acredita nada: si Gitleaks falla o la consulta a OSV no responde, esos puntos no se dan. La **resistencia** sí se mide en el modo URL, sobre la aplicación desplegada.
 
 ## Flexibilidad (antes portabilidad, peso 10%)
 
-*¿Se puede llevar a otro entorno?*
+*¿Se puede llevar a otro entorno y crecer?*
 
-| Sub-característica ISO | Qué observamos | Puntos |
+| Subcaracterística (2023) | Qué observamos | Puntos |
 |---|---|---|
-| **Instalabilidad** | Definición de contenedor (Dockerfile) | 25 |
+| **Instalabilidad** (50) | Definición de contenedor (Dockerfile) | 25 |
 | | Lockfile de dependencias | 25 |
-| **Adaptabilidad** | Configuración leída del entorno | 20 |
-| | Hay un `.env.example` | 12 |
-| | Sin rutas absolutas de una máquina concreta | 10 |
-| | Infraestructura como código | 8 |
+| **Adaptabilidad** (30) | Configuración leída del entorno | 12 |
+| | Hay un `.env.example` | 8 |
+| | Sin rutas absolutas de una máquina concreta | 6 |
+| | Infraestructura como código | 4 |
+| **Automatización (CI/CD)** (20) · *no es ISO* | Hay integración continua | 8 |
+| | El CI ejecuta las pruebas | 7 |
+| | El CI ejecuta el linter | 3 |
+| | Hay una etapa de despliegue | 2 |
+| **Escalabilidad** (nueva en 2023) | — | *sin medir* |
+| **Reemplazabilidad** | — | *sin medir* |
 
-*Limitación conocida:* la **reemplazabilidad** requeriría analizar el acoplamiento a proveedores concretos, aún no implementado.
+La **escalabilidad** solo se puede observar con el sistema bajo carga; la **reemplazabilidad**, analizando el acoplamiento a proveedores concretos.
 
 ---
 
@@ -187,53 +217,60 @@ y las cabeceras HTTP, sin ejecutar un navegador.
 
 ## Eficiencia de desempeño — 25%
 
-| Sub-característica ISO | Qué observamos |
-|---|---|
-| **Comportamiento temporal** | Tiempo de respuesta del servidor, por tramos |
-| **Uso de recursos** | Compresión, `Cache-Control`, `ETag`, redirecciones, peso del HTML |
-| | Scripts que bloquean el dibujado (sin `defer`/`async` en la cabecera) |
-| | Hojas de estilo bloqueantes, dominios de terceros |
-| | Imágenes sin carga diferida y sin dimensiones declaradas |
+| Subcaracterística (2023) | Qué observamos | Puntos |
+|---|---|---|
+| **Comportamiento temporal** | Tiempo de respuesta del servidor, por tramos | 34 |
+| **Utilización de recursos** | Compresión, `Cache-Control`, `ETag`, redirecciones | 28 |
+| | Scripts y hojas de estilo que bloquean el dibujado, dominios de terceros, peso del HTML | 31 |
+| | Imágenes sin carga diferida y sin dimensiones declaradas | 7 |
+| **Capacidad** | — | *sin medir* |
 
-*Limitación declarada:* se mide la respuesta del servidor y cómo está construida la página, **no el renderizado**. El tiempo hasta que la página es usable requiere Lighthouse.
+*Limitación declarada:* se mide la respuesta del servidor y cómo está construida la página, **no el renderizado**. La **capacidad** (cuánta carga aguanta) exige pruebas de carga.
 
 ## Seguridad — 25%
 
-| Sub-característica ISO | Qué observamos |
-|---|---|
-| **Confidencialidad** | HTTPS, HSTS (duración y subdominios) |
-| | Cookies: `HttpOnly`, `Secure`, `SameSite` |
-| **Integridad** | CSP: presencia, modo informe, `unsafe-inline`, `unsafe-eval`, directivas clave |
-| | Contenido mixto, integridad de scripts externos (SRI) |
-| **Resistencia** | `X-Frame-Options`/`frame-ancestors`, `nosniff`, `Referrer-Policy` |
-| | `Permissions-Policy`, COOP/CORP, CORS restrictivo |
-| | Formularios que envían por HTTP, filtración de versión del servidor |
+| Subcaracterística (2023) | Qué observamos | Puntos |
+|---|---|---|
+| **Confidencialidad** | HTTPS, HSTS (duración y subdominios) | 26 |
+| | Cookies: `HttpOnly`, `Secure`, `SameSite` (sin cookies, puntuación completa) | 14 |
+| **Integridad** | CSP: presencia, modo informe, `unsafe-inline`, `unsafe-eval`, directivas clave | 25 |
+| | Contenido mixto, integridad de scripts externos (SRI) | 9 |
+| **Resistencia** | `X-Frame-Options`/`frame-ancestors`, `nosniff`, `Referrer-Policy` | 15 |
+| | `Permissions-Policy`, COOP/CORP, CORS restrictivo | 8 |
+| | Formularios que envían por HTTP, filtración de versión del servidor | 3 |
+| **No repudio**, **Responsabilidad**, **Autenticidad** | — | *sin medir* |
+
+Sin HTTPS la nota se queda en 5: todo lo demás depende del canal cifrado.
 
 ## Capacidad de interacción (antes usabilidad) — 20%
 
-| Sub-característica ISO | Qué observamos |
-|---|---|
-| **Reconocibilidad** | Título y su longitud, meta descripción, favicon, Open Graph, canonical |
-| **Facilidad de uso** | Región `main`, HTML semántico, navegación, `theme-color` |
+| Subcaracterística (2023) | Qué observamos | Puntos |
+|---|---|---|
+| **Reconocibilidad de la adecuación** | Título y su longitud, meta descripción, favicon, Open Graph, canonical | 58 |
+| **Autodescriptividad** | Región `main`, HTML semántico, navegación, `theme-color` | 42 |
+| **Aprendizaje**, **Operabilidad**, **Protección frente a errores del usuario**, **Compromiso del usuario**, **Asistencia al usuario** | — | *sin medir* |
 
-*Limitación declarada:* la operabilidad real requiere interacción; aquí solo se juzga cómo se presenta e identifica la página.
+*Limitación declarada:* la operabilidad real requiere interacción; aquí solo se juzga cómo se presenta e identifica la página. La **inclusividad**, la otra subcaracterística de 2023 que sí se comprueba, tiene su propio eje: accesibilidad.
 
 ## Accesibilidad (inclusividad) — 15%
 
-| Sub-característica ISO | Qué observamos |
-|---|---|
-| **Percepción** | Idioma declarado, **zoom no bloqueado**, texto alternativo |
-| | Tablas con cabeceras, ausencia de reproducción automática |
-| **Operabilidad** | Etiquetas de formulario, `tabindex` positivo, títulos de iframe |
-| | Texto de enlace descriptivo |
-| **Estructura** | Un solo `h1`, jerarquía sin saltos, HTML semántico, `main`, ids únicos |
+En 2023 la accesibilidad se cubre con la **inclusividad**, dentro de la capacidad de interacción. Se comprueba siguiendo los principios de WCAG, que dan nombre a sus tres partes (ninguna es una subcaracterística ISO por sí sola, por eso van marcadas "no es ISO" en el desglose):
+
+| Parte (WCAG) | Qué observamos | Puntos |
+|---|---|---|
+| **Perceptible** | Idioma declarado, **zoom no bloqueado**, texto alternativo, tablas con cabeceras, sin reproducción automática | 40 |
+| **Operable** | Etiquetas de formulario, sin `tabindex` positivo, títulos de iframe, texto de enlace descriptivo | 28 |
+| **Estructura navegable** | `h1` (y solo uno), jerarquía sin saltos, HTML semántico, `main`, ids únicos | 32 |
 
 *Limitación declarada:* son comprobaciones estáticas del HTML. **No sustituyen a axe-core**: el contraste de color efectivo y el árbol de accesibilidad final solo se pueden evaluar con renderizado real.
 
 ## Compatibilidad — 15%
 
-| Sub-característica ISO | Qué observamos |
-|---|---|
-| **Adaptabilidad** | Etiqueta viewport, imágenes responsivas (`srcset`/`picture`) |
-| **Interoperabilidad** | `<!DOCTYPE html>`, codificación declarada, idioma del contenido |
-| | Ausencia de etiquetas HTML obsoletas, manifiesto web |
+| Subcaracterística (2023) | Qué observamos | Puntos |
+|---|---|---|
+| **Interoperabilidad** | `<!DOCTYPE html>`, codificación declarada, idioma del contenido | 40 |
+| **Adaptación a dispositivos** · *no es ISO aquí* | Etiqueta viewport, imágenes responsivas (`srcset`/`picture`) | 46 |
+| **Tecnología vigente** · *no es ISO* | Sin etiquetas HTML obsoletas, manifiesto web | 14 |
+| **Coexistencia** | — | *sin medir* |
+
+En 2023 la adaptación a entornos distintos es parte de la **flexibilidad**, no de la compatibilidad; se mantiene en este eje por cómo se mide (sobre la página desplegada), pero se marca para no confundirla.

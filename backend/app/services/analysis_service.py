@@ -38,6 +38,7 @@ from app.services.scoring_service import (
     calculate_confidence,
     calculate_overall_score,
     score_dimension,
+    subcharacteristics,
 )
 
 ANALYZERS = (
@@ -162,6 +163,7 @@ def run_repository_analysis(analysis_id: str) -> None:
                     score=score,
                     weight=REPOSITORY_WEIGHTS[dimension],
                     raw_metrics=metrics,
+                    subcharacteristics=subcharacteristics(dimension, metrics),
                 )
             )
             for finding in findings:

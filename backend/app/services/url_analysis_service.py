@@ -33,6 +33,7 @@ from app.services.scoring_service import (
     calculate_confidence,
     calculate_url_overall_score,
     score_url_dimension,
+    subcharacteristics,
 )
 from app.services.summary_service import build_analysis_summary
 from app.utils.safe_http import fetch_public_page
@@ -116,6 +117,7 @@ def run_url_analysis(analysis_id: str) -> None:
                     score=score,
                     weight=URL_WEIGHTS[dimension],
                     raw_metrics=metrics,
+                    subcharacteristics=subcharacteristics(dimension, metrics, url=True),
                 )
             )
 

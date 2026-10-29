@@ -152,7 +152,12 @@ def serialize_analysis(db: Session, analysis: Analysis) -> AnalysisOut:
         repository_full_name=repository.full_name if repository else None,
         combined=_combined_block(db, analysis),
         dimensions=[
-            DimensionOut(name=d.name, score=float(d.score), weight=float(d.weight))
+            DimensionOut(
+                name=d.name,
+                score=float(d.score),
+                weight=float(d.weight),
+                subcharacteristics=d.subcharacteristics,
+            )
             for d in dimensions
         ],
         findings=[

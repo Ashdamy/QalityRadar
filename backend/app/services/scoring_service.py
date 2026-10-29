@@ -47,9 +47,9 @@ def _score_url_security(m: dict) -> float:
     Sin HTTPS la nota se hunde: todo lo demas depende del canal cifrado.
     """
     if "uses_https" not in m:
-        return 0.0
+        return {}
     if not m.get("uses_https", False):
-        return 5.0
+        return {"Confidencialidad": 5.0}
 
     # -- Confidencialidad del canal (26 pts) ---------------------------------
     canal = (
@@ -89,7 +89,7 @@ def _score_url_security(m: dict) -> float:
             not m.get("leaks_server_version", True) and not m.get("leaks_powered_by", True), 2
         )
     )
-    return canal + cookies + integridad + resistencia
+    return {"Confidencialidad": canal + cookies, "Integridad": integridad, "Resistencia": resistencia}
 
 
 def _score_url_performance(m: dict) -> float:
@@ -100,7 +100,7 @@ def _score_url_performance(m: dict) -> float:
     construida la pagina, no el renderizado. Lighthouse llega mas adelante.
     """
     if "response_seconds" not in m:
-        return 0.0
+        return {}
 
     # -- Comportamiento temporal (34 pts) ------------------------------------
     temporal = _tiered(
@@ -125,13 +125,17 @@ def _score_url_performance(m: dict) -> float:
         + (4.0 if imagenes == 0 else _tiered(-(sin_lazy / imagenes), [(-0.7, 1), (-0.3, 4)]))
         + (3.0 if imagenes == 0 else _tiered(-(sin_dim / imagenes), [(-0.7, 1), (-0.3, 3)]))
     )
-    return temporal + transferencia + construccion
+    return {
+        "Comportamiento temporal": temporal,
+        # Lo que pesa y como se sirve la pagina: los recursos que consume.
+        "Utilización de recursos": transferencia + construccion,
+    }
 
 
 def _score_url_accessibility(m: dict) -> float:
-    """Accesibilidad (ISO 25010). Comprobaciones estaticas del HTML."""
+    """Accesibilidad: la inclusividad de ISO 25010:2023. Comprobaciones estaticas del HTML."""
     if "image_count" not in m:
-        return 0.0
+        return {}
 
     imagenes = m.get("image_count", 0)
     entradas = m.get("form_inputs", 0)
@@ -175,59 +179,70 @@ def _score_url_accessibility(m: dict) -> float:
         + _award(m.get("has_main_landmark", False), 5)
         + _award(m.get("duplicate_id_count", 1) == 0, 4)
     )
-    return percepcion + operabilidad + estructura
+    return {
+        "Perceptible (WCAG)": percepcion,
+        "Operable (WCAG)": operabilidad,
+        "Estructura navegable (WCAG)": estructura,
+    }
 
 
 def _score_url_compatibility(m: dict) -> float:
     """Compatibilidad (ISO 25010): interoperabilidad y adaptacion."""
     if "has_viewport" not in m:
-        return 0.0
+        return {}
 
     imagenes = m.get("image_count", 0)
     responsivas = m.get("responsive_image_count", 0)
-    return (
-        # -- Adaptacion a dispositivos (46 pts)
-        _award(m.get("has_viewport", False), 30)
-        + (
-            16.0
-            if imagenes == 0 or m.get("uses_picture_element", False)
-            else _tiered(
-                responsivas / imagenes if imagenes else 0, [(0.1, 6), (0.5, 11), (0.9, 16)]
-            )
-        )
-        # -- Interoperabilidad: estandares bien declarados (40 pts)
-        + _award(m.get("has_doctype", False), 16)
+    # -- Adaptacion a dispositivos (46 pts)
+    adaptacion = _award(m.get("has_viewport", False), 30) + (
+        16.0
+        if imagenes == 0 or m.get("uses_picture_element", False)
+        else _tiered(responsivas / imagenes if imagenes else 0, [(0.1, 6), (0.5, 11), (0.9, 16)])
+    )
+    # -- Interoperabilidad: estandares bien declarados (40 pts)
+    interoperabilidad = (
+        _award(m.get("has_doctype", False), 16)
         + _award(m.get("declares_charset", False), 14)
         + _award(m.get("declares_content_language", False), 10)
-        # -- Ausencia de tecnologia retirada (14 pts)
-        + _award(not m.get("deprecated_tags"), 10)
-        + _award(m.get("has_web_manifest", False), 4)
     )
+    # -- Ausencia de tecnologia retirada (14 pts)
+    vigente = _award(not m.get("deprecated_tags"), 10) + _award(m.get("has_web_manifest", False), 4)
+    return {
+        "Interoperabilidad": interoperabilidad,
+        "Adaptación a dispositivos": adaptacion,
+        "Tecnología vigente": vigente,
+    }
 
 
 def _score_url_usability(m: dict) -> float:
-    """Usabilidad (ISO 25010: reconocibilidad y facilidad de uso).
+    """Capacidad de interaccion (ISO 25010:2023, antes usabilidad): reconocibilidad y autodescriptividad.
 
     Sin navegador solo se juzga si la pagina se presenta e identifica de forma
     comprensible; la operabilidad real requiere interaccion.
     """
     if "has_title" not in m:
-        return 0.0
+        return {}
     titulo_util = 10 <= m.get("title_length", 0) <= 70
-    return (
-        # -- Reconocibilidad: se sabe que es y de quien (58 pts)
+    # -- Reconocibilidad: se sabe que es y de quien (58 pts)
+    reconocibilidad = (
         _award(m.get("has_title", False), 18)
         + _award(titulo_util, 10)
         + _award(m.get("has_meta_description", False), 12)
         + _award(m.get("has_favicon", False), 8)
         + _award(m.get("has_open_graph", False), 6)
         + _award(m.get("has_canonical", False), 4)
-        # -- Estructura comprensible (42 pts)
-        + _award(m.get("has_main_landmark", False), 14)
+    )
+    # -- Estructura comprensible (42 pts)
+    autodescriptividad = (
+        _award(m.get("has_main_landmark", False), 14)
         + _award(m.get("uses_semantic_html", False), 12)
         + _award(m.get("has_nav", False), 10)
         + _award(m.get("has_theme_color", False), 6)
     )
+    return {
+        "Reconocibilidad de la adecuación": reconocibilidad,
+        "Autodescriptividad": autodescriptividad,
+    }
 
 
 URL_RUBRICS = {
@@ -243,7 +258,7 @@ def score_url_dimension(dimension: str, metrics: dict) -> float:
     rubrica = URL_RUBRICS.get(dimension)
     if rubrica is None:
         return 0.0
-    return round(max(0.0, min(100.0, rubrica(metrics))), 2)
+    return round(max(0.0, min(100.0, sum(rubrica(metrics).values()))), 2)
 
 
 def calculate_url_overall_score(
@@ -320,14 +335,18 @@ def _score_documentation(m: dict) -> float:
         )
     else:
         completitud = 0.0
-    return pertinencia + gobernanza + completitud
+    return {
+        "Pertinencia funcional": pertinencia,
+        "Completitud funcional": completitud,
+        "Gobernanza del proyecto": gobernanza,
+    }
 
 
 def _score_reliability(m: dict) -> float:
     """Fiabilidad (ISO 25010).
 
     Sub-caracteristicas cubiertas:
-    - Madurez: existencia y densidad de pruebas automaticas.
+    - Ausencia de fallos (la madurez de 2011): existencia y densidad de pruebas.
     - Tolerancia a fallos: el codigo contempla que las cosas fallen.
     - Recuperabilidad: deja rastro y sus cambios de estado son reversibles.
     """
@@ -335,9 +354,9 @@ def _score_reliability(m: dict) -> float:
     # problemas cuando no se ha mirado ningun archivo es el mismo error que
     # este modulo corrige, colado por la puerta de atras.
     if m.get("code_files_scanned", 0) == 0 and m.get("test_file_count", 0) == 0:
-        return 0.0
+        return {}
 
-    # -- Madurez: pruebas automaticas (55 pts) -------------------------------
+    # -- Ausencia de fallos: pruebas automaticas (55 pts) --------------------
     if m.get("test_file_count", 0) == 0:
         madurez = 0.0
     else:
@@ -360,7 +379,11 @@ def _score_reliability(m: dict) -> float:
         _tiered(m.get("logging_ratio", 0.0), [(0.05, 4), (0.15, 8), (0.30, 10)])
         + _award(m.get("has_migrations", False), 5)
     )
-    return madurez + tolerancia + recuperabilidad
+    return {
+        "Ausencia de fallos": madurez,
+        "Tolerancia a fallos": tolerancia,
+        "Recuperabilidad": recuperabilidad,
+    }
 
 
 def _score_maintainability(m: dict) -> float:
@@ -372,7 +395,7 @@ def _score_maintainability(m: dict) -> float:
     - Modificabilidad: linter, tipos, ausencia de duplicacion.
     """
     if m.get("code_file_count", 0) == 0 and m.get("analyzed_code_files", 0) == 0:
-        return 0.0
+        return {}
 
     # -- Modularidad (38 pts) -------------------------------------------------
     modularidad = (
@@ -396,7 +419,11 @@ def _score_maintainability(m: dict) -> float:
         + _tiered(m.get("type_annotation_ratio", 0.0), [(0.20, 3), (0.50, 6), (0.80, 8)])
         + _award(m.get("duplicated_file_count", 0) == 0, 4)
     )
-    return modularidad + analizabilidad + modificabilidad
+    return {
+        "Modularidad": modularidad,
+        "Analizabilidad": analizabilidad,
+        "Modificabilidad": modificabilidad,
+    }
 
 
 def _score_security(m: dict) -> float:
@@ -411,7 +438,7 @@ def _score_security(m: dict) -> float:
     sandbox; por eso el techo alcanzable aqui refleja solo lo comprobado.
     """
     if m.get("code_files_scanned", 0) == 0:
-        return 0.0
+        return {}
     # -- Confidencialidad (50 pts) -------------------------------------------
     confidencialidad = (
         _award(not m.get("committed_secret_files"), 14)
@@ -435,11 +462,11 @@ def _score_security(m: dict) -> float:
             18,
         )
     )
-    return confidencialidad + integridad
+    return {"Confidencialidad": confidencialidad, "Integridad": integridad}
 
 
 def _score_portability(m: dict) -> float:
-    """Portabilidad (ISO 25010).
+    """Flexibilidad (ISO 25010:2023, antes portabilidad).
 
     Sub-caracteristicas cubiertas:
     - Instalabilidad: contenedor, dependencias fijadas.
@@ -464,7 +491,11 @@ def _score_portability(m: dict) -> float:
         + _award(m.get("ci_runs_lint", False), 3)
         + _award(m.get("ci_has_deploy_stage", False), 2)
     )
-    return instalabilidad + adaptabilidad + automatizacion
+    return {
+        "Instalabilidad": instalabilidad,
+        "Adaptabilidad": adaptabilidad,
+        "Automatización (CI/CD)": automatizacion,
+    }
 
 
 def _score_activity(m: dict) -> float:
@@ -475,9 +506,9 @@ def _score_activity(m: dict) -> float:
     parte de la norma. Ver docs/ISO_25010_MAPPING.md.
     """
     if m.get("activity_scan_status") != "ok":
-        return 0.0
+        return {}
     if m.get("is_archived"):
-        return 0.0
+        return {}
 
     dias = m.get("days_since_last_push")
     frescura = 0.0 if dias is None else _tiered(-dias, [(-365, 10), (-180, 25), (-90, 40), (-30, 55)])
@@ -491,7 +522,7 @@ def _score_activity(m: dict) -> float:
     interes = _tiered(m.get("stars", 0), [(1, 5), (10, 12), (100, 18)]) + _tiered(
         m.get("forks", 0), [(1, 3), (10, 7)]
     )
-    return frescura + cuidado + interes
+    return {"Frescura": frescura, "Cuidado del proyecto": cuidado, "Interés de terceros": interes}
 
 
 DIMENSION_RUBRICS = {
@@ -514,7 +545,104 @@ def score_dimension(dimension: str, metrics: dict, findings: list[FindingData]) 
     rubric = DIMENSION_RUBRICS.get(dimension)
     if rubric is None:
         return 0.0
-    return round(max(0.0, min(100.0, rubric(metrics))), 2)
+    return round(max(0.0, min(100.0, sum(rubric(metrics).values()))), 2)
+
+
+# --- Desglose por subcaracteristica (ISO/IEC 25010:2023) ---------------------
+#
+# Cada rubrica devuelve sus puntos por grupo; aqui se dice como se llama cada
+# grupo, cuanto vale como maximo y si es de verdad una subcaracteristica de la
+# norma. Algunos grupos puntuan cosas utiles que la norma no recoge (la
+# gobernanza del proyecto, el CI/CD): suman, pero se marcan `iso: False` para
+# no hacerlos pasar por lo que no son.
+#
+# `sin_medir` son las subcaracteristicas que la norma define y aqui no se
+# comprueban. Se listan para que se vea el hueco, nunca con un 0: un 0 diria
+# "se miro y esta mal", y la verdad es "no se miro".
+
+# (nombre, maximo, es subcaracteristica ISO)
+_Grupo = tuple[str, float, bool]
+
+_DESGLOSE_REPOSITORIO: dict[str, tuple[list[_Grupo], list[str]]] = {
+    "functional_suitability": (
+        [("Pertinencia funcional", 60, True), ("Completitud funcional", 18, True),
+         ("Gobernanza del proyecto", 22, False)],
+        ["Corrección funcional"],
+    ),
+    "reliability": (
+        # "Ausencia de fallos" es la madurez de 2011, renombrada en 2023.
+        [("Ausencia de fallos", 55, True), ("Tolerancia a fallos", 30, True),
+         ("Recuperabilidad", 15, True)],
+        ["Disponibilidad"],
+    ),
+    "maintainability": (
+        [("Modularidad", 38, True), ("Analizabilidad", 30, True), ("Modificabilidad", 32, True)],
+        ["Reusabilidad", "Capacidad de prueba"],
+    ),
+    "security": (
+        [("Confidencialidad", 50, True), ("Integridad", 50, True)],
+        ["No repudio", "Responsabilidad", "Autenticidad", "Resistencia"],
+    ),
+    "portability": (
+        [("Instalabilidad", 50, True), ("Adaptabilidad", 30, True),
+         ("Automatización (CI/CD)", 20, False)],
+        ["Escalabilidad", "Reemplazabilidad"],
+    ),
+    "project_activity": (
+        [("Frescura", 55, False), ("Cuidado del proyecto", 20, False),
+         ("Interés de terceros", 25, False)],
+        [],
+    ),
+}
+
+_DESGLOSE_URL: dict[str, tuple[list[_Grupo], list[str]]] = {
+    "security": (
+        [("Confidencialidad", 40, True), ("Integridad", 34, True), ("Resistencia", 26, True)],
+        ["No repudio", "Responsabilidad", "Autenticidad"],
+    ),
+    "performance": (
+        [("Comportamiento temporal", 34, True), ("Utilización de recursos", 66, True)],
+        ["Capacidad"],
+    ),
+    # Toda la dimension es la inclusividad de 2023; sus partes siguen los
+    # principios de WCAG, que es con lo que se comprueba.
+    "accessibility": (
+        [("Perceptible (WCAG)", 40, False), ("Operable (WCAG)", 28, False),
+         ("Estructura navegable (WCAG)", 32, False)],
+        [],
+    ),
+    "compatibility": (
+        [("Interoperabilidad", 40, True), ("Adaptación a dispositivos", 46, False),
+         ("Tecnología vigente", 14, False)],
+        ["Coexistencia"],
+    ),
+    "usability": (
+        [("Reconocibilidad de la adecuación", 58, True), ("Autodescriptividad", 42, True)],
+        ["Aprendizaje", "Operabilidad", "Protección frente a errores del usuario",
+         "Compromiso del usuario", "Asistencia al usuario"],
+    ),
+}
+
+
+def subcharacteristics(dimension: str, metrics: dict, *, url: bool = False) -> list[dict]:
+    """Puntos de una dimension repartidos por subcaracteristica.
+
+    Las medidas suman exactamente la nota de la dimension. Las que la norma
+    define y aqui no se miden van al final con `measured: False` y sin puntos.
+    """
+    rubricas, desgloses = (URL_RUBRICS, _DESGLOSE_URL) if url else (DIMENSION_RUBRICS, _DESGLOSE_REPOSITORIO)
+    if dimension not in rubricas:
+        return []
+    puntos = rubricas[dimension](metrics)
+    grupos, sin_medir = desgloses[dimension]
+    return [
+        {"name": nombre, "earned": round(puntos.get(nombre, 0.0), 2), "max": maximo,
+         "measured": True, "iso": iso}
+        for nombre, maximo, iso in grupos
+    ] + [
+        {"name": nombre, "earned": None, "max": None, "measured": False, "iso": True}
+        for nombre in sin_medir
+    ]
 
 
 def calculate_overall_score(

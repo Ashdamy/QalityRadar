@@ -97,6 +97,9 @@ class Dimension(Base):
     score: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False)
     weight: Mapped[float] = mapped_column(Numeric(4, 3), nullable=False)
     raw_metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    # Puntos por subcaracteristica de ISO/IEC 25010:2023, ver scoring_service.
+    # Nulo en los analisis anteriores a la migracion 0022.
+    subcharacteristics: Mapped[list | None] = mapped_column(JSONB, nullable=True)
 
 
 class Finding(Base):

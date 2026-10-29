@@ -12,10 +12,22 @@ class FindingOut(BaseModel):
     recommendation: str | None = None
 
 
+class SubcaracteristicaOut(BaseModel):
+    name: str
+    # Ambos nulos cuando no se mide: "sin medir", nunca 0.
+    earned: float | None = None
+    max: float | None = None
+    measured: bool
+    # False en los grupos que suman puntos pero no son de la norma.
+    iso: bool
+
+
 class DimensionOut(BaseModel):
     name: str
     score: float
     weight: float
+    # Nulo en los analisis anteriores al desglose.
+    subcharacteristics: list[SubcaracteristicaOut] | None = None
 
 
 class CorrespondenceOut(BaseModel):
