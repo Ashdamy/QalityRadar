@@ -9,13 +9,19 @@ heuristicas de texto, porque no hay parser de JS en el entorno.
 import ast
 import hashlib
 import re
+from collections import Counter
 from pathlib import Path
 
 from app.analyzers.base import AnalyzerResult, FindingData, archivos_del_repositorio, leer_texto
-from app.analyzers.repository.structure import IGNORED_DIRECTORIES
+from app.analyzers.repository.structure import EXTENSION_TO_LANGUAGE, IGNORED_DIRECTORIES
 
 PYTHON_EXTENSIONS = {".py"}
 JS_EXTENSIONS = {".js", ".jsx", ".ts", ".tsx"}
+LENGUAJES_ANALIZABLES = {"Python", "JavaScript", "TypeScript"}
+
+# Por debajo de esta proporcion de codigo analizado, la nota de
+# mantenibilidad habla de una parte pequena del proyecto y hay que decirlo.
+COBERTURA_MINIMA = 0.70
 
 # Una funcion mas larga que esto suele hacer demasiadas cosas a la vez.
 LONG_FUNCTION_LINES = 60
@@ -49,16 +55,24 @@ class CodeQualityAnalyzer:
         content_hashes: dict[str, list[str]] = {}
         files_read = 0
 
+        # Todo el codigo fuente por lenguaje, analizable o no: sin esto no hay
+        # forma de saber cuanto del proyecto quedo sin mirar.
+        por_lenguaje: Counter[str] = Counter()
+
         for path in archivos_del_repositorio(repo_dir):
-            if files_read >= MAX_FILES_TO_READ:
-                break
             if not path.is_file():
                 continue
             relative = path.relative_to(repo_dir)
             if any(part in IGNORED_DIRECTORIES for part in relative.parts):
                 continue
             suffix = path.suffix.lower()
+            lenguaje = EXTENSION_TO_LANGUAGE.get(suffix)
+            if lenguaje:
+                por_lenguaje[lenguaje] += 1
             if suffix not in PYTHON_EXTENSIONS | JS_EXTENSIONS:
+                continue
+            # Se sigue recorriendo para contar, pero no se lee mas alla del tope.
+            if files_read >= MAX_FILES_TO_READ:
                 continue
 
             text = _read(path)
@@ -116,6 +130,35 @@ class CodeQualityAnalyzer:
         }
 
         findings: list[FindingData] = []
+
+        total_fuente = sum(por_lenguaje.values())
+        if total_fuente:
+            analizables = sum(n for lang, n in por_lenguaje.items() if lang in LENGUAJES_ANALIZABLES)
+            fuera = {lang: n for lang, n in por_lenguaje.most_common() if lang not in LENGUAJES_ANALIZABLES}
+            cobertura = round(analizables / total_fuente, 3)
+            # Una sola clave: scoring_service la excluye del recuento de
+            # evidencia, porque dice cuanto se miro, no como es el codigo.
+            metrics["language_coverage"] = {"ratio": cobertura, "unanalyzed": fuera}
+            if cobertura < COBERTURA_MINIMA:
+                lista = ", ".join(f"{lang} ({n} archivos)" for lang, n in fuera.items())
+                findings.append(
+                    FindingData(
+                        type="structure",
+                        severity="info",
+                        title="Cobertura parcial de lenguajes",
+                        description=(
+                            f"La calidad del codigo (funciones, comentarios, anidamiento, tipos) "
+                            f"solo se pudo analizar en el {cobertura:.0%} de los archivos de codigo "
+                            f"fuente: el analizador entiende Python, JavaScript y TypeScript. "
+                            f"Quedaron fuera: {lista}. La nota de mantenibilidad habla sobre todo "
+                            "de la parte analizada."
+                        ),
+                        recommendation=(
+                            "Toma la nota de mantenibilidad con cautela: no refleja el codigo en "
+                            "esos lenguajes. La confianza del analisis ya se ha rebajado por ello."
+                        ),
+                    )
+                )
         if long_functions:
             worst = max(long_functions, key=lambda item: item[2])
             findings.append(

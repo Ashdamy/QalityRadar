@@ -12,6 +12,7 @@ import io
 from datetime import datetime
 
 from app.services.iso25010 import SIN_MEDIR, dimension_label
+from app.analyzers.repository.code_quality import COBERTURA_MINIMA
 from app.services.scoring_service import HEALTH_INDICATORS
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT
@@ -56,6 +57,28 @@ def _iso_ordenadas(dimensions) -> list:
     return sorted(
         (d for d in dimensions if not _es_indicador_de_salud(d)), key=lambda x: -float(x.score)
     )
+
+
+def aviso_de_cobertura(dimensions) -> str | None:
+    """Aviso si la calidad del codigo solo pudo analizarse en parte del proyecto.
+
+    Lo usan el PDF y la API. Sale de las metricas de mantenibilidad que deja
+    el analizador de calidad de codigo; los analisis anteriores no las tienen.
+    """
+    for d in dimensions:
+        if d.name.rsplit(":", 1)[-1] != "maintainability":
+            continue
+        cobertura = (getattr(d, "raw_metrics", None) or {}).get("language_coverage")
+        if not isinstance(cobertura, dict) or cobertura.get("ratio", 1) >= COBERTURA_MINIMA:
+            continue
+        fuera = ", ".join(f"{lang} ({n} archivos)" for lang, n in cobertura.get("unanalyzed", {}).items())
+        return (
+            f"Cobertura parcial de lenguajes: la calidad del código solo se pudo analizar en el "
+            f"{cobertura['ratio']:.0%} de los archivos de código fuente. Quedaron fuera: {fuera}. "
+            "La nota de mantenibilidad habla sobre todo de la parte analizada, y la confianza se "
+            "ha rebajado por ello."
+        )
+    return None
 
 
 def filas_de_salud(dimensions) -> list[list[str]]:
@@ -219,6 +242,12 @@ def build_analysis_report(
                 estilo_mono,
             )
         )
+
+    # -- Aviso de cobertura parcial, antes de leer ninguna nota ---------------
+    aviso = aviso_de_cobertura(dimensions)
+    if aviso:
+        story.append(Spacer(1, 8))
+        story.append(Paragraph(f"<b>Atención.</b> {_escape(aviso)}", estilo_cuerpo))
 
     # -- Resumen ejecutivo ---------------------------------------------------
     if getattr(analysis, "summary_text", None):

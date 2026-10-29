@@ -164,6 +164,13 @@ La **disponibilidad** solo se puede medir sobre un sistema en ejecución.
 
 Medir la reusabilidad exigiría un grafo de dependencias entre módulos; la capacidad de prueba, analizar el acoplamiento del código con lo que lo rodea.
 
+**Cobertura de lenguajes.** El análisis de la calidad del código (funciones, comentarios, anidamiento, tipos, duplicación) solo entiende **Python, JavaScript y TypeScript**; el de estructura (tamaño de archivos, carpetas, linter) ve todos. En un repositorio en Java, Go, Ruby o Rust, buena parte de la mantenibilidad sale entonces de una porción pequeña del código. No se amplía el soporte, pero se hace visible:
+
+- Se cuenta qué proporción de los archivos de código fuente se pudo analizar (sin contar dependencias instaladas como `node_modules`).
+- Si es **menor del 70%**, aparece un hallazgo informativo **"Cobertura parcial de lenguajes"** con los lenguajes que quedaron fuera y cuántos archivos tienen, y un aviso destacado en el resultado, en el informe compartido y en el PDF, antes de las notas.
+- La **confianza baja** en la parte de la nota que descansa sobre código sin analizar: se multiplica por `1 − peso_mantenibilidad × proporción_no_analizada`. Un repositorio todo en Java pierde un 23,5%.
+- La cobertura **no cuenta como evidencia** para la confianza: dice cuánto se miró, no cómo es el código.
+
 ## Seguridad (peso 23,5%)
 
 *¿Protege la información y resiste el uso indebido?*

@@ -5,6 +5,7 @@ import { ApiError, getSharedReport, type Analysis } from "@/lib/api";
 import { RadarMark } from "@/components/RadarMark";
 import { RadarChart } from "@/components/RadarChart";
 import { DimensionesDetalle, IndicadorDeSalud } from "@/components/DimensionesDetalle";
+import { AvisoDeCobertura } from "@/components/AvisoDeCobertura";
 
 // Página pública: no usa AnalysisPanel porque ese panel ofrece acciones que
 // solo tienen sentido con sesión (compartir, cerrar, exportar). Aquí se
@@ -85,6 +86,7 @@ export default function SharedReportPage({
             <p className="mt-1 text-[13px] text-muted">
               Evaluación según el modelo ISO/IEC 25010:2023.
             </p>
+            <AvisoDeCobertura texto={analysis.coverage_notice} />
 
             <div className="mt-7 flex flex-wrap items-end gap-8">
               <div>

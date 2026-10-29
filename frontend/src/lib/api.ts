@@ -262,6 +262,8 @@ export interface Analysis {
   dimensions: AnalysisDimension[];
   findings: AnalysisFinding[];
   combined: Combined | null;
+  // Si la calidad del código solo pudo analizarse en parte del proyecto.
+  coverage_notice?: string | null;
 }
 
 export function startRepositoryAnalysis(repositoryId: string,

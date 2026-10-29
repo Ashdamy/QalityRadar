@@ -20,7 +20,7 @@ from app.schemas.analysis import (
     PlanItemOut,
 )
 from app.services.rate_limit_service import RateLimitExceeded, check_and_reserve, release
-from app.services.report_service import build_analysis_report
+from app.services.report_service import aviso_de_cobertura, build_analysis_report
 from app.tasks import queue_combined_analysis, queue_repository_analysis, queue_url_analysis
 
 router = APIRouter(prefix="/api/analyses", tags=["analyses"])
@@ -151,6 +151,7 @@ def serialize_analysis(db: Session, analysis: Analysis) -> AnalysisOut:
         analysis_type=analysis.analysis_type,
         repository_full_name=repository.full_name if repository else None,
         combined=_combined_block(db, analysis),
+        coverage_notice=aviso_de_cobertura(dimensions),
         dimensions=[
             DimensionOut(
                 name=d.name,

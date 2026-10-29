@@ -92,6 +92,8 @@ class AnalysisOut(BaseModel):
     findings: list[FindingOut] = []
     # Solo se rellena cuando analysis_type == "combined".
     combined: CombinedOut | None = None
+    # Si la calidad del codigo solo pudo analizarse en parte del proyecto.
+    coverage_notice: str | None = None
 
 
 class TimelineEntry(BaseModel):

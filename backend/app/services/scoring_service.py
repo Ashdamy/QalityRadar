@@ -18,6 +18,7 @@ son criterio nuestro y estan aqui a la vista para poder discutirlos.
 """
 
 from app.analyzers.base import AnalyzerResult, FindingData
+from app.analyzers.repository.code_quality import COBERTURA_MINIMA
 
 # Pesos de context/claude.md seccion 6, tabla "Para analisis de repositorio",
 # sin la actividad del proyecto (15%) y renormalizados para sumar 1.0: se
@@ -685,7 +686,27 @@ def calculate_overall_score(
     return round(score, 2)
 
 
+# Metricas que describen cuanto se pudo mirar, no como es el codigo: no
+# cuentan como evidencia.
+_NO_SON_EVIDENCIA = {"language_coverage"}
+
+
 def calculate_confidence(results: list[AnalyzerResult]) -> float:
-    """Confianza segun cuanta evidencia se logro recoger, de 0 a 100."""
-    evidence = sum(len(result.metrics) for result in results)
-    return round(min(100.0, 100.0 * evidence / EVIDENCE_FOR_FULL_CONFIDENCE), 2)
+    """Confianza segun cuanta evidencia se logro recoger, de 0 a 100.
+
+    Si la calidad del codigo solo pudo analizarse en parte del proyecto (un
+    repositorio en Java, por ejemplo), se rebaja en la parte de la nota que
+    descansa sobre codigo sin analizar: el peso de mantenibilidad por la
+    proporcion que quedo fuera.
+    """
+    evidence = sum(len(set(result.metrics) - _NO_SON_EVIDENCIA) for result in results)
+    confianza = min(100.0, 100.0 * evidence / EVIDENCE_FOR_FULL_CONFIDENCE)
+
+    coberturas = [
+        r.metrics["language_coverage"]["ratio"]
+        for r in results
+        if isinstance(r.metrics.get("language_coverage"), dict)
+    ]
+    if coberturas and coberturas[0] < COBERTURA_MINIMA:
+        confianza *= 1 - REPOSITORY_WEIGHTS["maintainability"] * (1 - coberturas[0])
+    return round(confianza, 2)

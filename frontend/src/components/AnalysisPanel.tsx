@@ -11,6 +11,7 @@ import {
 import { RadarChart } from "@/components/RadarChart";
 import { DimensionesDetalle, IndicadorDeSalud } from "@/components/DimensionesDetalle";
 import { esIndicadorDeSalud } from "@/lib/dimensiones";
+import { AvisoDeCobertura } from "@/components/AvisoDeCobertura";
 
 const SEVERITY_LABELS: Record<AnalysisFinding["severity"], string> = {
   critical: "Crítico",
@@ -205,6 +206,8 @@ export function AnalysisPanel({
             </div>
           </div>
           )}
+
+          <AvisoDeCobertura texto={analysis.coverage_notice} />
 
           <p className="mt-4 rounded-[6px] border border-border bg-bg px-3 py-2 text-[12.5px] text-faint">
             Puntuación sobre {analysis.dimensions.filter((d) => !esIndicadorDeSalud(d.name)).length}{" "}
