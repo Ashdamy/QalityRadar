@@ -322,6 +322,19 @@ export function getTimeline(repositoryId: string): Promise<TimelineEntry[]> {
   return request<TimelineEntry[]>(`/api/repositories/${repositoryId}/timeline`);
 }
 
+export interface Benchmark {
+  language: string;
+  // Mientras sea true hay que decir que NO son datos reales.
+  is_simulated: boolean;
+  source: string;
+  items: { dimension: string; label: string; score: number; reference: number; delta: number }[];
+}
+
+/** Referencia por lenguaje. `undefined` (204) si no hay análisis o referencia. */
+export function getBenchmark(repositoryId: string): Promise<Benchmark | undefined> {
+  return request<Benchmark | undefined>(`/api/repositories/${repositoryId}/benchmark`);
+}
+
 export function getProgress(repositoryId: string): Promise<Progress> {
   return request<Progress>(`/api/repositories/${repositoryId}/progress`);
 }

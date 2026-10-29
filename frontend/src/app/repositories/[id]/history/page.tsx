@@ -16,6 +16,7 @@ import { RadarMark } from "@/components/RadarMark";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { EvolutionChart } from "@/components/EvolutionChart";
 import { ComparisonPanel } from "@/components/ComparisonPanel";
+import { BenchmarkPanel } from "@/components/BenchmarkPanel";
 
 type LoadState =
   | { kind: "loading" }
@@ -204,6 +205,8 @@ export default function HistoryPage() {
               <h2 className="mb-4 text-[14px] font-semibold">Puntuación en el tiempo</h2>
               <EvolutionChart entries={state.timeline} />
             </div>
+
+            <BenchmarkPanel repositoryId={repositoryId} />
 
             <div>
               <div className="mb-3 flex items-center justify-between">

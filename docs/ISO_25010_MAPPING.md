@@ -206,6 +206,18 @@ La **escalabilidad** solo se puede observar con el sistema bajo carga; la **reem
 
 ---
 
+## Referencia por lenguaje (benchmark), simulada
+
+`GET /api/repositories/{id}/benchmark` compara las notas del último análisis de repositorio completado con una referencia según su lenguaje principal (el que detecta el analizador de estructura). Se ve en la página de evolución del repositorio y bajo el resultado de cada análisis.
+
+**Los valores de referencia son simulados.** La tabla `benchmark_data` tiene nueve valores de ejemplo (mantenibilidad, seguridad y fiabilidad para Python, JavaScript y TypeScript), sembrados en la migración `0009` con `is_simulated = true`. No son medias de proyectos reales: para calcularlas hacen falta muchos más análisis. Por eso:
+
+- La API devuelve `is_simulated` en cada respuesta, y mientras sea verdadero el frontend muestra **"Referencia simulada, no son datos reales"** junto al título, no en letra pequeña.
+- Si no hay análisis, no se detectó lenguaje o el lenguaje no tiene referencia, la API responde **204** y el frontend no muestra nada: mejor nada que comparar contra una referencia que no existe.
+- Solo se comparan las dimensiones que tienen referencia; el resto no aparece.
+
+Cuando haya datos reales basta con cargarlos con `is_simulated = false`: la etiqueta desaparece sola.
+
 ## Riesgos críticos que bloquean puntuaciones altas
 
 El spec pide que *"los riesgos críticos bloqueen puntuaciones altas"*. Implementado así:

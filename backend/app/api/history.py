@@ -2,16 +2,19 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
 from app.core.config import get_settings
-from app.models.analysis import Analysis, AnalysisComparison, Improvement, Regression
+from app.models.analysis import Analysis, AnalysisComparison, Dimension, Improvement, Regression
+from app.models.benchmark_data import BenchmarkData
 from app.models.repository import Repository
 from app.models.user import User
 from app.schemas.analysis import (
+    BenchmarkItemOut,
+    BenchmarkOut,
     ChangeOut,
     ComparisonOut,
     ProgressOut,
@@ -39,6 +42,70 @@ def _completed_analyses(db: Session, repository_id: uuid.UUID) -> list[Analysis]
             .where(Analysis.repository_id == repository_id, Analysis.status == "completed")
             .order_by(Analysis.created_at.asc())
         ).all()
+    )
+
+
+@router.get(
+    "/repositories/{repository_id}/benchmark",
+    response_model=BenchmarkOut,
+    responses={204: {"description": "Sin analisis o sin referencia para su lenguaje"}},
+)
+def get_benchmark(
+    repository_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Compara el ultimo analisis con la referencia de su lenguaje principal.
+
+    Los valores de referencia son SIMULADOS (migracion 0009): la respuesta lo
+    dice con `is_simulated` para que nadie los ensene como datos reales.
+    Sin analisis, sin lenguaje detectado o sin referencia para ese lenguaje,
+    204: mejor no ensenar nada que comparar contra algo que no existe.
+    """
+    _owned_repository(db, repository_id, current_user)
+    ultimo = db.scalars(
+        select(Analysis)
+        .where(
+            Analysis.repository_id == repository_id,
+            Analysis.status == "completed",
+            Analysis.analysis_type == "repository",
+        )
+        .order_by(Analysis.created_at.desc())
+        .limit(1)
+    ).first()
+    if ultimo is None:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    dimensiones = {d.name: d for d in db.scalars(select(Dimension).where(Dimension.analysis_id == ultimo.id))}
+    # El lenguaje principal lo detecta el analizador de estructura, que
+    # alimenta la mantenibilidad.
+    mantenibilidad = dimensiones.get("maintainability")
+    lenguaje = (mantenibilidad.raw_metrics or {}).get("primary_language") if mantenibilidad else None
+    if not lenguaje:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    referencias = db.scalars(
+        select(BenchmarkData).where(BenchmarkData.language == lenguaje.lower())
+    ).all()
+    items = [
+        BenchmarkItemOut(
+            dimension=ref.dimension,
+            label=DIMENSION_LABELS.get(ref.dimension, ref.dimension),
+            score=float(dimensiones[ref.dimension].score),
+            reference=float(ref.avg_score),
+            delta=round(float(dimensiones[ref.dimension].score) - float(ref.avg_score), 2),
+        )
+        for ref in referencias
+        if ref.dimension in dimensiones
+    ]
+    if not items:
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    return BenchmarkOut(
+        language=lenguaje,
+        is_simulated=any(ref.is_simulated for ref in referencias),
+        source=referencias[0].source,
+        items=sorted(items, key=lambda i: i.dimension),
     )
 
 

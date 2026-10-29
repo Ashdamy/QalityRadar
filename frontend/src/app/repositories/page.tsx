@@ -19,6 +19,7 @@ import { NotificationBell } from "@/components/NotificationBell";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { GithubButton } from "@/components/GithubButton";
 import { AnalysisPanel } from "@/components/AnalysisPanel";
+import { BenchmarkPanel } from "@/components/BenchmarkPanel";
 
 // Estados en los que el analisis sigue en marcha y hay que volver a consultar.
 const IN_PROGRESS: ReadonlySet<Analysis["status"]> = new Set([
@@ -348,6 +349,11 @@ export default function RepositoriesPage() {
             )}
 
             {analysis && <AnalysisPanel analysis={analysis} onClose={() => setAnalysis(null)} />}
+
+            {/* La key fuerza a volver a pedirla al terminar cada análisis nuevo. */}
+            {analysis?.status === "completed" && selectedId && (
+              <BenchmarkPanel key={analysis.id} repositoryId={selectedId} />
+            )}
 
             {filtered.length === 0 ? (
               <div className="p-8 text-center text-[13.5px] text-faint">

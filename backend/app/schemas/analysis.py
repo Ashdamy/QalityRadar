@@ -22,6 +22,22 @@ class SubcaracteristicaOut(BaseModel):
     iso: bool
 
 
+class BenchmarkItemOut(BaseModel):
+    dimension: str
+    label: str
+    score: float
+    reference: float
+    delta: float
+
+
+class BenchmarkOut(BaseModel):
+    language: str
+    # Mientras sea True, el frontend tiene que decir que NO son datos reales.
+    is_simulated: bool
+    source: str
+    items: list[BenchmarkItemOut]
+
+
 class DimensionOut(BaseModel):
     name: str
     score: float
