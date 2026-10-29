@@ -14,7 +14,7 @@ Escáner de calidad de software basado en **ISO/IEC 25010:2023**. Analiza el có
 | **URL** | Una aplicación ya desplegada, sin acceso al código | 5 |
 | **Combinado** | Ambos, y explica **por qué no puntúan igual** | 10 |
 
-Entre los dos modos se cubren ocho de las nueve características de la norma. La novena, **protección** (*safety*), nueva en 2023, aún no se mide: aparece como "sin medir" y no entra en la nota.
+Entre los dos modos se cubren **8 de las 9** características de la norma. La que falta, **protección** (*safety*), queda fuera a propósito: exige evaluación humana del riesgo real del sistema y no se puede inferir leyendo código o HTML.
 
 El modo combinado es el que más información da. Cuando el código y la producción cuentan historias distintas, esa diferencia es accionable:
 

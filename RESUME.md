@@ -33,7 +33,7 @@
 | Página "Mi cuenta" | ✅ Hecha |
 | Landing pública y SEO básico | ✅ Hecha (`/`; el login pasa a `/entrar`) |
 | Política de privacidad y términos (Ley 1581) | ✅ Escritos; ⏳ faltan los datos de la empresa |
-| Modelo ISO/IEC 25010:2023 (9 características, protección sin medir) | ✅ Hecho |
+| Modelo ISO/IEC 25010:2023 (8 de las 9 características; protección fuera a propósito) | ✅ Hecho |
 | Desglose por subcaracterística (API, panel y PDF) | ✅ Hecho |
 | Actividad del proyecto fuera de la nota (indicador de salud aparte) | ✅ Hecho, recalibrado |
 | Referencia por lenguaje (rotulada como simulada) | ✅ Hecha |

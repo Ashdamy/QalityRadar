@@ -133,4 +133,4 @@ Según las decisiones de MVP ya acordadas:
 - Firecracker/gVisor en vez de Docker — Fase futura de infraestructura.
 - Benchmarking con datos reales de usuarios (requiere 100+ repos analizados primero).
 - **Lighthouse CI y axe-core** en el análisis de URL: medirían la carga real en un navegador y el árbol de accesibilidad final. Exigen ejecutar un navegador sin cabeza contra URLs de terceros dentro del sandbox, con su propio aislamiento.
-- **Medir la protección (*safety*)**, la característica nueva de ISO/IEC 25010:2023. Hoy aparece como "sin medir".
+- **Protección (*safety*)**, la característica nueva de ISO/IEC 25010:2023: fuera del alcance a propósito. Exige evaluación humana del riesgo real del sistema y no se puede inferir leyendo código o HTML.

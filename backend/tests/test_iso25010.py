@@ -2,8 +2,10 @@
 
 La version de 2023 tiene nueve caracteristicas: renombra usabilidad
 (capacidad de interaccion) y portabilidad (flexibilidad) y anade proteccion
-(safety). Las claves internas no cambian —ver docs/ISO_25010_MAPPING.md—,
-solo lo que se ensena.
+(safety). Cubrimos 8 de las 9: la proteccion queda fuera a proposito, porque
+exige una evaluacion humana del riesgo real del sistema, y por decision de
+producto no se ensena. Las claves internas no cambian —ver
+docs/ISO_25010_MAPPING.md—, solo lo que se ensena.
 """
 
 from types import SimpleNamespace
@@ -15,7 +17,7 @@ from app.services.scoring_service import REPOSITORY_WEIGHTS, URL_WEIGHTS
 from app.services.summary_service import build_analysis_summary
 
 
-def test_estan_las_nueve_caracteristicas_de_2023():
+def test_estan_las_ocho_caracteristicas_de_2023_que_cubrimos():
     assert list(iso25010.CARACTERISTICAS_2023.values()) == [
         "Adecuación funcional",
         "Eficiencia de desempeño",
@@ -25,7 +27,6 @@ def test_estan_las_nueve_caracteristicas_de_2023():
         "Seguridad",
         "Mantenibilidad",
         "Flexibilidad",
-        "Protección",
     ]
 
 
@@ -44,10 +45,11 @@ def test_las_etiquetas_son_las_de_2023(clave, etiqueta):
     assert iso25010.dimension_label(clave) == etiqueta
 
 
-def test_proteccion_existe_pero_no_se_mide():
-    assert iso25010.dimension_label("safety") == "Protección"
-    assert "safety" in iso25010.SIN_MEDIR
-    # Fuera del denominador: no puede bajar ni subir la nota.
+def test_proteccion_no_se_ensena_ni_entra_en_la_nota():
+    """Antes se ensenaba como "sin medir"; el dueno del producto decidio
+    quitarla porque no aporta ni resta a la nota."""
+    assert "safety" not in iso25010.DIMENSION_LABELS
+    assert "Protección" not in iso25010.DIMENSION_LABELS.values()
     assert "safety" not in REPOSITORY_WEIGHTS
     assert "safety" not in URL_WEIGHTS
 
@@ -63,13 +65,12 @@ def test_el_pdf_y_la_comparacion_usan_las_mismas_etiquetas():
     assert comparison_service.DIMENSION_LABELS["portability"] == "Flexibilidad"
 
 
-def test_el_pdf_lista_proteccion_como_sin_medir():
+def test_el_pdf_solo_lista_lo_que_se_mide():
     dimensiones = [SimpleNamespace(name="security", score=80, weight=0.2)]
 
     filas = report_service.filas_de_dimensiones(dimensiones)
 
-    assert ["Seguridad", "80/100", "20%"] in filas
-    assert ["Protección", "sin medir", "—"] in filas
+    assert filas == [["Dimensión", "Puntuación", "Peso"], ["Seguridad", "80/100", "20%"]]
 
 
 def test_el_resumen_usa_las_etiquetas_nuevas():

@@ -11,8 +11,13 @@ migrar el historico entero para que el usuario viera exactamente lo mismo que
 cambiando la etiqueta. Ver docs/ISO_25010_MAPPING.md.
 """
 
-# Las nueve caracteristicas de 2023, en el orden de la norma. La clave es la
-# interna; donde la norma renombro, la clave se queda y cambia la etiqueta.
+# Las caracteristicas de 2023 que cubrimos, 8 de las 9, en el orden de la
+# norma. La clave es la interna; donde la norma renombro, la clave se queda y
+# cambia la etiqueta.
+#
+# Proteccion (safety) queda fuera a proposito: exige una evaluacion humana del
+# riesgo real del sistema y no se puede inferir leyendo codigo o HTML. Como no
+# suma ni resta a la nota, no se ensena.
 CARACTERISTICAS_2023: dict[str, str] = {
     "functional_suitability": "Adecuación funcional",
     "performance": "Eficiencia de desempeño",
@@ -24,8 +29,6 @@ CARACTERISTICAS_2023: dict[str, str] = {
     "maintainability": "Mantenibilidad",
     # Antes "portabilidad".
     "portability": "Flexibilidad",
-    # Nueva en 2023.
-    "safety": "Protección",
 }
 
 DIMENSION_LABELS: dict[str, str] = {
@@ -38,11 +41,6 @@ DIMENSION_LABELS: dict[str, str] = {
     # No es ISO: ver scoring_service.
     "project_activity": "Actividad del proyecto",
 }
-
-# Caracteristicas de la norma que todavia no se miden. Se ensenan como "sin
-# medir" y no entran en la nota: puntuarlas con 0 seria castigar lo que no se
-# ha comprobado, y con 100, regalarlo.
-SIN_MEDIR: tuple[str, ...] = ("safety",)
 
 # En el modo combinado las dimensiones llegan como "origen:nombre", porque
 # codigo y produccion miden ambos "security" sin ser lo mismo.

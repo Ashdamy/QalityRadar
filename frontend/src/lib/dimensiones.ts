@@ -8,6 +8,10 @@
  * Las claves son las internas, que conservan los nombres de 2011
  * (`usability`, `portability`): están guardadas en cada análisis. Lo que
  * cambia con la norma es la etiqueta.
+ *
+ * Cubrimos 8 de las 9 características. Protección (safety) queda fuera a
+ * propósito: exige una evaluación humana del riesgo real del sistema y no se
+ * puede inferir leyendo código o HTML. Como no suma ni resta, no se enseña.
  */
 
 export const DIMENSION_LABELS: Record<string, string> = {
@@ -21,8 +25,6 @@ export const DIMENSION_LABELS: Record<string, string> = {
   maintainability: "Mantenibilidad",
   // Antes "Portabilidad".
   portability: "Flexibilidad",
-  // Nueva en 2023, todavía sin medir.
-  safety: "Protección",
   // En 2023 se cubre con "inclusividad", dentro de la capacidad de interacción.
   accessibility: "Accesibilidad (inclusividad)",
   // No es ISO.
@@ -38,11 +40,6 @@ export const AXIS_LABELS: Record<string, string> = {
   accessibility: "Accesibilidad",
   project_activity: "Actividad",
 };
-
-// Características de la norma que aún no se miden. Se enseñan como "sin
-// medir" y no entran en la nota: ni 0 (castigar lo no comprobado) ni 100
-// (regalarlo).
-export const SIN_MEDIR = ["safety"];
 
 // Orden fijo de los ejes: si variara entre análisis, dos radares del mismo
 // proyecto no serían comparables de un vistazo, que es justo para lo que sirve.

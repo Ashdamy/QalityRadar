@@ -1,11 +1,5 @@
 import type { AnalysisDimension, Subcaracteristica } from "@/lib/api";
-import {
-  SIN_MEDIR,
-  dimensionColor,
-  dimensionLabel,
-  esIndicadorDeSalud,
-  splitDimensionName,
-} from "@/lib/dimensiones";
+import { dimensionColor, dimensionLabel, esIndicadorDeSalud } from "@/lib/dimensiones";
 
 function Desglose({ subs }: { subs: Subcaracteristica[] }) {
   return (
@@ -38,15 +32,9 @@ function Desglose({ subs }: { subs: Subcaracteristica[] }) {
 /**
  * Lista de dimensiones con su barra y, desplegable, el desglose por
  * subcaracterística. La comparten el panel de análisis y el informe
- * compartido.
- *
- * Al final, las características de la norma que aún no se miden, sin barra:
- * no es una nota baja, es que no hay nota.
+ * compartido. Los indicadores de salud van aparte, en `IndicadorDeSalud`.
  */
 export function DimensionesDetalle({ dimensions: todas }: { dimensions: AnalysisDimension[] }) {
-  // En el modo combinado ya vienen con origen y el listado de las no medidas
-  // no aplica a ningún lado en concreto.
-  const combinado = todas.some((d) => splitDimensionName(d.name).origin !== null);
   const dimensions = todas.filter((d) => !esIndicadorDeSalud(d.name));
 
   return (
@@ -85,15 +73,6 @@ export function DimensionesDetalle({ dimensions: todas }: { dimensions: Analysis
           </details>
         );
       })}
-
-      {!combinado &&
-        SIN_MEDIR.map((clave) => (
-          <div key={clave} className="flex items-center gap-4 text-faint">
-            <span className="w-[190px] shrink-0 text-[13px]">{dimensionLabel(clave)}</span>
-            <div className="h-[6px] flex-1 rounded-full border border-dashed border-border" />
-            <span className="w-[62px] shrink-0 text-right text-[12px]">sin medir</span>
-          </div>
-        ))}
 
       {dimensions.some((d) => d.subcharacteristics?.length) && (
         <p className="text-[11.5px] text-faint">Pulsa una dimensión para ver de dónde salen sus puntos.</p>

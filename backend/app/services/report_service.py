@@ -11,7 +11,7 @@ vuelve a analizar nada.
 import io
 from datetime import datetime
 
-from app.services.iso25010 import SIN_MEDIR, dimension_label
+from app.services.iso25010 import dimension_label
 from app.analyzers.repository.code_quality import COBERTURA_MINIMA
 from app.services.scoring_service import HEALTH_INDICATORS
 from reportlab.lib import colors
@@ -31,19 +31,12 @@ from reportlab.platypus import (
 )
 
 def filas_de_dimensiones(dimensions) -> list[list[str]]:
-    """Filas de la tabla de dimensiones, cabecera incluida.
-
-    Las caracteristicas de la norma que aun no se miden van al final como
-    "sin medir": no tienen nota, y omitirlas daria a entender que la norma
-    termina donde termina lo que medimos.
-    """
+    """Filas de la tabla de dimensiones ISO, cabecera incluida."""
     filas = [["Dimensión", "Puntuación", "Peso"]]
     for d in _iso_ordenadas(dimensions):
         filas.append(
             [dimension_label(d.name), f"{float(d.score):.0f}/100", f"{float(d.weight) * 100:.0f}%"]
         )
-    for clave in SIN_MEDIR:
-        filas.append([dimension_label(clave), "sin medir", "—"])
     return filas
 
 
@@ -262,9 +255,6 @@ def build_analysis_report(
         ("TEXTCOLOR", (1, i), (1, i), _score_color(float(d.score)))
         for i, d in enumerate(_iso_ordenadas(dimensions), start=1)
     ]
-    # Las filas "sin medir" en gris: no son una nota baja, son ausencia de nota.
-    primera_sin_medir = len(_iso_ordenadas(dimensions)) + 1
-    estilos_fila.append(("TEXTCOLOR", (0, primera_sin_medir), (-1, -1), FAINT))
 
     tabla = Table(filas, colWidths=[95 * mm, 35 * mm, 30 * mm])
     tabla.setStyle(

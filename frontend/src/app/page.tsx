@@ -67,7 +67,7 @@ const DIMENSIONES = [
   {
     nombre: "Y cuatro más",
     texto:
-      "Adecuación funcional, flexibilidad, capacidad de interacción y compatibilidad. La novena, protección, aún no se mide y se marca como tal.",
+      "Adecuación funcional, flexibilidad, capacidad de interacción y compatibilidad.",
   },
 ];
 
@@ -309,7 +309,7 @@ export default function Landing() {
         <section id="dimensiones" className="scroll-mt-20 px-6 py-[72px] md:py-28">
           <div className="mx-auto max-w-[1200px]">
             <Etiqueta>QUÉ MIDE</Etiqueta>
-            <h2 className={`${H2} mb-4 max-w-[760px]`}>Ocho de las nueve características ISO, un solo informe.</h2>
+            <h2 className={`${H2} mb-4 max-w-[760px]`}>8 de las 9 características ISO, un solo informe.</h2>
             <p className="mb-12 max-w-[700px] text-lg text-muted">
               Basado en ISO/IEC 25010, el estándar internacional de calidad del producto software.
             </p>

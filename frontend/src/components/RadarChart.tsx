@@ -4,7 +4,6 @@ import type { AnalysisDimension } from "@/lib/api";
 import {
   AXIS_LABELS,
   REPOSITORY_ORDER,
-  SIN_MEDIR,
   URL_ORDER,
   dimensionLabel,
   splitDimensionName,
@@ -27,9 +26,8 @@ export function axisOrderFor(names: string[]): string[] {
   const coincidenciasUrl = URL_ORDER.filter((n) => presentes.has(n)).length;
   const coincidenciasRepo = REPOSITORY_ORDER.filter((n) => presentes.has(n)).length;
   const orden = coincidenciasUrl > coincidenciasRepo ? URL_ORDER : REPOSITORY_ORDER;
-  // Se dibujan los ejes que el análisis trae y, al final, las características
-  // de la norma que aún no se miden, para que se vea que existen.
-  return [...orden.filter((n) => presentes.has(n)), ...SIN_MEDIR];
+  // Solo se dibujan los ejes que el análisis realmente trae.
+  return orden.filter((n) => presentes.has(n));
 }
 
 const SIZE = 320;
@@ -47,8 +45,9 @@ function axisPoint(index: number, fraction: number, total: number) {
 }
 
 /**
- * Polígono de las notas. Los ejes sin medir no aportan vértice: si lo
- * aportaran en el centro, el dibujo diría "0" donde la verdad es "no se sabe".
+ * Polígono de las notas. Un eje sin nota no aporta vértice: pasa con el
+ * análisis anterior que se superpone, si le falta alguna dimensión. Ponerlo en
+ * el centro diría "0" donde la verdad es "no había dato".
  */
 function polygon(axes: string[], scores: Map<string, number>): string {
   return axes
@@ -82,8 +81,8 @@ export function RadarChart({
   const current = new Map(dimensions.map((d) => [d.name, d.score]));
   const before = previous ? new Map(previous.map((d) => [d.name, d.score])) : null;
 
-  // Un radar necesita al menos tres ejes medidos para formar un polígono.
-  if (axes.filter((n) => current.has(n)).length < 3) return null;
+  // Un radar necesita al menos tres ejes para formar un polígono.
+  if (axes.length < 3) return null;
 
   return (
     <svg
@@ -105,7 +104,7 @@ export function RadarChart({
         />
       ))}
 
-      {axes.map((name, i) => {
+      {axes.map((_, i) => {
         const p = axisPoint(i, 1, axes.length);
         return (
           <line
@@ -116,8 +115,6 @@ export function RadarChart({
             y2={p.y}
             className="stroke-border"
             strokeWidth={1}
-            // Un eje sin medir se dibuja discontinuo: existe, pero no hay nota.
-            strokeDasharray={current.has(name) ? undefined : "3 4"}
           />
         );
       })}
@@ -142,18 +139,14 @@ export function RadarChart({
         strokeWidth={2}
       />
 
-      {axes
-        .map((name, i) => ({ name, i }))
-        .filter(({ name }) => current.has(name))
-        .map(({ name, i }) => {
-          const score = current.get(name) ?? 0;
-          const p = axisPoint(i, Math.max(0, Math.min(100, score)) / 100, axes.length);
-          return <circle key={name} cx={p.x} cy={p.y} r={3.5} className="fill-accent" />;
-        })}
+      {axes.map((name, i) => {
+        const score = current.get(name) ?? 0;
+        const p = axisPoint(i, Math.max(0, Math.min(100, score)) / 100, axes.length);
+        return <circle key={name} cx={p.x} cy={p.y} r={3.5} className="fill-accent" />;
+      })}
 
       {axes.map((name, i) => {
         const p = axisPoint(i, 1.19, axes.length);
-        const medido = current.has(name);
         return (
           <text
             key={name}
@@ -162,14 +155,9 @@ export function RadarChart({
             textAnchor="middle"
             dominantBaseline="middle"
             fontSize={11}
-            className={medido ? "fill-muted" : "fill-faint"}
+            className="fill-muted"
           >
             {dimensionLabel(name, AXIS_LABELS)}
-            {!medido && (
-              <tspan x={p.x} dy="1.2em" fontSize={9.5}>
-                sin medir
-              </tspan>
-            )}
           </text>
         );
       })}

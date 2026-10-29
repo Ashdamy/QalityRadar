@@ -12,7 +12,7 @@ Por tanto:
 - Una puntuación alta aquí **no acredita conformidad con ISO/IEC 25010**, ni sustituye una evaluación formal según ISO/IEC 25040.
 - Medimos lo que se puede observar leyendo un repositorio. Muchas subcaracterísticas de la norma (eficiencia de desempeño, capacidad de interacción, compatibilidad) requieren ejecutar el software, y para eso está el modo de análisis de URL.
 
-## Las 9 características de ISO/IEC 25010:2023 y qué cubrimos
+## Cubrimos 8 de las 9 características de ISO/IEC 25010:2023
 
 El modelo es el de la **revisión de 2023**. Frente a la de 2011 tiene nueve características en vez de ocho: renombra dos, añade una y reorganiza algunas subcaracterísticas.
 
@@ -26,7 +26,7 @@ El modelo es el de la **revisión de 2023**. Frente a la de 2011 tiene nueve car
 | Seguridad | igual | ✅ Parcial | Repositorio + URL | `security` |
 | Mantenibilidad | igual | ✅ Parcial | Repositorio | `maintainability` |
 | **Flexibilidad** | Portabilidad | ✅ Parcial | Repositorio | `portability` |
-| **Protección** (*safety*) | — (nueva) | ❌ **Sin medir** | — | `safety` |
+| **Protección** (*safety*) | — (nueva) | ❌ **Fuera a propósito** | — | — |
 
 ### Por qué las claves internas no se renombran
 
@@ -42,9 +42,11 @@ Cambiar la etiqueta da al usuario exactamente lo mismo sin tocar un solo dato. L
 
 La norma de 2023 deja de tener una subcaracterística llamada "accesibilidad": lo cubre la **inclusividad** (y en parte la **asistencia al usuario**), dentro de la capacidad de interacción. El modo URL la sigue midiendo como eje propio, con la etiqueta "Accesibilidad (inclusividad)", porque se comprueba con pruebas distintas y tiene su propio peso.
 
-### Protección (safety), sin medir
+### Protección (safety), fuera a propósito
 
-Es la característica nueva de 2023: que el sistema no ponga en peligro a personas, bienes o el entorno (restricción operativa, identificación de riesgos, comportamiento a prueba de fallos, avisos de peligro, integración segura). No se puede juzgar leyendo un repositorio ni una página web, así que **no se mide**. Aparece en el radar, en el informe y en el PDF como "sin medir" y queda **fuera del denominador**: ni resta (darle 0 castigaría lo que no se comprobó) ni suma (darle 100 lo regalaría).
+**Protección (safety) queda fuera a propósito, porque exige evaluación humana del riesgo real del sistema y no se puede inferir leyendo código o HTML.**
+
+Es la característica nueva de 2023: que el sistema no ponga en peligro a personas, bienes o el entorno (restricción operativa, identificación de riesgos, comportamiento a prueba de fallos, avisos de peligro, integración segura). Saber si un fallo de un programa puede herir a alguien depende de dónde se usa, no de cómo está escrito. Como no suma ni resta a la nota, por decisión de producto **no se muestra** en el radar, la lista, el informe compartido ni el PDF.
 
 ### La actividad del proyecto: aparte, fuera de la nota
 
@@ -245,14 +247,14 @@ nota_global      = Σ(peso_i × nota_i) / Σ(pesos de las características ISO m
 nota_global      = min(nota_global, techo por riesgo crítico)
 ```
 
-La normalización sobre las características **realmente medidas** evita penalizar a un proyecto por lo que este análisis todavía no cubre. Quedan fuera del denominador la **protección** (sin medir) y el **indicador de salud** (no es ISO). Cuando entren los analizadores restantes, el denominador crecerá.
+La normalización sobre las características **realmente medidas** evita penalizar a un proyecto por lo que este análisis todavía no cubre. Queda fuera del denominador el **indicador de salud** (no es ISO); la protección ni siquiera se evalúa. Cuando entren los analizadores restantes, el denominador crecerá.
 
 ## Principio de diseño: los puntos se ganan
 
 Cada dimensión parte de **cero**. Nunca se acredita calidad que no se haya comprobado:
 
 - Una dimensión que se analizó y no aportó evidencia puntúa 0, no 100: un repositorio sin código no tiene mantenibilidad que acreditar.
-- Lo que **no se mide** no puntúa ni 0 ni 100: se **excluye** de la nota y se marca "sin medir". Así se tratan la protección y las subcaracterísticas que la norma define y aquí no se comprueban. La diferencia con el punto anterior es que ahí sí se miró.
+- Lo que **no se mide** no puntúa ni 0 ni 100: se **excluye** de la nota y se marca "sin medir". Así se tratan las subcaracterísticas que la norma define y aquí no se comprueban. La diferencia con el punto anterior es que ahí sí se miró.
 - La *ausencia* de un problema solo suma si de verdad se escanearon archivos. "No tiene credenciales expuestas" sin haber leído ningún archivo no es un mérito, es desconocimiento.
 
 Esto corrige el modelo original, que restaba penalizaciones desde 100 y por tanto premiaba la ausencia de evidencia: un repositorio con un solo archivo y sin nada más sacaba 87/100.
