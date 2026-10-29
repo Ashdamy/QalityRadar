@@ -3,7 +3,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db
@@ -18,9 +18,14 @@ from app.utils.url_validation import UnsafeUrlError, validate_public_url
 router = APIRouter(prefix="/api/apps", tags=["apps"])
 
 
+# Ningun navegador maneja URL mucho mas largas, y sin tope cualquiera podia
+# guardar y encolar una de 60 KB. El nombre tiene el largo de su columna.
+MAX_URL_LENGTH = 2048
+
+
 class AnalyzeUrlRequest(BaseModel):
-    url: str
-    name: str | None = None
+    url: str = Field(max_length=MAX_URL_LENGTH)
+    name: str | None = Field(default=None, max_length=255)
 
 
 @router.post("/analyze", status_code=status.HTTP_202_ACCEPTED)
@@ -71,7 +76,7 @@ def analyze_url(
 
 class AnalyzeCombinedRequest(BaseModel):
     repository_id: uuid.UUID
-    url: str
+    url: str = Field(max_length=MAX_URL_LENGTH)
 
 
 @router.post("/analyze-combined", status_code=status.HTTP_202_ACCEPTED)

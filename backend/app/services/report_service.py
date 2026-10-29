@@ -129,7 +129,9 @@ def build_analysis_report(
 
     story.append(Paragraph("Informe de calidad de software", estilo_titulo))
     story.append(Spacer(1, 3))
-    story.append(Paragraph(repository_full_name, estilo_sub))
+    # En el modo URL es la direccion que escribio el usuario: sin escapar, un
+    # `<` rompia el PDF y cualquier etiqueta se interpretaba como marcado.
+    story.append(Paragraph(_escape(repository_full_name), estilo_sub))
     story.append(Spacer(1, 8))
     story.append(HRFlowable(width="100%", color=RULE, thickness=0.8))
     story.append(Spacer(1, 12))

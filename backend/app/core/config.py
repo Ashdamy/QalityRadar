@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Un secreto corto se puede sacar por fuerza bruta a partir de un solo token
@@ -99,6 +99,22 @@ class Settings(BaseSettings):
                 f"{info.field_name} debe tener al menos {MIN_SECRET_LENGTH} caracteres"
             )
         return limpio
+
+    @model_validator(mode="after")
+    def _cookies_seguras_si_hay_https(self) -> "Settings":
+        """Si la aplicacion se sirve por HTTPS, la cookie de sesion tiene que ser `Secure`.
+
+        Con `COOKIE_SECURE=false` en produccion todo funciona y nada avisa:
+        simplemente el navegador manda la sesion tambien por HTTP, en claro,
+        a quien la pida. Como con los secretos de ejemplo, mejor no arrancar.
+        """
+        publicas = (self.frontend_base_url, self.public_base_url, self.github_oauth_redirect_uri)
+        if not self.cookie_secure and any(url.startswith("https://") for url in publicas):
+            raise ValueError(
+                "la aplicacion usa direcciones https pero COOKIE_SECURE=false: "
+                "la sesion viajaria tambien por HTTP. Pon COOKIE_SECURE=true"
+            )
+        return self
 
     @property
     def cors_origin_list(self) -> list[str]:

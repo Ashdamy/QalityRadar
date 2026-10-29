@@ -131,9 +131,25 @@ GitHub exige `https` en el callback de OAuth, y el navegador bloquea peticiones 
 
 ```
 api.tu-dominio.com {
+    # Que el navegador no vuelva a intentar HTTP en un año, ni siquiera si
+    # alguien escribe la dirección sin https. La redirección de HTTP a HTTPS
+    # la hace Caddy solo; esto evita que exista esa primera petición en claro.
+    header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+    # El mismo tope que la API, pero aplicado también a las peticiones
+    # `Transfer-Encoding: chunked`, que no declaran tamaño y la API no puede
+    # medir sin leerlas.
+    request_body {
+        max_size 64KB
+    }
+
     reverse_proxy localhost:8000
 }
 ```
+
+HSTS no se emite desde la aplicación a propósito: en local va por HTTP y el navegador dejaría el dominio inaccesible. Vercel lo añade solo en el frontend.
+
+> **Pon `COOKIE_SECURE=true`.** Si alguna dirección de la configuración empieza por `https://` y la cookie no es segura, la API **no arranca**: la sesión viajaría también por HTTP sin cifrar.
 
 ### 7. Frontend en Vercel
 

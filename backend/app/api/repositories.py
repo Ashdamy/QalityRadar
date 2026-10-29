@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from datetime import datetime, timedelta, timezone
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_user, get_db
 from app.models.analysis import Analysis
@@ -31,7 +31,8 @@ REUSE_WINDOW_HOURS = 24
 
 class AnalyzeRequest(BaseModel):
     # Sin rama, la de por defecto del repositorio.
-    branch: str | None = None
+    # Git admite nombres largos, pero no tanto; la forma la valida el clonado.
+    branch: str | None = Field(default=None, max_length=255)
     # Para cuando el usuario quiere un informe nuevo del mismo commit.
     force: bool = False
 

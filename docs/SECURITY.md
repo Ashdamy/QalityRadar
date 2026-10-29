@@ -198,7 +198,14 @@ Sin esto, quien olvidaba la contraseña perdía la cuenta.
 
 ## 4. Autorización
 
-Todos los endpoints exigen sesión salvo ocho, y los ocho son públicos a propósito: registro, inicio de sesión, verificación del correo, pedir y usar el enlace de restablecer la contraseña, las dos rutas de OAuth, y la lectura de un informe compartido.
+De las 41 rutas de la API, todas exigen sesión salvo trece, y las trece son públicas a propósito:
+
+- **Entrar y registrarse:** registro, inicio de sesión, verificación del correo, pedir y usar el enlace de restablecer la contraseña, y las dos rutas de OAuth.
+- **Renovar y cerrar sesión** (`/refresh`, `/logout`): no piden sesión válida porque su trabajo es precisamente tratar con una que caducó; validan el token de refresco que reciben.
+- **Lo que se comparte con un token largo:** el informe compartido y la insignia del README.
+- **Datos sin información de nadie:** los límites de caducidad de los enlaces (`/api/reports/shared-config`) y el chequeo de salud.
+
+La lista se comprobó recorriendo las rutas de la aplicación real y mirando cuáles dependen de `get_current_user`, no leyendo el código a ojo.
 
 - **Cada recurso comprueba su dueño.** No basta con tener sesión: hay que ser el propietario del análisis, del repositorio o del monitor.
 - **Se responde 404, no 403**, cuando el recurso es de otra persona. Un 403 confirmaría que existe.
@@ -264,6 +271,13 @@ Se cuentan **solo los fallos**, y por dos claves a la vez porque frenan ataques 
 - **La insignia del README es lo único público que no caduca**, y es deliberado: una que se apagara sola dejaría una imagen rota en la portada de un proyecto ajeno. Se revoca a mano. Para que eso sea aceptable, expone lo mínimo: **solo la cifra**, ni el nombre del repositorio ni los hallazgos, así que si el token se filtrara antes de publicarlo, lo que se lleva quien lo tenga es un número. Apunta al repositorio y no a un análisis, o se quedaría congelada en la nota de un día. Un token inexistente y uno revocado devuelven la misma imagen —«sin analizar»— en vez de un 404, que además de servir de oráculo dejaría la portada rota.
 - **`noindex` en las páginas de informe compartido.** El token protege de quien no lo tiene, pero no de un buscador que ya lo vio: si alguien pega el enlace donde Google rastree, el informe quedaría indexado **aunque el enlace caduque**.
 - **La documentación interactiva de la API se apaga en producción** (`ENABLE_API_DOCS=false`). No es una vulnerabilidad por sí sola, pero publicada regala el mapa completo de la API y le ahorra a un atacante todo el reconocimiento.
+- **Los mensajes de error de un análisis no cuentan nada interno.** Por defecto no se enseña el texto de la excepción; solo pasan los errores que levanta el propio proyecto. El análisis combinado se había quedado fuera de esta regla y guardaba `error inesperado: {exc}` tal cual: un fallo de base de datos o de Redis trae el host, el usuario y a veces la contraseña, y ese mensaje lo ve el usuario **y cualquiera con un enlace compartido**. Ahora usa el mismo filtro que el de repositorio.
+
+### Monitorización de consultas
+
+`docker-compose.yml`
+
+Postgres registra las consultas que tardan **más de 500 ms** y las que se quedan **esperando un bloqueo**, que es lo primero que hay que mirar cuando la aplicación se vuelve lenta o algo se atasca. Se registra el texto de la consulta pero **no sus valores** (`log_parameter_max_length=0`, también en errores): entre ellos van correos y hashes que no deben acabar en un log. Se leen con `docker compose logs postgres`.
 
 ---
 
@@ -298,11 +312,13 @@ Dos concesiones, dichas por su nombre:
 
 **Verificado en un navegador real:** las 6 pruebas end-to-end (registro, análisis, compartir, enlace público) pasan con la política activa. Una CSP que rompe la aplicación se revierte al día siguiente y no protege de nada.
 
-**HSTS no se emite desde la aplicación.** La termina el proxy inverso, que es quien sabe si la conexión es realmente HTTPS; emitirla en local, por HTTP, dejaría el dominio inaccesible en el navegador.
+**HSTS no se emite desde la aplicación.** La termina el proxy inverso, que es quien sabe si la conexión es realmente HTTPS; emitirla en local, por HTTP, dejaría el dominio inaccesible en el navegador. La configuración de Caddy de [`DEPLOYMENT.md`](DEPLOYMENT.md) la incluye (`max-age` de un año) y Caddy redirige solo de HTTP a HTTPS; en el frontend la pone Vercel.
+
+**La API no arranca con cookies inseguras sobre HTTPS.** Si alguna dirección de la configuración (`FRONTEND_BASE_URL`, `PUBLIC_BASE_URL`, el callback de GitHub) empieza por `https://` y `COOKIE_SECURE` sigue en `false`, la aplicación se niega a arrancar. Con ese descuido todo funciona y nada avisa: el navegador simplemente manda la sesión también por HTTP, en claro.
 
 **CORS con lista explícita de orígenes**, nunca `*`, porque la API responde con credenciales.
 
-**El cuerpo de una petición se corta en 64 KB.** Lo más grande que recibe esta API es un JSON con una URL y un nombre; sin tope, una sola petición puede reservar toda la memoria del proceso antes de que nadie mire lo que trae. Se rechaza con 413 por lo que declara el `Content-Length`, antes de leer nada. Quien no lo declare (`Transfer-Encoding: chunked`) se cuela de esta comprobación: ese caso lo corta el proxy inverso, que es quien puede hacerlo sin haber leído nada.
+**El cuerpo de una petición se corta en 64 KB.** Lo más grande que recibe esta API es un JSON con una URL y un nombre; sin tope, una sola petición puede reservar toda la memoria del proceso antes de que nadie mire lo que trae. Se rechaza con 413 por lo que declara el `Content-Length`, antes de leer nada. Quien no lo declare (`Transfer-Encoding: chunked`) se cuela de esta comprobación: ese caso lo corta el proxy inverso (`request_body max_size 64KB` en la configuración de Caddy), que es quien puede hacerlo sin haber leído nada.
 
 ---
 
@@ -310,8 +326,10 @@ Dos concesiones, dichas por su nombre:
 
 - **SQL:** todo pasa por el ORM de SQLAlchemy con consultas parametrizadas. No hay SQL construido por concatenación.
 - **Comandos:** ningún `shell=True`, `os.system`, `eval` ni `exec`. Los procesos se lanzan con lista de argumentos, que no pasa por un intérprete de shell.
-- **XSS:** React escapa por defecto y no se usa `dangerouslySetInnerHTML` en ningún sitio.
+- **XSS:** React escapa por defecto. `dangerouslySetInnerHTML` aparece una sola vez, en la portada, para los datos estructurados de Google (`application/ld+json`), y lo que mete son constantes del propio código, nunca datos de un usuario.
+- **PDF:** ReportLab interpreta un subconjunto de HTML en los párrafos, así que todo texto ajeno se escapa antes. El título —que en el modo URL es la dirección que escribió el usuario— se había quedado sin escapar: un `<` en la URL **hacía fallar la generación del PDF** y cualquier etiqueta se interpretaba como marcado.
 - **Nombres de rama validados** contra un patrón antes de llegar a `git`, y se rechaza `..`.
+- **Longitud de las entradas:** todo lo que llega por el cuerpo pasa por un esquema de Pydantic con tope. La URL a analizar y el nombre de la aplicación no lo tenían, y la API aceptaba y encolaba una URL de 60.000 caracteres; ahora la URL tiene un máximo de 2.048, el nombre de 255 (el largo de su columna) y la rama también de 255. Los identificadores de las rutas son `UUID` tipados: uno mal formado es un 422 antes de tocar la base.
 
 ---
 
@@ -351,7 +369,11 @@ Esto es tan importante como lo anterior.
 
 **No queda registro de quién consultó qué.** Sí lo hay de lo que le pasa a cada cuenta (§3), que es lo que sirve tras un incidente; el de lecturas se dejó fuera a propósito. Para datos de terceros haría falta.
 
-**El tope de 64 KB por petición se esquiva con `Transfer-Encoding: chunked`**, que no declara `Content-Length`. Es tarea del proxy inverso, que puede cortarlo sin haber leído nada.
+**No hay CAPTCHA.** Contra los bots hay límites de registro por IP, verificación del correo, límites de inicio de sesión y de enlaces de recuperación, y topes de análisis por cuenta y globales. Un CAPTCHA (Cloudflare Turnstile, por ejemplo) exige una cuenta del proveedor y sus claves; se añadirá si el abuso llega a ser real.
+
+**No se usa Row-Level Security de Postgres.** La base no está expuesta a ningún cliente: solo la API habla con ella, con un único usuario, y la autorización se aplica en cada consulta (§4). RLS tendría sentido si el navegador consultara la base directamente, como en Supabase; aquí obligaría a fijar el usuario en cada transacción, incluidas las tareas del worker que trabajan con datos de varias cuentas, sin cerrar ningún hueco que hoy esté abierto.
+
+**El tope de 64 KB y HSTS dependen del proxy inverso.** Están en la configuración de Caddy de la guía de despliegue; un despliegue que la ignore se queda sin ellos.
 
 ---
 

@@ -1,6 +1,21 @@
 services:
   postgres:
     image: postgres:16-alpine
+    # Monitorizacion de consultas: deja en el log de Postgres las que tardan
+    # mas de medio segundo y las que se quedan esperando un bloqueo, que es lo
+    # primero que hay que mirar cuando la aplicacion se vuelve lenta.
+    # log_parameter_max_length=0: el texto de la consulta si, los valores no,
+    # porque entre ellos van correos y hashes que no deben acabar en un log.
+    command:
+      - postgres
+      - -c
+      - log_min_duration_statement=500
+      - -c
+      - log_lock_waits=on
+      - -c
+      - log_parameter_max_length=0
+      - -c
+      - log_parameter_max_length_on_error=0
     environment:
       POSTGRES_USER: qalitiradar
       POSTGRES_PASSWORD: qalitiradar_dev

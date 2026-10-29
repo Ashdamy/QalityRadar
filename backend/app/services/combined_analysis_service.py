@@ -18,7 +18,7 @@ from app.models.analysis import Analysis, Finding
 from app.utils.safe_http import fetch_public_page
 from app.models.deployed_app import DeployedApp
 from app.models.repository import Repository
-from app.services.analysis_service import run_repository_analysis
+from app.services.analysis_service import _safe_error_message, run_repository_analysis
 from app.services.correspondence_service import check_correspondence
 from app.services.combined_service import (
     apply_severity_cap,
@@ -191,7 +191,10 @@ def run_combined_analysis(analysis_id: str) -> None:
         db.rollback()
         analisis = db.get(Analysis, uuid.UUID(analysis_id))
         if analisis is not None and analisis.status not in ("completed", "failed"):
-            _fallar(db, analisis, f"error inesperado: {exc}")
+            # Nunca `str(exc)` a secas: un error de base de datos o de Redis
+            # trae el host, el usuario y a veces la contrasena, y este mensaje
+            # lo ve el usuario y cualquiera con un enlace compartido.
+            _fallar(db, analisis, _safe_error_message(exc))
         raise
     finally:
         # Se libera el hueco de analisis simultaneos pase lo que pase: si no,
