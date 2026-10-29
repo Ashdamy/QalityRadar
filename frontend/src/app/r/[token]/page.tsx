@@ -3,24 +3,12 @@
 import { use, useEffect, useState } from "react";
 import { ApiError, getSharedReport, type Analysis } from "@/lib/api";
 import { RadarMark } from "@/components/RadarMark";
-import { RadarChart, dimensionLabel } from "@/components/RadarChart";
+import { RadarChart } from "@/components/RadarChart";
+import { DimensionesDetalle } from "@/components/DimensionesDetalle";
 
 // Página pública: no usa AnalysisPanel porque ese panel ofrece acciones que
 // solo tienen sentido con sesión (compartir, cerrar, exportar). Aquí se
 // muestra el informe y nada más.
-
-const DIMENSION_LABELS: Record<string, string> = {
-  functional_suitability: "Adecuación funcional",
-  reliability: "Fiabilidad",
-  security: "Seguridad",
-  maintainability: "Mantenibilidad",
-  portability: "Portabilidad",
-  project_activity: "Actividad del proyecto",
-  performance: "Rendimiento",
-  usability: "Usabilidad",
-  accessibility: "Accesibilidad",
-  compatibility: "Compatibilidad",
-};
 
 const SEVERITY_LABELS: Record<string, string> = {
   critical: "Crítico",
@@ -34,12 +22,6 @@ function scoreColor(score: number): string {
   if (score >= 80) return "text-[oklch(0.72_0.15_150)]";
   if (score >= 50) return "text-[oklch(0.80_0.14_85)]";
   return "text-[oklch(0.68_0.19_25)]";
-}
-
-function dimensionColor(score: number): string {
-  if (score >= 80) return "oklch(0.72 0.15 150)";
-  if (score >= 50) return "oklch(0.80 0.14 85)";
-  return "oklch(0.68 0.19 25)";
 }
 
 function severityColor(severity: string): string {
@@ -101,7 +83,7 @@ export default function SharedReportPage({
               {analysis.repository_full_name ?? "Informe de calidad"}
             </h1>
             <p className="mt-1 text-[13px] text-muted">
-              Evaluación según el modelo ISO/IEC 25010.
+              Evaluación según el modelo ISO/IEC 25010:2023.
             </p>
 
             <div className="mt-7 flex flex-wrap items-end gap-8">
@@ -132,27 +114,7 @@ export default function SharedReportPage({
 
             <div className="mt-8 flex flex-col items-center gap-6 md:flex-row md:items-start">
               <RadarChart dimensions={analysis.dimensions} />
-              <div className="w-full flex-1">
-                {analysis.dimensions.map((d) => (
-                  <div key={d.name} className="mb-3">
-                    <div className="mb-1 flex items-baseline justify-between text-[12.5px]">
-                      <span className="text-muted">
-                        {dimensionLabel(d.name, DIMENSION_LABELS)}
-                      </span>
-                      <span className="font-mono text-[12px]">{d.score.toFixed(0)}</span>
-                    </div>
-                    <div className="h-[5px] w-full overflow-hidden rounded-full bg-surface2">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${Math.max(0, Math.min(100, d.score))}%`,
-                          background: dimensionColor(d.score),
-                        }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <DimensionesDetalle dimensions={analysis.dimensions} />
             </div>
 
             <div className="mt-8">
@@ -190,7 +152,7 @@ export default function SharedReportPage({
             </div>
 
             <p className="mt-10 text-center text-[12px] leading-[1.6] text-faint">
-              Las puntuaciones son una aproximación al modelo de calidad ISO/IEC 25010. No
+              Las puntuaciones son una aproximación al modelo de calidad ISO/IEC 25010:2023. No
               constituyen una certificación oficial.
             </p>
           </>

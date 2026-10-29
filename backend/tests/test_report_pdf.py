@@ -180,10 +180,11 @@ def test_las_dimensiones_de_url_tienen_traduccion():
     """Faltaban desde el Modo 2: el PDF imprimia "performance" en crudo."""
     from app.services.report_service import dimension_label
 
+    # Nombres de ISO/IEC 25010:2023 (ver test_iso25010.py).
     for tecnico, esperado in [
-        ("performance", "Rendimiento"),
-        ("usability", "Usabilidad"),
-        ("accessibility", "Accesibilidad"),
+        ("performance", "Eficiencia de desempeño"),
+        ("usability", "Capacidad de interacción"),
+        ("accessibility", "Accesibilidad (inclusividad)"),
         ("compatibility", "Compatibilidad"),
     ]:
         assert dimension_label(tecnico) == esperado

@@ -18,6 +18,8 @@ del usuario hacia un tercero.
 
 import httpx
 
+from app.services import iso25010
+
 HF_URL = "https://router.huggingface.co/v1/chat/completions"
 HF_MODEL = "meta-llama/Llama-3.1-8B-Instruct"
 HF_TIMEOUT_SECONDS = 45
@@ -166,18 +168,8 @@ def _try_model(
 
 # --- Resumen de un analisis individual --------------------------------------
 
-DIMENSION_LABELS = {
-    "functional_suitability": "adecuacion funcional",
-    "reliability": "fiabilidad",
-    "security": "seguridad",
-    "maintainability": "mantenibilidad",
-    "portability": "portabilidad",
-    "project_activity": "actividad del proyecto",
-    "performance": "rendimiento",
-    "usability": "usabilidad",
-    "accessibility": "accesibilidad",
-    "compatibility": "compatibilidad",
-}
+# En minuscula porque van en medio de una frase ("lo mas solido es la ...").
+DIMENSION_LABELS = {clave: etiqueta.lower() for clave, etiqueta in iso25010.DIMENSION_LABELS.items()}
 
 SEVERITY_LABELS = {
     "critical": "criticos",

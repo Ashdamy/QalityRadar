@@ -1,4 +1,4 @@
-"""Rendimiento, accesibilidad, usabilidad y compatibilidad de una pagina.
+"""Eficiencia de desempeno, accesibilidad, capacidad de interaccion (antes usabilidad) y compatibilidad de una pagina.
 
 Alcance, dicho sin adornos: Lighthouse y axe-core necesitan un navegador sin
 interfaz (unos 400 MB de contenedor) y llegan mas adelante. Todo lo de aqui

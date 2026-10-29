@@ -14,6 +14,9 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+# Una sola tabla de nombres para todo el producto; history.py la reexporta.
+from app.services.iso25010 import DIMENSION_LABELS
+
 from app.models.analysis import (
     Analysis,
     AnalysisComparison,
@@ -26,14 +29,6 @@ from app.models.analysis import (
 # Por debajo de esto el cambio es ruido, no una mejora ni una regresion.
 SIGNIFICANT_DELTA = 1.0
 
-DIMENSION_LABELS = {
-    "functional_suitability": "Adecuacion funcional",
-    "reliability": "Fiabilidad",
-    "security": "Seguridad",
-    "maintainability": "Mantenibilidad",
-    "portability": "Portabilidad",
-    "project_activity": "Actividad del proyecto",
-}
 
 SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 

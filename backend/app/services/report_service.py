@@ -11,6 +11,7 @@ vuelve a analizar nada.
 import io
 from datetime import datetime
 
+from app.services.iso25010 import SIN_MEDIR, dimension_label
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import A4
@@ -27,31 +28,21 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-DIMENSION_LABELS = {
-    "functional_suitability": "Adecuación funcional",
-    "reliability": "Fiabilidad",
-    "security": "Seguridad",
-    "maintainability": "Mantenibilidad",
-    "portability": "Portabilidad",
-    "project_activity": "Actividad del proyecto",
-    # Dimensiones del analisis de URL (Modo 2).
-    "performance": "Rendimiento",
-    "usability": "Usabilidad",
-    "accessibility": "Accesibilidad",
-    "compatibility": "Compatibilidad",
-}
+def filas_de_dimensiones(dimensions) -> list[list[str]]:
+    """Filas de la tabla de dimensiones, cabecera incluida.
 
-# En el modo combinado las dimensiones llegan como "origen:nombre", porque
-# codigo y produccion miden ambos "security" sin ser lo mismo.
-ORIGIN_LABELS = {"codigo": "código", "produccion": "producción"}
-
-
-def dimension_label(name: str) -> str:
-    origen, separador, base = name.partition(":")
-    if not separador:
-        return DIMENSION_LABELS.get(name, name)
-    etiqueta = DIMENSION_LABELS.get(base, base)
-    return f"{etiqueta} ({ORIGIN_LABELS.get(origen, origen)})"
+    Las caracteristicas de la norma que aun no se miden van al final como
+    "sin medir": no tienen nota, y omitirlas daria a entender que la norma
+    termina donde termina lo que medimos.
+    """
+    filas = [["Dimensión", "Puntuación", "Peso"]]
+    for d in sorted(dimensions, key=lambda x: -float(x.score)):
+        filas.append(
+            [dimension_label(d.name), f"{float(d.score):.0f}/100", f"{float(d.weight) * 100:.0f}%"]
+        )
+    for clave in SIN_MEDIR:
+        filas.append([dimension_label(clave), "sin medir", "—"])
+    return filas
 
 SEVERITY_LABELS = {
     "critical": "Crítico",
@@ -192,18 +183,14 @@ def build_analysis_report(
     # -- Dimensiones ---------------------------------------------------------
     story.append(Paragraph("Dimensiones ISO/IEC 25010", estilo_h2))
 
-    filas = [["Dimensión", "Puntuación", "Peso"]]
-    estilos_fila = []
-    for i, d in enumerate(sorted(dimensions, key=lambda x: -float(x.score)), start=1):
-        valor = float(d.score)
-        filas.append(
-            [
-                dimension_label(d.name),
-                f"{valor:.0f}/100",
-                f"{float(d.weight) * 100:.0f}%",
-            ]
-        )
-        estilos_fila.append(("TEXTCOLOR", (1, i), (1, i), _score_color(valor)))
+    filas = filas_de_dimensiones(dimensions)
+    estilos_fila = [
+        ("TEXTCOLOR", (1, i), (1, i), _score_color(float(d.score)))
+        for i, d in enumerate(sorted(dimensions, key=lambda x: -float(x.score)), start=1)
+    ]
+    # Las filas "sin medir" en gris: no son una nota baja, son ausencia de nota.
+    primera_sin_medir = len(dimensions) + 1
+    estilos_fila.append(("TEXTCOLOR", (0, primera_sin_medir), (-1, -1), FAINT))
 
     tabla = Table(filas, colWidths=[95 * mm, 35 * mm, 30 * mm])
     tabla.setStyle(

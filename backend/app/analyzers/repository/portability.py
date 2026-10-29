@@ -1,4 +1,4 @@
-"""Portabilidad: adaptabilidad, instalabilidad y reemplazabilidad.
+"""Flexibilidad (ISO 25010:2023; antes portabilidad): adaptabilidad e instalabilidad.
 
 Sub-caracteristicas de "Portability" en ISO/IEC 25010:
 

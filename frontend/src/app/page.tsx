@@ -57,7 +57,7 @@ const DIMENSIONES = [
     texto: "Estructura, tamaño de archivos, deuda marcada en el código y facilidad para que otra persona lo entienda.",
   },
   {
-    nombre: "Rendimiento",
+    nombre: "Eficiencia de desempeño",
     texto: "Lo que tarda tu aplicación en cargar y responder, medido sobre la versión que ven tus usuarios.",
   },
   {
@@ -67,7 +67,7 @@ const DIMENSIONES = [
   {
     nombre: "Y seis más",
     texto:
-      "Adecuación funcional, portabilidad, actividad del proyecto, usabilidad, compatibilidad y la seguridad de producción.",
+      "Adecuación funcional, flexibilidad, capacidad de interacción, compatibilidad, actividad del proyecto y la seguridad de producción.",
   },
 ];
 
@@ -260,7 +260,7 @@ export default function Landing() {
                   <text x="290" y="86">FIABILIDAD</text>
                   <text x="290" y="240">SEGURIDAD</text>
                   <text x="160" y="320" textAnchor="middle">MANTENIBILIDAD</text>
-                  <text x="30" y="240" textAnchor="end">PORTABILIDAD</text>
+                  <text x="30" y="240" textAnchor="end">FLEXIBILIDAD</text>
                   <text x="30" y="86" textAnchor="end">ACTIVIDAD</text>
                 </g>
               </svg>

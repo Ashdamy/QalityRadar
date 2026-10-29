@@ -25,7 +25,7 @@ const MAX_POLLS = 330;
 const COMPROBACIONES = [
   {
     peso: "25%",
-    nombre: "Rendimiento",
+    nombre: "Eficiencia de desempeño",
     detalle: "Tiempo de respuesta, compresión, caché y peso del documento.",
   },
   {
@@ -35,12 +35,12 @@ const COMPROBACIONES = [
   },
   {
     peso: "20%",
-    nombre: "Usabilidad",
+    nombre: "Capacidad de interacción",
     detalle: "Título, descripción, encabezado y estructura semántica.",
   },
   {
     peso: "15%",
-    nombre: "Accesibilidad",
+    nombre: "Accesibilidad (inclusividad)",
     detalle: "Idioma declarado, texto alternativo y etiquetas de formulario.",
   },
   { peso: "15%", nombre: "Compatibilidad", detalle: "Adaptación a pantallas móviles." },

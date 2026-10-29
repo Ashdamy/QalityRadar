@@ -15,7 +15,7 @@ const DIMENSIONS = [
   "Fiabilidad",
   "Seguridad",
   "Mantenibilidad",
-  "Portabilidad",
+  "Flexibilidad",
   "Actividad",
 ];
 

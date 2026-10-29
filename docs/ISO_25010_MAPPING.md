@@ -1,4 +1,4 @@
-# Mapeo a ISO/IEC 25010
+# Mapeo a ISO/IEC 25010:2023
 
 > El spec exige documentar cómo cada métrica se relaciona con la norma y aclarar que esto es una aproximación, no una certificación. Este documento cumple esa obligación.
 
@@ -10,20 +10,41 @@ Por tanto:
 
 - Las rúbricas de este proyecto son **criterio nuestro**, no de la norma. Están todas en un solo archivo ([`backend/app/services/scoring_service.py`](../backend/app/services/scoring_service.py)) precisamente para que se puedan leer, discutir y ajustar.
 - Una puntuación alta aquí **no acredita conformidad con ISO/IEC 25010**, ni sustituye una evaluación formal según ISO/IEC 25040.
-- Medimos lo que se puede observar leyendo un repositorio. Muchas sub-características de la norma (rendimiento, usabilidad, compatibilidad) requieren ejecutar el software, y para eso está el modo de análisis de URL.
+- Medimos lo que se puede observar leyendo un repositorio. Muchas subcaracterísticas de la norma (eficiencia de desempeño, capacidad de interacción, compatibilidad) requieren ejecutar el software, y para eso está el modo de análisis de URL.
 
-## Las 8 características de la norma y qué cubrimos
+## Las 9 características de ISO/IEC 25010:2023 y qué cubrimos
 
-| Característica ISO | ¿La cubrimos? | Dónde |
-|---|---|---|
-| Adecuación funcional | ✅ Parcial | Análisis de repositorio |
-| Eficiencia de desempeño | ✅ Parcial | Análisis de URL |
-| Compatibilidad | ✅ Parcial | Análisis de URL |
-| Usabilidad | ✅ Parcial | Análisis de URL |
-| Fiabilidad | ✅ Parcial | Análisis de repositorio |
-| Seguridad | ✅ Parcial | Análisis de repositorio + URL |
-| Mantenibilidad | ✅ Parcial | Análisis de repositorio |
-| Portabilidad | ✅ Parcial | Análisis de repositorio |
+El modelo es el de la **revisión de 2023**. Frente a la de 2011 tiene nueve características en vez de ocho: renombra dos, añade una y reorganiza algunas subcaracterísticas.
+
+| Característica (2023) | Antes (2011) | ¿La cubrimos? | Dónde | Clave interna |
+|---|---|---|---|---|
+| Adecuación funcional | igual | ✅ Parcial | Repositorio | `functional_suitability` |
+| Eficiencia de desempeño | igual | ✅ Parcial | URL | `performance` |
+| Compatibilidad | igual | ✅ Parcial | URL | `compatibility` |
+| **Capacidad de interacción** | Usabilidad | ✅ Parcial | URL | `usability` (+ `accessibility`) |
+| Fiabilidad | igual | ✅ Parcial | Repositorio | `reliability` |
+| Seguridad | igual | ✅ Parcial | Repositorio + URL | `security` |
+| Mantenibilidad | igual | ✅ Parcial | Repositorio | `maintainability` |
+| **Flexibilidad** | Portabilidad | ✅ Parcial | Repositorio | `portability` |
+| **Protección** (*safety*) | — (nueva) | ❌ **Sin medir** | — | `safety` |
+
+### Por qué las claves internas no se renombran
+
+`usability` y `portability` siguen siendo las claves internas aunque la etiqueta sea "Capacidad de interacción" y "Flexibilidad". Se evaluó renombrarlas y **no compensa**:
+
+- El nombre de cada dimensión está guardado como texto en cada análisis ya hecho (`dimensions.name`), en las comparaciones entre análisis y en los `raw_data`. Renombrar exige migrar todo el histórico; si la migración se quedara a medias, un proyecto compararía "portability" con "flexibility" y vería una dimensión desaparecer y otra aparecer de la nada.
+- `usability` es además un valor del enum de Postgres `finding_type`, y quitar un valor de un enum en Postgres obliga a recrear el tipo.
+- El modo combinado guarda las dimensiones como `codigo:portability`, `produccion:usability`.
+
+Cambiar la etiqueta da al usuario exactamente lo mismo sin tocar un solo dato. Las etiquetas viven en un único sitio por lado: [`backend/app/services/iso25010.py`](../backend/app/services/iso25010.py) y [`frontend/src/lib/dimensiones.ts`](../frontend/src/lib/dimensiones.ts). Antes había tres copias en cada lado y se desfasaban entre sí.
+
+### Accesibilidad en 2023
+
+La norma de 2023 deja de tener una subcaracterística llamada "accesibilidad": lo cubre la **inclusividad** (y en parte la **asistencia al usuario**), dentro de la capacidad de interacción. El modo URL la sigue midiendo como eje propio, con la etiqueta "Accesibilidad (inclusividad)", porque se comprueba con pruebas distintas y tiene su propio peso.
+
+### Protección (safety), sin medir
+
+Es la característica nueva de 2023: que el sistema no ponga en peligro a personas, bienes o el entorno (restricción operativa, identificación de riesgos, comportamiento a prueba de fallos, avisos de peligro, integración segura). No se puede juzgar leyendo un repositorio ni una página web, así que **no se mide**. Aparece en el radar, en el informe y en el PDF como "sin medir" y queda **fuera del denominador**: ni resta (darle 0 castigaría lo que no se comprobó) ni suma (darle 100 lo regalaría).
 
 **Nota honesta sobre "Actividad del proyecto":** el spec incluye esta dimensión con un peso del 15%, pero **no es una característica de ISO/IEC 25010**. Es un añadido nuestro, útil para juzgar si un proyecto está vivo y mantenido. Lo señalamos para no dar a entender que forma parte de la norma.
 
@@ -108,7 +129,7 @@ Por tanto:
 
 *Cobertura parcial declarada:* Gitleaks y Semgrep, que analizan el historial completo y aplican cientos de reglas, llegan en la Semana 2B. Lo actual detecta lo evidente y es deliberadamente conservador para no llenar el informe de falsos positivos. Las sub-características de **no repudio**, **responsabilidad** y **autenticidad** no se cubren todavía.
 
-## Portabilidad (peso 10%)
+## Flexibilidad (antes portabilidad, peso 10%)
 
 *¿Se puede llevar a otro entorno?*
 
@@ -164,7 +185,7 @@ Esto corrige el modelo original, que restaba penalizaciones desde 100 y por tant
 Cinco dimensiones con los pesos del spec. **84 señales medidas** sobre el HTML
 y las cabeceras HTTP, sin ejecutar un navegador.
 
-## Rendimiento — 25%
+## Eficiencia de desempeño — 25%
 
 | Sub-característica ISO | Qué observamos |
 |---|---|
@@ -188,7 +209,7 @@ y las cabeceras HTTP, sin ejecutar un navegador.
 | | `Permissions-Policy`, COOP/CORP, CORS restrictivo |
 | | Formularios que envían por HTTP, filtración de versión del servidor |
 
-## Usabilidad — 20%
+## Capacidad de interacción (antes usabilidad) — 20%
 
 | Sub-característica ISO | Qué observamos |
 |---|---|
@@ -197,7 +218,7 @@ y las cabeceras HTTP, sin ejecutar un navegador.
 
 *Limitación declarada:* la operabilidad real requiere interacción; aquí solo se juzga cómo se presenta e identifica la página.
 
-## Accesibilidad — 15%
+## Accesibilidad (inclusividad) — 15%
 
 | Sub-característica ISO | Qué observamos |
 |---|---|
