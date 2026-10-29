@@ -29,8 +29,6 @@ flowchart TB
         DOCKER["Contenedor Docker\n--rm, network=none, read-only fs\n512MB / 50% CPU / 100 pids / timeout 10min"]
         GITLEAKS["Gitleaks"]
         SEMGREP["Semgrep"]
-        LHCI["Lighthouse CI"]
-        AXE["axe-core"]
     end
 
     subgraph Data["Persistencia"]
@@ -50,8 +48,10 @@ flowchart TB
     WORKER --> DOCKER
     DOCKER --> GITLEAKS
     DOCKER --> SEMGREP
-    DOCKER --> LHCI
-    DOCKER --> AXE
+    WORKER --> |"modo URL: descarga
+segura (SSRF) y análisis
+estático de HTML y cabeceras"| WEB["Aplicación desplegada
+(URL pública)"]
     WORKER --> PG
     WORKER --> HF
     WORKER -.-> |"resultado final"| REDIS
@@ -61,7 +61,7 @@ flowchart TB
 
 | Componente | Responsabilidad | No hace |
 |---|---|---|
-| Next.js (frontend) | UI, formularios de análisis, polling/SSE de progreso, render de dashboard/histórico/comparación | No llama directamente a Gitleaks/Semgrep/Lighthouse; todo pasa por la API |
+| Next.js (frontend) | UI, formularios de análisis, polling/SSE de progreso, render de dashboard/histórico/comparación | No llama directamente a Gitleaks/Semgrep; todo pasa por la API |
 | FastAPI (API) | Auth (JWT + GitHub OAuth), CRUD de `Repository`/`DeployedApp`, encolar análisis, exponer resultados, rate limiting (vía Redis), servir reportes compartidos | No ejecuta análisis en el proceso del request (todo es async vía Celery) |
 | Celery Worker | Orquesta el ciclo de vida de un análisis: clona repo o hace fetch de URL, lanza contenedor sandbox, recolecta resultados de cada analizador, calcula score ISO 25010, genera comparación con el análisis anterior, llama a HF para el resumen | No expone puertos HTTP directamente |
 | Sandbox Docker | Ejecuta las herramientas de análisis sobre código/URL de terceros de forma aislada | Nunca ejecuta build/test del proyecto analizado (ver §4 riesgos) |
@@ -110,7 +110,9 @@ sequenceDiagram
 
 ### 3.2 Análisis de URL (Modo 2)
 
-Igual de forma, pero sin clonado: el worker valida la URL (SSRF checks, §4.3), lanza el contenedor sandbox con Lighthouse CI + axe-core apuntando a la URL pública, y aplica los pesos de la tabla de URL. No requiere `user_id` (permitido anónimo según el spec), pero sí pasa por rate limiting por IP.
+Igual de forma, pero sin clonado: el worker valida la URL (SSRF checks, §4.3), descarga la página con la descarga segura (re-validando cada redirección) y la analiza **de forma estática**: lee el HTML y las cabeceras HTTP, sin ejecutar un navegador. Después aplica los pesos de la tabla de URL. Exige sesión y pasa por los mismos límites de uso que el resto.
+
+> *Corregido en octubre de 2026:* el diseño original preveía Lighthouse CI y axe-core en un contenedor con navegador. No se implementaron; quedan como mejora futura en [`ROADMAP.md`](ROADMAP.md).
 
 ### 3.3 Análisis combinado (Modo 3)
 
@@ -146,7 +148,7 @@ Mitigación obligatoria (más estricta que "bloquear por string" el spec origina
 1. Resolver DNS de la URL **antes** de conectar y validar que la(s) IP(s) resultantes no sean privadas/loopback/link-local (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `127.0.0.0/8`, `169.254.0.0/16` — este último bloquea metadata de cloud como `169.254.169.254`).
 2. Repetir la validación en **cada redirect** (una URL pública puede redirigir a `http://169.254.169.254/`), no solo en la URL inicial.
 3. Bloquear esquemas distintos de `http`/`https` (`file://`, `gopher://`, etc.).
-4. El contenedor que ejecuta Lighthouse/axe-core corre con `--network` restringido a salida únicamente (no puede recibir conexiones entrantes), y sin acceso a la red interna del propio QalitiRadar (para que no pueda alcanzar Postgres/Redis).
+4. Si algún día se ejecuta un navegador (Lighthouse/axe-core, hoy no implementados), su contenedor tendrá que correr con `--network` restringido a salida únicamente y sin acceso a la red interna del propio QalitiRadar (para que no pueda alcanzar Postgres/Redis). Hoy la descarga de la página la hace el worker con la validación SSRF de §4.3.
 
 ### 4.4 Rate limiting y abuso
 

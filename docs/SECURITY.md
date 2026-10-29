@@ -394,7 +394,7 @@ Esto es tan importante como lo anterior.
 ## Cómo comprobarlo
 
 ```bash
-cd backend && pytest                                  # las 494 pruebas
+cd backend && pytest                                  # las 613 pruebas
 cd frontend && npx playwright test                    # los flujos, en un navegador real
 cd backend && pytest tests/test_sandbox.py            # aislamiento real contra Docker
 cd backend && pytest tests/test_url_validation.py     # SSRF

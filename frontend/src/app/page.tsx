@@ -274,7 +274,6 @@ export default function Landing() {
             <span>Gitleaks</span>
             <span>Semgrep</span>
             <span>OSV</span>
-            <span>Lighthouse</span>
             <span>GitHub API</span>
           </p>
         </section>

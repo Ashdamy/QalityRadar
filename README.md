@@ -1,6 +1,6 @@
 # QalitiRadar
 
-Escáner de calidad de software basado en **ISO/IEC 25010**. Analiza el código de un repositorio de GitHub, una aplicación ya desplegada, o ambos a la vez, y devuelve una puntuación por dimensiones con hallazgos, riesgos y un plan de mejora priorizado.
+Escáner de calidad de software basado en **ISO/IEC 25010:2023**. Analiza el código de un repositorio de GitHub, una aplicación ya desplegada, o ambos a la vez, y devuelve una puntuación por característica —con su desglose por subcaracterística—, hallazgos, riesgos y un plan de mejora priorizado.
 
 ![Resultado de un análisis](docs/screenshots/04-resultado-del-analisis.png)
 
@@ -8,11 +8,13 @@ Escáner de calidad de software basado en **ISO/IEC 25010**. Analiza el código 
 
 ## Qué hace
 
-| Modo | Qué analiza | Dimensiones |
+| Modo | Qué analiza | Características ISO |
 |---|---|---|
-| **Repositorio** | El código fuente de un repositorio público de GitHub | 6 |
+| **Repositorio** | El código fuente de un repositorio público de GitHub | 5, más un indicador de salud aparte |
 | **URL** | Una aplicación ya desplegada, sin acceso al código | 5 |
-| **Combinado** | Ambos, y explica **por qué no puntúan igual** | 11 |
+| **Combinado** | Ambos, y explica **por qué no puntúan igual** | 10 |
+
+Entre los dos modos se cubren ocho de las nueve características de la norma. La novena, **protección** (*safety*), nueva en 2023, aún no se mide: aparece como "sin medir" y no entra en la nota.
 
 El modo combinado es el que más información da. Cuando el código y la producción cuentan historias distintas, esa diferencia es accionable:
 
@@ -27,15 +29,17 @@ Además: histórico y comparación entre análisis, exportación a PDF, enlaces 
 
 Además hay techos por gravedad: un hallazgo **crítico** limita la nota a 40 y uno **alto** la limita a 70, por buena que sea el resto del análisis. Un secreto filtrado no se compensa con buena documentación.
 
-Ser exigente no es lo mismo que ser injusto. La escala se contrasta contra proyectos de calidad conocida:
+Ser exigente no es lo mismo que ser injusto. La escala se contrasta contra proyectos de calidad conocida, con análisis reales fijados en las pruebas de calibración:
 
 | Proyecto | Nota |
 |---|---|
-| axios/axios | 68 |
-| pallets/flask | 64 |
-| octocat/Hello-World (repositorio de ejemplo, vacío) | 7 |
+| axios/axios | 63 |
+| pallets/flask | 58 |
+| octocat/Hello-World (repositorio de ejemplo, vacío) | 2 |
 
-> Las puntuaciones son una aproximación al modelo ISO/IEC 25010. **No constituyen una certificación oficial.** El mapeo completo, con sus límites declarados, está en [`docs/ISO_25010_MAPPING.md`](docs/ISO_25010_MAPPING.md).
+Hasta octubre de 2026 eran 68, 64 y 7: la **actividad del proyecto** (estrellas, forks, frescura) pesaba un 15% de la nota, y no es calidad según ISO/IEC 25010. Ahora se enseña aparte, como indicador de salud, y no entra en la nota.
+
+> Las puntuaciones son una aproximación al modelo ISO/IEC 25010:2023. **No constituyen una certificación oficial.** El mapeo completo, con sus límites declarados, está en [`docs/ISO_25010_MAPPING.md`](docs/ISO_25010_MAPPING.md).
 
 ---
 
@@ -223,11 +227,11 @@ El inventario completo de defensas —y, con la misma franqueza, lo que **no** e
 ## Pruebas
 
 ```bash
-cd backend && pytest              # 374 pruebas
-cd frontend && npx playwright test # 5 recorridos end-to-end
+cd backend && pytest              # 613 pruebas (3 se saltan en Windows: enlaces simbólicos)
+cd frontend && npx playwright test # recorridos end-to-end
 ```
 
-Las end-to-end usan un navegador real contra la aplicación en marcha. Requieren los servicios levantados y una base de datos cuyo nombre acabe en `_test`.
+Las end-to-end usan un navegador real contra la aplicación en marcha. Requieren los servicios levantados, una base de datos cuyo nombre acabe en `_test` y que el backend envíe el correo a Mailpit (`SMTP_HOST=localhost`, `SMTP_PORT=1025`, `SMTP_STARTTLS=false`): leen de ahí el enlace de verificación.
 
 ---
 
@@ -251,9 +255,11 @@ Se declaran porque afectan a cómo hay que leer los resultados:
 
 - **Solo repositorios públicos.** Los privados quedan fuera del alcance actual.
 - **Se analiza una sola página** en el modo URL, la que se indique — no el sitio entero.
-- **El rendimiento medido es el tiempo de respuesta del servidor**, no el de carga completa en un navegador.
-- **Las comprobaciones de accesibilidad son estáticas** sobre el HTML y no sustituyen a una auditoría con axe-core.
-- **La actividad del proyecto no forma parte de ISO/IEC 25010.** Se incluye porque predice la mantenibilidad futura, pero está declarada como añadido propio.
+- **El modo URL es análisis estático**: lee el HTML y las cabeceras HTTP, sin abrir un navegador. La eficiencia de desempeño medida es el tiempo de respuesta del servidor y cómo está construida la página, no la carga completa; Lighthouse queda como mejora futura.
+- **Las comprobaciones de accesibilidad son estáticas** sobre el HTML y no sustituyen a una auditoría con axe-core, también prevista como mejora futura.
+- **La calidad del código solo se analiza en Python, JavaScript y TypeScript.** En otros lenguajes la mantenibilidad sale de una parte del código; cuando lo analizado baja del 70%, el resultado lo avisa y la confianza baja.
+- **La actividad del proyecto no forma parte de ISO/IEC 25010** y por eso no entra en la nota: se enseña aparte, como indicador de salud.
+- **La referencia por lenguaje es simulada**, y así se rotula en pantalla, hasta que haya datos reales.
 
 ---
 
@@ -261,9 +267,9 @@ Se declaran porque afectan a cómo hay que leer los resultados:
 
 Los tres modos de análisis funcionan de principio a fin. Queda el despliegue en producción.
 
-Las defensas que hacen falta para abrirlo al público están implementadas: tope global de análisis simultáneos, límite de registros por IP, longitud mínima de contraseña, revocación real de sesión y `noindex` en los informes compartidos. Los detalles y qué ajustar según la máquina están en [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+Las defensas que hacen falta para abrirlo al público están implementadas: verificación del correo, recuperación de contraseña, tope global de análisis simultáneos, límite de registros por IP, longitud mínima de contraseña, revocación real de sesión y `noindex` en los informes compartidos. Los detalles y qué ajustar según la máquina están en [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
-Queda pendiente la verificación por email, que exige infraestructura de correo.
+Antes de abrirlo hay que rellenar los datos de la empresa en la política de privacidad y los términos, y conectar un servidor de correo de producción.
 
 ## Licencia
 

@@ -1,7 +1,7 @@
 # RESUME — Bitácora de QalitiRadar
 
 > Documento vivo. Se actualiza a medida que avanza el proyecto.
-> Última actualización: 2026-10-28 (imprescindibles para abrir al público)
+> Última actualización: 2026-10-29 (ISO/IEC 25010:2023 y subcaracterísticas)
 
 ---
 
@@ -33,9 +33,14 @@
 | Página "Mi cuenta" | ✅ Hecha |
 | Landing pública y SEO básico | ✅ Hecha (`/`; el login pasa a `/entrar`) |
 | Política de privacidad y términos (Ley 1581) | ✅ Escritos; ⏳ faltan los datos de la empresa |
+| Modelo ISO/IEC 25010:2023 (9 características, protección sin medir) | ✅ Hecho |
+| Desglose por subcaracterística (API, panel y PDF) | ✅ Hecho |
+| Actividad del proyecto fuera de la nota (indicador de salud aparte) | ✅ Hecho, recalibrado |
+| Referencia por lenguaje (rotulada como simulada) | ✅ Hecha |
+| Aviso de cobertura parcial de lenguajes | ✅ Hecho |
 | Despliegue | ⏸️ A la espera de tu señal |
 
-**509 pruebas en verde** en el backend (3 se saltan); el frontend compila y pasa lint.
+**613 pruebas en verde** en el backend (3 se saltan); el frontend compila y pasa lint.
 
 ---
 

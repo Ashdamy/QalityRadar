@@ -70,7 +70,8 @@ Este roadmap es de **nivel de milestone**, no de tarea bite-sized. Antes de empe
 
 **Tareas clave:**
 - `app/utils/url_validation.py`: resolución DNS + validación de IP (bloquear RFC1918, loopback, link-local/`169.254.0.0/16`), re-validación en cada redirect, solo esquemas `http`/`https`. Este módulo se usa antes de CUALQUIER request saliente a una URL de usuario.
-- 4 analizadores en `app/analyzers/url/`: `performance.py` (Lighthouse CI headless), `security.py` (headers HSTS/CSP/X-Frame-Options + validez SSL), `accessibility.py` (axe-core headless), `seo.py`.
+- Analizadores en `app/analyzers/url/`. **Lo implementado es análisis estático**, sin navegador: `security_headers.py` (HTTPS, HSTS, CSP, X-Frame-Options, cookies, CORS…) y `page_quality.py` (eficiencia de desempeño, accesibilidad, capacidad de interacción y compatibilidad leyendo el HTML y las cabeceras de la respuesta).
+  - *Corregido en octubre de 2026:* este roadmap prometía Lighthouse CI y axe-core en un navegador sin cabeza. No se llegaron a implementar: ejecutar un navegador contra URLs de terceros añade una superficie de ataque y un coste que el MVP no justificaba. Quedan como **mejora futura**, en "Qué NO entra en este roadmap".
 - `app/services/scoring_service.py`: implementa la fórmula `Σ(peso_i × métrica_i) / Σ(pesos)` de `context/claude.md` para las 3 tablas de pesos (repo, URL, combinado), más `confidence_level` basado en cantidad de evidencia encontrada.
 - `app/analyzers/combined.py`: dispara ambos análisis en paralelo (Celery `chord`), calcula `Discrepancy` cuando `|repo_score - url_score| > 15`.
 
@@ -131,3 +132,5 @@ Según las decisiones de MVP ya acordadas:
 - Monetización / tiers de pago — Fase futura 3.
 - Firecracker/gVisor en vez de Docker — Fase futura de infraestructura.
 - Benchmarking con datos reales de usuarios (requiere 100+ repos analizados primero).
+- **Lighthouse CI y axe-core** en el análisis de URL: medirían la carga real en un navegador y el árbol de accesibilidad final. Exigen ejecutar un navegador sin cabeza contra URLs de terceros dentro del sandbox, con su propio aislamiento.
+- **Medir la protección (*safety*)**, la característica nueva de ISO/IEC 25010:2023. Hoy aparece como "sin medir".

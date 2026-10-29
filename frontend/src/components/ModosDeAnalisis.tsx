@@ -39,10 +39,10 @@ const MODOS: Record<
       "Analiza la aplicación ya desplegada, sin acceso al código: velocidad, cabeceras de seguridad, accesibilidad y cómo se comporta en distintos navegadores.",
     dato: "5 dimensiones · cualquier aplicación pública",
     dims: [
-      { nombre: "Eficiencia de desempeño", origen: "Lighthouse" },
+      { nombre: "Eficiencia de desempeño", origen: "respuesta · HTML" },
       { nombre: "Seguridad", origen: "cabeceras · HTTPS" },
-      { nombre: "Capacidad de interacción", origen: "Lighthouse" },
-      { nombre: "Accesibilidad (inclusividad)", origen: "Lighthouse" },
+      { nombre: "Capacidad de interacción", origen: "HTML" },
+      { nombre: "Accesibilidad (inclusividad)", origen: "HTML · WCAG" },
       { nombre: "Compatibilidad", origen: "estándares web" },
     ],
   },
