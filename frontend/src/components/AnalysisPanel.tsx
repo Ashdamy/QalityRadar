@@ -9,7 +9,8 @@ import {
   type AnalysisFinding,
 } from "@/lib/api";
 import { RadarChart } from "@/components/RadarChart";
-import { DimensionesDetalle } from "@/components/DimensionesDetalle";
+import { DimensionesDetalle, IndicadorDeSalud } from "@/components/DimensionesDetalle";
+import { esIndicadorDeSalud } from "@/lib/dimensiones";
 
 const SEVERITY_LABELS: Record<AnalysisFinding["severity"], string> = {
   critical: "Crítico",
@@ -206,8 +207,9 @@ export function AnalysisPanel({
           )}
 
           <p className="mt-4 rounded-[6px] border border-border bg-bg px-3 py-2 text-[12.5px] text-faint">
-            Puntuación sobre {analysis.dimensions.length} dimensiones del modelo ISO/IEC 25010:2023. Es una
-            aproximación al estándar, no una certificación oficial.
+            Puntuación sobre {analysis.dimensions.filter((d) => !esIndicadorDeSalud(d.name)).length}{" "}
+            características del modelo ISO/IEC 25010:2023. Es una aproximación al estándar, no una
+            certificación oficial.
           </p>
 
           {analysis.summary_text && (
@@ -231,6 +233,7 @@ export function AnalysisPanel({
 
               <DimensionesDetalle dimensions={analysis.dimensions} />
             </div>
+            <IndicadorDeSalud dimensions={analysis.dimensions} />
           </div>
 
           {!embedded && (

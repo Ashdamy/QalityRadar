@@ -36,9 +36,11 @@ SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 def consolidate_score(repo_score: float, url_score: float) -> float:
     """Media ponderada por la cantidad de evidencia de cada modo.
 
-    No es una media simple: el analisis de repositorio cubre seis dimensiones
-    partiendo del codigo fuente completo, y el de URL cinco partiendo de una
-    respuesta HTTP. Cada lado aporta segun cuantas dimensiones sostiene.
+    Cada lado aporta segun cuantas caracteristicas ISO sostiene. Hoy son
+    cinco y cinco, asi que pesan lo mismo: hasta que la actividad del proyecto
+    salio de la nota (no es ISO) el repositorio contaba seis y pesaba mas. Se
+    sigue calculando a partir de los pesos para que, si un lado gana o pierde
+    una caracteristica, la ponderacion se ajuste sola.
 
     Ojo: los pesos de cada modo estan normalizados a 1.0 por separado, asi que
     sumarlos no distingue un modo de otro. La ponderacion tiene que salir del

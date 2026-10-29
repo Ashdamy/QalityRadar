@@ -12,6 +12,7 @@ import io
 from datetime import datetime
 
 from app.services.iso25010 import SIN_MEDIR, dimension_label
+from app.services.scoring_service import HEALTH_INDICATORS
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import A4
@@ -36,13 +37,34 @@ def filas_de_dimensiones(dimensions) -> list[list[str]]:
     termina donde termina lo que medimos.
     """
     filas = [["Dimensión", "Puntuación", "Peso"]]
-    for d in sorted(dimensions, key=lambda x: -float(x.score)):
+    for d in _iso_ordenadas(dimensions):
         filas.append(
             [dimension_label(d.name), f"{float(d.score):.0f}/100", f"{float(d.weight) * 100:.0f}%"]
         )
     for clave in SIN_MEDIR:
         filas.append([dimension_label(clave), "sin medir", "—"])
     return filas
+
+
+def _es_indicador_de_salud(d) -> bool:
+    # En el combinado llega como "codigo:project_activity".
+    return d.name.rsplit(":", 1)[-1] in HEALTH_INDICATORS
+
+
+def _iso_ordenadas(dimensions) -> list:
+    """Las dimensiones que entran en la nota, de mejor a peor."""
+    return sorted(
+        (d for d in dimensions if not _es_indicador_de_salud(d)), key=lambda x: -float(x.score)
+    )
+
+
+def filas_de_salud(dimensions) -> list[list[str]]:
+    """Indicadores que se calculan pero no son ISO ni entran en la nota."""
+    return [
+        [dimension_label(d.name), f"{float(d.score):.0f}/100"]
+        for d in dimensions
+        if _es_indicador_de_salud(d)
+    ]
 
 
 def filas_de_subcaracteristicas(dimensions) -> list[list[str]]:
@@ -53,7 +75,7 @@ def filas_de_subcaracteristicas(dimensions) -> list[list[str]]:
     al desglose no lo tienen y no aportan filas.
     """
     filas: list[list[str]] = []
-    for d in sorted(dimensions, key=lambda x: -float(x.score)):
+    for d in _iso_ordenadas(dimensions):
         subs = getattr(d, "subcharacteristics", None)
         if not subs:
             continue
@@ -209,10 +231,10 @@ def build_analysis_report(
     filas = filas_de_dimensiones(dimensions)
     estilos_fila = [
         ("TEXTCOLOR", (1, i), (1, i), _score_color(float(d.score)))
-        for i, d in enumerate(sorted(dimensions, key=lambda x: -float(x.score)), start=1)
+        for i, d in enumerate(_iso_ordenadas(dimensions), start=1)
     ]
     # Las filas "sin medir" en gris: no son una nota baja, son ausencia de nota.
-    primera_sin_medir = len(dimensions) + 1
+    primera_sin_medir = len(_iso_ordenadas(dimensions)) + 1
     estilos_fila.append(("TEXTCOLOR", (0, primera_sin_medir), (-1, -1), FAINT))
 
     tabla = Table(filas, colWidths=[95 * mm, 35 * mm, 30 * mm])
@@ -262,6 +284,23 @@ def build_analysis_report(
         )
         story.append(tabla_desglose)
 
+    # -- Indicador de salud, fuera de la nota --------------------------------
+    salud = filas_de_salud(dimensions)
+    if salud:
+        story.append(Paragraph("Indicador de salud del proyecto", estilo_h2))
+        story.append(
+            Paragraph(
+                "No forma parte de ISO/IEC 25010 ni de la nota: mide si el proyecto está vivo "
+                "(frescura, cuidado e interés de terceros), no su calidad.",
+                estilo_nota,
+            )
+        )
+        tabla_salud = Table(salud, colWidths=[95 * mm, 35 * mm])
+        tabla_salud.setStyle(
+            TableStyle([("FONTSIZE", (0, 0), (-1, -1), 9.5), ("ALIGN", (1, 0), (-1, -1), "RIGHT")])
+        )
+        story.append(tabla_salud)
+
     # -- Hallazgos -----------------------------------------------------------
     story.append(Paragraph(f"Hallazgos ({len(findings)})", estilo_h2))
 
@@ -308,7 +347,7 @@ def build_analysis_report(
         Paragraph(
             f"Generado por QalitiRadar el {generado}. Esta puntuación es una "
             f"<b>aproximación</b> basada en el modelo de calidad ISO/IEC 25010:2023 y cubre "
-            f"{len(dimensions)} de sus dimensiones. <b>No constituye una certificación "
+            f"{len(_iso_ordenadas(dimensions))} de sus dimensiones. <b>No constituye una certificación "
             f"oficial</b> ni sustituye una evaluación formal. Los resultados pueden "
             f"contener falsos positivos y falsos negativos.",
             estilo_nota,

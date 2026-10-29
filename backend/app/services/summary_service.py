@@ -19,6 +19,7 @@ del usuario hacia un tercero.
 import httpx
 
 from app.services import iso25010
+from app.services.scoring_service import HEALTH_INDICATORS
 
 HF_URL = "https://router.huggingface.co/v1/chat/completions"
 HF_MODEL = "meta-llama/Llama-3.1-8B-Instruct"
@@ -194,6 +195,9 @@ def build_analysis_summary(
     `dimensions` son pares (nombre, puntuacion) y `findings` pares
     (gravedad, titulo). Devuelve (texto, origen).
     """
+    # Lo que no entra en la nota tampoco entra en el resumen: si no, "lo mas
+    # solido" de casi cualquier proyecto popular seria su numero de estrellas.
+    dimensions = [(n, s) for n, s in dimensions if n not in HEALTH_INDICATORS]
     if api_key:
         texto = _try_analysis_model(
             target_name=target_name,

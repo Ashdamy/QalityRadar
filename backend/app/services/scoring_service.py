@@ -19,15 +19,29 @@ son criterio nuestro y estan aqui a la vista para poder discutirlos.
 
 from app.analyzers.base import AnalyzerResult, FindingData
 
-# Pesos de context/claude.md seccion 6, tabla "Para analisis de repositorio".
-REPOSITORY_WEIGHTS: dict[str, float] = {
+# Pesos de context/claude.md seccion 6, tabla "Para analisis de repositorio",
+# sin la actividad del proyecto (15%) y renormalizados para sumar 1.0: se
+# conserva la proporcion entre las cinco caracteristicas ISO.
+_PESOS_DEL_SPEC = {
     "functional_suitability": 0.15,
     "reliability": 0.20,
     "security": 0.20,
     "maintainability": 0.20,
     "portability": 0.10,
-    "project_activity": 0.15,
 }
+REPOSITORY_WEIGHTS: dict[str, float] = {
+    dimension: peso / sum(_PESOS_DEL_SPEC.values()) for dimension, peso in _PESOS_DEL_SPEC.items()
+}
+
+# Se calculan y se ensenan, pero NO son ISO/IEC 25010 y no entran en la nota.
+# La actividad puntua estrellas, forks y frescura: senales de que un proyecto
+# esta vivo y tiene ojos encima, no de su calidad. Antes pesaba un 15%.
+HEALTH_INDICATORS: tuple[str, ...] = ("project_activity",)
+
+
+def dimension_weight(dimension: str) -> float:
+    """Peso con el que se guarda una dimension: 0 si no entra en la nota."""
+    return REPOSITORY_WEIGHTS.get(dimension, 0.0)
 
 # Pesos de context/claude.md seccion 6, tabla "Para analisis de URL".
 URL_WEIGHTS: dict[str, float] = {

@@ -14,14 +14,17 @@ No analizan repositorios reales a proposito: eso tarda minutos y necesita red.
 Se prueba la logica que produjo el error.
 """
 
+import json
 import tempfile
 from pathlib import Path
 
 import pytest
 
+from app.analyzers.base import FindingData
 from app.analyzers.repository.dependencies import _collect_packages
 from app.analyzers.repository.secrets_scan import _is_test_fixture
 from app.services.repo_service import _branch_not_found
+from app.services.scoring_service import calculate_overall_score
 
 
 # --------------------------------------------------------------------------
@@ -192,3 +195,63 @@ def test_otros_fallos_de_clon_no_se_confunden(error):
     """Reintentar sin rama ante un fallo de red solo duplicaria la espera para
     acabar fallando igual."""
     assert _branch_not_found(error) is False
+
+# --------------------------------------------------------------------------
+# Notas de referencia con analisis reales
+# --------------------------------------------------------------------------
+#
+# La instantanea son analisis reales de los tres proyectos de referencia,
+# hechos el 2026-10-29: sus metricas, la nota de cada dimension y la gravedad
+# de los hallazgos. Asi la escala se comprueba con datos medidos sin clonar
+# nada en cada ejecucion.
+#
+# Recalibracion de octubre de 2026: la actividad del proyecto salio de la
+# nota (no es ISO/IEC 25010; puntuaba estrellas y forks). Las tres bajan,
+# porque las tres tenian la actividad por encima de su media. Ver
+# docs/ISO_25010_MAPPING.md.
+
+CALIBRACION = json.loads(
+    (Path(__file__).parent / "fixtures" / "calibracion_2026_10.json").read_text(encoding="utf-8")
+)
+
+# Pesos de antes, con la actividad dentro: comprueban que la instantanea
+# reproduce las notas que se publicaron y que el cambio es solo ese.
+PESOS_CON_ACTIVIDAD = {
+    "functional_suitability": 0.15, "reliability": 0.20, "security": 0.20,
+    "maintainability": 0.20, "portability": 0.10, "project_activity": 0.15,
+}
+
+
+def _hallazgos(repo):
+    return [
+        FindingData(type="security", severity=s, title="", description="")
+        for s in CALIBRACION[repo]["severities"]
+    ]
+
+
+@pytest.mark.parametrize(
+    "repo, antes, ahora",
+    [
+        # Antes: las notas publicadas en el README. Ahora: sin la actividad.
+        ("pallets/flask", 64.0, 57.65),
+        ("axios/axios", 68.8, 63.29),
+        ("octocat/Hello-World", 7.35, 2.12),
+    ],
+)
+def test_recalibracion_con_los_analisis_reales(repo, antes, ahora):
+    dims = CALIBRACION[repo]["dimensions"]
+    hallazgos = _hallazgos(repo)
+
+    con_actividad = sum(PESOS_CON_ACTIVIDAD[d] * s for d, s in dims.items()) / sum(PESOS_CON_ACTIVIDAD[d] for d in dims)
+    assert round(con_actividad, 2) == antes
+    assert calculate_overall_score(dims, hallazgos) == ahora
+
+
+def test_la_escala_sigue_discriminando():
+    """Las referencias siguen lejos del repositorio vacio."""
+    nota = {
+        r: calculate_overall_score(CALIBRACION[r]["dimensions"], _hallazgos(r))
+        for r in CALIBRACION
+        if not r.startswith("_")
+    }
+    assert nota["axios/axios"] > nota["pallets/flask"] > 50 > 10 > nota["octocat/Hello-World"]

@@ -64,7 +64,7 @@ const MODOS: Modo[] = [
     titulo: "Analizar repositorio",
     descripcion:
       "Evalúa el código fuente de un repositorio público de GitHub: estructura, documentación, pruebas, seguridad y dependencias.",
-    etiquetas: ["6 dimensiones", "Gitleaks", "Sin ejecutar tu código"],
+    etiquetas: ["5 características ISO", "Gitleaks", "Sin ejecutar tu código"],
     icono: <GithubIcon />,
     destino: "/repositories",
   },

@@ -52,8 +52,16 @@ export const REPOSITORY_ORDER = [
   "security",
   "maintainability",
   "portability",
-  "project_activity",
 ];
+
+// Se calculan y se enseñan aparte, pero no son ISO/IEC 25010 ni entran en la
+// nota. Espejo de HEALTH_INDICATORS en scoring_service.
+export const INDICADORES_DE_SALUD = ["project_activity"];
+
+/** True si la dimensión es un indicador de salud y no una característica ISO. */
+export function esIndicadorDeSalud(name: string): boolean {
+  return INDICADORES_DE_SALUD.includes(splitDimensionName(name).base);
+}
 
 // El análisis de URL mide otras cinco dimensiones, con sus propios pesos.
 export const URL_ORDER = ["performance", "security", "usability", "accessibility", "compatibility"];

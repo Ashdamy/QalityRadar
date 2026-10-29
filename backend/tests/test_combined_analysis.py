@@ -48,12 +48,12 @@ def test_consolidacion_de_notas_iguales_devuelve_esa_nota():
     assert consolidate_score(62.5, 62.5) == 62.5
 
 
-def test_consolidacion_pondera_por_evidencia_no_es_media_simple():
-    """El repositorio aporta seis dimensiones y la URL cinco, asi que el lado
-    con mas evidencia debe pesar mas que en una media aritmetica."""
-    combinada = consolidate_score(100, 0)
-    assert combinada != 50.0
-    assert combinada > 50.0
+def test_consolidacion_pondera_por_caracteristicas_iso_medidas():
+    """Cada lado pesa segun cuantas caracteristicas ISO mide. Antes el
+    repositorio contaba seis (con la actividad, que no es ISO) y pesaba mas;
+    desde que la actividad salio de la nota son cinco y cinco."""
+    assert len(REPOSITORY_WEIGHTS) == len(URL_WEIGHTS) == 5
+    assert consolidate_score(100, 0) == 50.0
 
 
 # --------------------------------------------------------------------------

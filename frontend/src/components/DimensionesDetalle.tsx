@@ -1,5 +1,11 @@
 import type { AnalysisDimension, Subcaracteristica } from "@/lib/api";
-import { SIN_MEDIR, dimensionColor, dimensionLabel, splitDimensionName } from "@/lib/dimensiones";
+import {
+  SIN_MEDIR,
+  dimensionColor,
+  dimensionLabel,
+  esIndicadorDeSalud,
+  splitDimensionName,
+} from "@/lib/dimensiones";
 
 function Desglose({ subs }: { subs: Subcaracteristica[] }) {
   return (
@@ -37,10 +43,11 @@ function Desglose({ subs }: { subs: Subcaracteristica[] }) {
  * Al final, las características de la norma que aún no se miden, sin barra:
  * no es una nota baja, es que no hay nota.
  */
-export function DimensionesDetalle({ dimensions }: { dimensions: AnalysisDimension[] }) {
-  // En el modo combinado ya vienen las once con origen y el listado de las
-  // no medidas no aplica a ningún lado en concreto.
-  const combinado = dimensions.some((d) => splitDimensionName(d.name).origin !== null);
+export function DimensionesDetalle({ dimensions: todas }: { dimensions: AnalysisDimension[] }) {
+  // En el modo combinado ya vienen con origen y el listado de las no medidas
+  // no aplica a ningún lado en concreto.
+  const combinado = todas.some((d) => splitDimensionName(d.name).origin !== null);
+  const dimensions = todas.filter((d) => !esIndicadorDeSalud(d.name));
 
   return (
     <div className="flex min-w-[300px] flex-1 flex-col gap-3">
@@ -92,5 +99,39 @@ export function DimensionesDetalle({ dimensions }: { dimensions: AnalysisDimensi
         <p className="text-[11.5px] text-faint">Pulsa una dimensión para ver de dónde salen sus puntos.</p>
       )}
     </div>
+  );
+}
+
+/**
+ * Indicadores que se calculan pero no son ISO ni entran en la nota (hoy, la
+ * actividad del proyecto). Van aparte del radar y de la lista para que nadie
+ * los tome por calidad.
+ */
+export function IndicadorDeSalud({ dimensions }: { dimensions: AnalysisDimension[] }) {
+  const salud = dimensions.filter((d) => esIndicadorDeSalud(d.name));
+  if (salud.length === 0) return null;
+
+  return (
+    <section
+      aria-labelledby="indicador-de-salud"
+      className="mt-5 rounded-[8px] border border-dashed border-border bg-bg p-5"
+    >
+      <h3 id="indicador-de-salud" className="text-[13px] font-semibold">
+        Indicador de salud del proyecto
+      </h3>
+      <p className="mb-3 mt-1 text-[12px] text-faint">
+        No forma parte de ISO/IEC 25010 ni de la nota global: dice si el proyecto está vivo (frescura,
+        cuidado e interés de terceros), no si es de calidad.
+      </p>
+      {salud.map((d) => (
+        <div key={d.name}>
+          <div className="flex items-center justify-between text-[13px]">
+            <span>{dimensionLabel(d.name)}</span>
+            <span className="font-mono">{d.score.toFixed(0)}/100</span>
+          </div>
+          {d.subcharacteristics?.length ? <Desglose subs={d.subcharacteristics} /> : null}
+        </div>
+      ))}
+    </section>
   );
 }

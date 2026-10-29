@@ -21,14 +21,14 @@ const MODOS: Record<
     titulo: "Lo que hay dentro de tu repositorio",
     texto:
       "Lee el código de un repositorio de GitHub: secretos expuestos, dependencias vulnerables, pruebas, estructura, documentación y cuánto se mantiene vivo el proyecto.",
-    dato: "6 dimensiones · repositorios de GitHub",
+    dato: "5 características ISO · repositorios de GitHub",
     dims: [
       { nombre: "Seguridad", origen: "Gitleaks · Semgrep · OSV" },
       { nombre: "Fiabilidad", origen: "pruebas · CI" },
       { nombre: "Mantenibilidad", origen: "estructura · deuda" },
       { nombre: "Adecuación funcional", origen: "documentación · licencia" },
       { nombre: "Flexibilidad", origen: "contenedores · config" },
-      { nombre: "Actividad", origen: "commits · issues" },
+      { nombre: "Salud del proyecto (aparte, no es ISO)", origen: "commits · issues" },
     ],
   },
   url: {
@@ -52,9 +52,9 @@ const MODOS: Record<
     titulo: "Por qué no puntúan igual",
     texto:
       "Analiza las dos caras y explica las diferencias. Si tu proveedor te regala HTTPS y compresión, esa ventaja no es tuya. Si el código es bueno pero el despliegue no, tu calidad no llega a quien usa la aplicación.",
-    dato: "11 dimensiones · un plan de mejora único",
+    dato: "10 características · un plan de mejora único",
     dims: [
-      { nombre: "Las 6 del código", origen: "repositorio" },
+      { nombre: "Las 5 del código", origen: "repositorio" },
       { nombre: "Las 5 de producción", origen: "URL" },
       { nombre: "Discrepancias explicadas", origen: "código ≠ producción" },
       { nombre: "Plan de mejora priorizado", origen: "lo que más sube primero" },

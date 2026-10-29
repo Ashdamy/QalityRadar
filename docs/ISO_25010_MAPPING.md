@@ -46,7 +46,37 @@ La norma de 2023 deja de tener una subcaracterística llamada "accesibilidad": l
 
 Es la característica nueva de 2023: que el sistema no ponga en peligro a personas, bienes o el entorno (restricción operativa, identificación de riesgos, comportamiento a prueba de fallos, avisos de peligro, integración segura). No se puede juzgar leyendo un repositorio ni una página web, así que **no se mide**. Aparece en el radar, en el informe y en el PDF como "sin medir" y queda **fuera del denominador**: ni resta (darle 0 castigaría lo que no se comprobó) ni suma (darle 100 lo regalaría).
 
-**Nota honesta sobre "Actividad del proyecto":** el spec incluye esta dimensión con un peso del 15%, pero **no es una característica de ISO/IEC 25010**. Es un añadido nuestro, útil para juzgar si un proyecto está vivo y mantenido. Lo señalamos para no dar a entender que forma parte de la norma.
+### La actividad del proyecto: aparte, fuera de la nota
+
+El spec incluía "Actividad del proyecto" como sexta dimensión con un 15% de la nota global. **No es una característica de ISO/IEC 25010**: puntúa la frescura de los commits, que el repositorio tenga descripción y temas, y las **estrellas y forks**. Son señales de que un proyecto está vivo y tiene ojos encima, no de su calidad. Con ella dentro, un repositorio popular sacaba nota por ser popular.
+
+Desde ahora:
+
+- **Se sigue calculando** y se enseña como **"Indicador de salud del proyecto (no forma parte de ISO/IEC 25010)"**, fuera del radar, de la lista de características y de la nota global. En el PDF tiene su propia sección.
+- **No pesa.** Se guarda como dimensión con peso 0, y los cinco pesos restantes se **renormalizan** sobre 0,85 para que sumen 1,0 conservando su proporción:
+
+  | Característica | Peso del spec | Peso actual |
+  |---|---|---|
+  | Adecuación funcional | 15% | 17,6% |
+  | Fiabilidad | 20% | 23,5% |
+  | Seguridad | 20% | 23,5% |
+  | Mantenibilidad | 20% | 23,5% |
+  | Flexibilidad | 10% | 11,8% |
+
+- **El modo combinado** pondera cada lado por cuántas características ISO mide. Antes el repositorio contaba seis y pesaba más que la URL; ahora son cinco y cinco, y pesan lo mismo.
+- **El resumen de IA tampoco la menciona**: si no, "lo más sólido" de casi cualquier proyecto popular serían sus estrellas.
+
+**Recalibración**, con análisis reales hechos con el motor actual (las métricas están en [`tests/fixtures/calibracion_2026_10.json`](../backend/tests/fixtures/calibracion_2026_10.json) y las notas fijadas en [`tests/test_salud_del_proyecto.py`](../backend/tests/test_salud_del_proyecto.py)):
+
+| Proyecto | Con actividad | Sin actividad | Su actividad |
+|---|---|---|---|
+| axios/axios | 68,8 | **63,3** | 100 |
+| pallets/flask | 64,0 | **57,6** | 100 |
+| octocat/Hello-World (vacío) | 7,4 | **2,1** | 37 |
+
+Bajan las tres, y es lo esperado: las tres tenían la actividad por encima de su media, y Hello-World, un repositorio sin código, sacaba 5 de sus 7 puntos por sus estrellas. La escala sigue discriminando: las referencias por encima de 55, el repositorio vacío por debajo de 5.
+
+**Los análisis ya guardados** se recalculan con la fórmula nueva (migración `0023`, reversible), junto con las diferencias guardadas en las comparaciones. Sin eso, el primer análisis después del cambio "bajaría" respecto al anterior sin que el código hubiera cambiado: el aviso de caída de nota saltaría en falso y la gráfica de evolución tendría un escalón sin significado. Los **análisis combinados** ya guardados conservan su nota, porque su explicación de la discrepancia cita las notas en prosa y reescribirla sería inventarla.
 
 ---
 
@@ -66,7 +96,7 @@ Tres tipos de fila:
 
 ---
 
-## Adecuación funcional (peso 15%)
+## Adecuación funcional (peso 17,6%)
 
 *¿El producto hace lo que necesita, y se puede saber qué hace?*
 
@@ -89,7 +119,7 @@ Tres tipos de fila:
 
 La completitud solo puntúa si de verdad se escaneó código. La **corrección funcional** (que el software haga lo correcto) no se puede verificar sin ejecutarlo; los tests son una prueba indirecta y se puntúan en fiabilidad.
 
-## Fiabilidad (peso 20%)
+## Fiabilidad (peso 23,5%)
 
 *¿Se comporta como debe, durante el tiempo que debe, y se recupera de los fallos?*
 
@@ -110,7 +140,7 @@ La completitud solo puntúa si de verdad se escaneó código. La **corrección f
 
 La **disponibilidad** solo se puede medir sobre un sistema en ejecución.
 
-## Mantenibilidad (peso 20%)
+## Mantenibilidad (peso 23,5%)
 
 *¿Se puede entender, modificar y probar sin romperlo?*
 
@@ -134,7 +164,7 @@ La **disponibilidad** solo se puede medir sobre un sistema en ejecución.
 
 Medir la reusabilidad exigiría un grafo de dependencias entre módulos; la capacidad de prueba, analizar el acoplamiento del código con lo que lo rodea.
 
-## Seguridad (peso 20%)
+## Seguridad (peso 23,5%)
 
 *¿Protege la información y resiste el uso indebido?*
 
@@ -153,7 +183,7 @@ Medir la reusabilidad exigiría un grafo de dependencias entre módulos; la capa
 
 Lo que un escáner no llega a ejecutar no acredita nada: si Gitleaks falla o la consulta a OSV no responde, esos puntos no se dan. La **resistencia** sí se mide en el modo URL, sobre la aplicación desplegada.
 
-## Flexibilidad (antes portabilidad, peso 10%)
+## Flexibilidad (antes portabilidad, peso 11,8%)
 
 *¿Se puede llevar a otro entorno y crecer?*
 
@@ -192,17 +222,18 @@ Un proyecto con credenciales expuestas no puede sacar buena nota por muy bien do
 
 ```
 nota_dimensión   = suma de puntos ganados en su rúbrica (0-100)
-nota_global      = Σ(peso_i × nota_i) / Σ(pesos de las dimensiones medidas)
+nota_global      = Σ(peso_i × nota_i) / Σ(pesos de las características ISO medidas)
 nota_global      = min(nota_global, techo por riesgo crítico)
 ```
 
-La normalización sobre las dimensiones **realmente medidas** evita penalizar a un proyecto por características que este análisis todavía no cubre. Cuando entren los analizadores restantes, el denominador crecerá.
+La normalización sobre las características **realmente medidas** evita penalizar a un proyecto por lo que este análisis todavía no cubre. Quedan fuera del denominador la **protección** (sin medir) y el **indicador de salud** (no es ISO). Cuando entren los analizadores restantes, el denominador crecerá.
 
 ## Principio de diseño: los puntos se ganan
 
 Cada dimensión parte de **cero**. Nunca se acredita calidad que no se haya comprobado:
 
-- Una dimensión sin rúbrica todavía puntúa 0, no 100.
+- Una dimensión que se analizó y no aportó evidencia puntúa 0, no 100: un repositorio sin código no tiene mantenibilidad que acreditar.
+- Lo que **no se mide** no puntúa ni 0 ni 100: se **excluye** de la nota y se marca "sin medir". Así se tratan la protección y las subcaracterísticas que la norma define y aquí no se comprueban. La diferencia con el punto anterior es que ahí sí se miró.
 - La *ausencia* de un problema solo suma si de verdad se escanearon archivos. "No tiene credenciales expuestas" sin haber leído ningún archivo no es un mérito, es desconocimiento.
 
 Esto corrige el modelo original, que restaba penalizaciones desde 100 y por tanto premiaba la ausencia de evidencia: un repositorio con un solo archivo y sin nada más sacaba 87/100.

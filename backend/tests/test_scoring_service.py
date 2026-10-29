@@ -17,12 +17,14 @@ def _finding(severity: str) -> FindingData:
 
 
 def test_weights_match_the_spec():
-    assert REPOSITORY_WEIGHTS["functional_suitability"] == 0.15
-    assert REPOSITORY_WEIGHTS["reliability"] == 0.20
-    assert REPOSITORY_WEIGHTS["security"] == 0.20
-    assert REPOSITORY_WEIGHTS["maintainability"] == 0.20
-    assert REPOSITORY_WEIGHTS["portability"] == 0.10
-    assert REPOSITORY_WEIGHTS["project_activity"] == 0.15
+    # Los del spec sin la actividad del proyecto (15%, no es ISO),
+    # renormalizados sobre 0.85 para que sumen 1.0. Ver test_salud_del_proyecto.
+    assert REPOSITORY_WEIGHTS["functional_suitability"] == pytest.approx(0.15 / 0.85)
+    assert REPOSITORY_WEIGHTS["reliability"] == pytest.approx(0.20 / 0.85)
+    assert REPOSITORY_WEIGHTS["security"] == pytest.approx(0.20 / 0.85)
+    assert REPOSITORY_WEIGHTS["maintainability"] == pytest.approx(0.20 / 0.85)
+    assert REPOSITORY_WEIGHTS["portability"] == pytest.approx(0.10 / 0.85)
+    assert "project_activity" not in REPOSITORY_WEIGHTS
     assert sum(REPOSITORY_WEIGHTS.values()) == pytest.approx(1.0)
 
 

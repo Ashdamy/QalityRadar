@@ -4,7 +4,7 @@ import { use, useEffect, useState } from "react";
 import { ApiError, getSharedReport, type Analysis } from "@/lib/api";
 import { RadarMark } from "@/components/RadarMark";
 import { RadarChart } from "@/components/RadarChart";
-import { DimensionesDetalle } from "@/components/DimensionesDetalle";
+import { DimensionesDetalle, IndicadorDeSalud } from "@/components/DimensionesDetalle";
 
 // Página pública: no usa AnalysisPanel porque ese panel ofrece acciones que
 // solo tienen sentido con sesión (compartir, cerrar, exportar). Aquí se
@@ -116,6 +116,7 @@ export default function SharedReportPage({
               <RadarChart dimensions={analysis.dimensions} />
               <DimensionesDetalle dimensions={analysis.dimensions} />
             </div>
+            <IndicadorDeSalud dimensions={analysis.dimensions} />
 
             <div className="mt-8">
               <h2 className="text-[13px] font-semibold text-muted">

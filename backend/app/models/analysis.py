@@ -86,7 +86,8 @@ class Dimension(Base):
     __table_args__ = (
         UniqueConstraint("analysis_id", "name"),
         CheckConstraint("score >= 0 AND score <= 100"),
-        CheckConstraint("weight > 0 AND weight <= 1"),
+        # 0 para lo que se ensena sin puntuar (la actividad del proyecto).
+        CheckConstraint("weight >= 0 AND weight <= 1"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())

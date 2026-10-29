@@ -16,7 +16,6 @@ const DIMENSIONS = [
   "Seguridad",
   "Mantenibilidad",
   "Flexibilidad",
-  "Actividad",
 ];
 
 type Mode = "login" | "register";

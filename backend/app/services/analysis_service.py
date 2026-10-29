@@ -34,9 +34,9 @@ from app.services.comparison_service import compare_analyses, find_previous_anal
 from app.services.summary_service import build_analysis_summary
 from app.services.repo_service import ErrorDeClonado, clone_repository, read_head_commit
 from app.services.scoring_service import (
-    REPOSITORY_WEIGHTS,
     calculate_confidence,
     calculate_overall_score,
+    dimension_weight,
     score_dimension,
     subcharacteristics,
 )
@@ -161,7 +161,8 @@ def run_repository_analysis(analysis_id: str) -> None:
                     analysis_id=analysis.id,
                     name=dimension,
                     score=score,
-                    weight=REPOSITORY_WEIGHTS[dimension],
+                    # La actividad se guarda con peso 0: se ensena, no puntua.
+                    weight=dimension_weight(dimension),
                     raw_metrics=metrics,
                     subcharacteristics=subcharacteristics(dimension, metrics),
                 )
