@@ -357,6 +357,20 @@ El proyecto analiza las dependencias *de otros*; sin esto, nadie vigilaba las su
 
 Es el argumento entero a favor de automatizar esto: llevaban meses ahí y nadie lo sabía.
 
+**Y automatizarlo no basta si nadie mira el resultado.** En octubre de 2026 una auditoría local encontró que el CI llevaba semanas sin ver `main` —no se había subido— y que se habían vuelto a acumular avisos:
+
+| Paquete | Antes | Ahora | Avisos |
+|---|---|---|---|
+| `pyjwt` | 2.13.0 | 2.15.0 | 29, uno sin arreglo en 2.14 |
+| `pillow` (vía `reportlab`) | 12.3.0 | 13.0.0 | 59 |
+| `mako` (vía `alembic`) | 1.4.1 | 1.4.2 | 2 |
+| `dnspython` | 2.8.0 | 2.9.0 | 1 |
+| `certifi` | 2026.7.22 | 2026.10.19 | 2 |
+| `next` | 16.3.3 | 16.4.3 | crítico: ejecución remota en `next/og` |
+| `sharp`, `source-map-js` (transitivas) | — | corregidas | altos |
+
+`next/og` y `use cache` no se usan, así que el crítico no era explotable aquí; el primer uso lo habría abierto. Como ninguna versión nueva de Python trae dependencias nuevas, se cambiaron solo esas cinco líneas de `requirements.txt` con los hashes publicados en PyPI, y se comprobó que instalan con `--require-hashes` en un contenedor de Linux. Tras el cambio, `pip-audit` (61 paquetes) y `npm audit --omit=dev` dan cero.
+
 ---
 
 ## 11. Lo que NO está cubierto
