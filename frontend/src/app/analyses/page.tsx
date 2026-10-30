@@ -11,6 +11,7 @@ import {
 } from "@/lib/api";
 import { clearToken, haySesion } from "@/lib/auth";
 import { RadarMark } from "@/components/RadarMark";
+import { Cargando } from "@/components/RadarCargando";
 
 // Estados desde los que todavía se puede cancelar, y desde los que se puede
 // reintentar. Los mismos que aplica el backend.
@@ -128,7 +129,7 @@ export default function AnalysesPage() {
           </p>
         )}
 
-        {items === null && <p className="text-[13px] text-muted">Cargando…</p>}
+        {items === null && <Cargando className="text-[13px] text-muted">Cargando…</Cargando>}
 
         {items !== null && items.length === 0 && (
           <p className="text-[13px] text-muted">

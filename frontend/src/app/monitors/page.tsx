@@ -18,6 +18,7 @@ import { RadarMark } from "@/components/RadarMark";
 import Link from "next/link";
 import { NotificationBell } from "@/components/NotificationBell";
 import { Sparkline } from "@/components/Sparkline";
+import { Cargando } from "@/components/RadarCargando";
 
 const ETIQUETA_INTERVALO: Record<number, string> = {
   15: "cada 15 min",
@@ -353,9 +354,7 @@ export default function MonitorsPage() {
         </p>
 
         {!datos && !error && (
-          <p className="mb-7 text-[13px] text-faint" role="status">
-            Cargando tus proyectos…
-          </p>
+          <Cargando className="mb-7 text-[13px] text-faint">Cargando tus proyectos…</Cargando>
         )}
 
         {datos && (

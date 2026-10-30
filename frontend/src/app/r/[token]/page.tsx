@@ -9,6 +9,7 @@ import { AvisoDeCobertura } from "@/components/AvisoDeCobertura";
 import { VeredictoCard } from "@/components/VeredictoCard";
 import { SonarImport } from "@/components/SonarImport";
 import { MedicionNavegador } from "@/components/MedicionNavegador";
+import { Cargando } from "@/components/RadarCargando";
 
 // Página pública: no usa AnalysisPanel porque ese panel ofrece acciones que
 // solo tienen sentido con sesión (compartir, cerrar, exportar). Aquí se
@@ -78,7 +79,7 @@ export default function SharedReportPage({
         )}
 
         {!error && !analysis && (
-          <p className="text-center text-[13.5px] text-muted">Cargando informe…</p>
+          <Cargando className="justify-center text-[13.5px] text-muted">Cargando informe…</Cargando>
         )}
 
         {analysis && (
