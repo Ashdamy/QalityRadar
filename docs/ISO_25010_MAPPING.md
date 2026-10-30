@@ -166,6 +166,25 @@ La **disponibilidad** solo se puede medir sobre un sistema en ejecución.
 
 Medir la reusabilidad exigiría un grafo de dependencias entre módulos; la capacidad de prueba, analizar el acoplamiento del código con lo que lo rodea.
 
+### Con métricas de SonarCloud
+
+En un análisis de repositorio terminado, el usuario puede escribir la clave de un proyecto **público** de SonarCloud y pulsar *Importar métricas*. QalitiRadar no ejecuta nada: lee de `https://sonarcloud.io/api/measures/component` lo que SonarCloud ya calculó (cobertura, duplicación, deuda técnica y su calificación A–E, complejidad cognitiva y líneas de código). Se guardan en el análisis con la fecha de importación (migración 0024) y la mantenibilidad se repuntúa:
+
+| Subcaracterística | Origen | Fórmula | Puntos |
+|---|---|---|---|
+| **Modularidad** | QalitiRadar | La misma de arriba (SonarCloud no la da) | 38 |
+| **Analizabilidad** | SonarCloud | Complejidad cognitiva por cada 1.000 líneas: ≤ 60 → 30, ≤ 100 → 22, ≤ 150 → 14, ≤ 250 → 6, más → 0 | 30 |
+| **Modificabilidad** | SonarCloud | Calificación de deuda técnica A → 20, B → 15, C → 10, D → 5, E → 0; más duplicación ≤ 3 % → 12, ≤ 5 % → 8, ≤ 10 % → 4, más → 0 | 32 |
+| **Capacidad de prueba** | SonarCloud | Cobertura ≥ 80 % → 20, ≥ 60 % → 14, ≥ 40 % → 8, ≥ 20 % → 4, menos → 0 | 20 |
+
+- Cada grupo usa SonarCloud **solo si están todas sus métricas** (analizabilidad: complejidad y líneas; modificabilidad: calificación y duplicación). Si falta alguna, ese grupo sigue con la estimación de arriba y se marca *Estimado*.
+- La **capacidad de prueba** solo se mide con la cobertura de SonarCloud. Cuando la hay, entra con 20 puntos y los otros tres grupos se escalan × 0,8 (30,4 + 24 + 25,6 + 20 = 100), para que el máximo siga siendo 100. Sin cobertura, sigue *sin medir*.
+- La complejidad se pasa a densidad porque el total crece con el tamaño del proyecto. Los tramos son decisión de QalitiRadar, no de SonarCloud: en cuatro proyectos públicos de 11.000–18.000 líneas la densidad iba de 60 a 354.
+- La deuda técnica (`sqale_index`) se enseña en días y horas (SonarCloud cuenta días de 8 horas); puntúa su calificación, no el total, que también depende del tamaño.
+- La nota global se recalcula con los mismos pesos y el mismo techo por hallazgos graves. Las métricas propias se conservan: volver a importar sustituye lo importado, no lo medido.
+- Cada subcaracterística lleva su origen: **SonarCloud**, **QalitiRadar** (medido aquí), **Estimado** (aproximación por señales indirectas) o **Sin medir**.
+- Solo en análisis de repositorio (no en los de URL ni combinados) y solo en los que ya tienen desglose por subcaracterística.
+
 **Cobertura de lenguajes.** El análisis de la calidad del código (funciones, comentarios, anidamiento, tipos, duplicación) solo entiende **Python, JavaScript y TypeScript**; el de estructura (tamaño de archivos, carpetas, linter) ve todos. En un repositorio en Java, Go, Ruby o Rust, buena parte de la mantenibilidad sale entonces de una porción pequeña del código. No se amplía el soporte, pero se hace visible:
 
 - Se cuenta qué proporción de los archivos de código fuente se pudo analizar (sin contar dependencias instaladas como `node_modules`).

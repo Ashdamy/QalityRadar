@@ -18,8 +18,17 @@ from app.schemas.analysis import (
     DimensionOut,
     FindingOut,
     PlanItemOut,
+    SonarImportIn,
+    SonarOut,
 )
-from app.services.rate_limit_service import RateLimitExceeded, check_and_reserve, release
+from app.services.rate_limit_service import (
+    RateLimitExceeded,
+    check_and_reserve,
+    check_sonar_import,
+    release,
+)
+from app.services.scoring_service import calculate_overall_score, score_dimension, subcharacteristics
+from app.services.sonar_service import SonarError, clave_valida, obtener_metricas
 from app.services.report_service import aviso_de_cobertura, build_analysis_report
 from app.tasks import queue_combined_analysis, queue_repository_analysis, queue_url_analysis
 
@@ -152,6 +161,15 @@ def serialize_analysis(db: Session, analysis: Analysis) -> AnalysisOut:
         repository_full_name=repository.full_name if repository else None,
         combined=_combined_block(db, analysis),
         coverage_notice=aviso_de_cobertura(dimensions),
+        sonar=(
+            SonarOut(
+                project_key=analysis.sonar_project_key,
+                imported_at=analysis.sonar_imported_at.isoformat(),
+                metrics=analysis.sonar_metrics,
+            )
+            if analysis.sonar_metrics and analysis.sonar_imported_at
+            else None
+        ),
         dimensions=[
             DimensionOut(
                 name=d.name,
@@ -235,6 +253,68 @@ def download_report(
             "Content-Disposition": f'attachment; filename="qalitiradar-{nombre_base}-{fecha}.pdf"'
         },
     )
+
+
+@router.post("/{analysis_id}/sonar", response_model=AnalysisOut)
+def import_sonar_metrics(
+    analysis_id: uuid.UUID,
+    body: SonarImportIn,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AnalysisOut:
+    """Trae de SonarCloud las metricas de un proyecto publico y repuntua.
+
+    Sustituyen a las estimadas en la rubrica de mantenibilidad; la nota global
+    se recalcula con el mismo techo por hallazgos graves de siempre. Volver a
+    importar reemplaza lo anterior.
+    """
+    analysis = _analisis_propio(db, analysis_id, current_user)
+    if analysis.status != "completed" or analysis.analysis_type != "repository":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Solo se pueden importar métricas a un análisis de repositorio terminado.",
+        )
+    mantenibilidad = db.scalar(
+        select(Dimension).where(Dimension.analysis_id == analysis.id, Dimension.name == "maintainability")
+    )
+    if mantenibilidad is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Este análisis no tiene mantenibilidad a la que aplicar las métricas.",
+        )
+
+    clave = body.project_key.strip()
+    try:
+        # Una clave mal escrita se rechaza sin gastar cupo: no sale de aqui.
+        if clave_valida(clave):
+            check_sonar_import(current_user.id)
+        metricas = obtener_metricas(clave)
+    except RateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=exc.message,
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+    except SonarError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.mensaje) from exc
+
+    analysis.sonar_project_key = clave
+    analysis.sonar_metrics = metricas
+    analysis.sonar_imported_at = datetime.now(timezone.utc)
+
+    # Se repuntua desde lo que midieron los analizadores mas lo importado: las
+    # metricas propias no se tocan, por si se vuelve a importar otro proyecto.
+    entrada = {**(mantenibilidad.raw_metrics or {}), "sonar": metricas}
+    mantenibilidad.score = score_dimension("maintainability", entrada, [])
+    mantenibilidad.subcharacteristics = subcharacteristics("maintainability", entrada)
+
+    dimensiones = db.scalars(select(Dimension).where(Dimension.analysis_id == analysis.id)).all()
+    hallazgos = db.scalars(select(Finding).where(Finding.analysis_id == analysis.id)).all()
+    analysis.overall_score = calculate_overall_score(
+        {d.name: float(d.score) for d in dimensiones}, list(hallazgos)
+    )
+    db.commit()
+    return serialize_analysis(db, analysis)
 
 
 @router.post("/{analysis_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)

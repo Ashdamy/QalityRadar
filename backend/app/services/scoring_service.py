@@ -401,16 +401,38 @@ def _score_reliability(m: dict) -> float:
     }
 
 
-def _score_maintainability(m: dict) -> float:
-    """Mantenibilidad (ISO 25010).
+# Origen de cada parte de la nota de mantenibilidad, para que el usuario sepa
+# de donde sale: medido por SonarCloud, medido por QalitiRadar, estimado por
+# QalitiRadar a partir de senales indirectas, o sin medir.
+SONARCLOUD = "sonarcloud"
+QALITIRADAR = "qalitiradar"
+ESTIMADO = "estimado"
+SIN_MEDIR = "sin_medir"
+
+# Si SonarCloud aporta cobertura de pruebas, la capacidad de prueba pasa a
+# valer 20 puntos y el resto se escala para que el maximo siga siendo 100.
+_PUNTOS_CAPACIDAD_DE_PRUEBA = 20
+_ESCALA_CON_COBERTURA = (100 - _PUNTOS_CAPACIDAD_DE_PRUEBA) / 100
+
+
+def _partes_de_mantenibilidad(m: dict) -> list[tuple[str, float, float, str]]:
+    """Mantenibilidad (ISO 25010), como (nombre, puntos, maximo, origen).
 
     Sub-caracteristicas cubiertas:
     - Modularidad: tamano de archivos y funciones, estructura de carpetas.
-    - Analizabilidad: comentarios, documentacion de funciones, anidamiento.
-    - Modificabilidad: linter, tipos, ausencia de duplicacion.
+    - Analizabilidad: comentarios, documentacion de funciones, anidamiento;
+      o la complejidad cognitiva de SonarCloud si se importo.
+    - Modificabilidad: linter, tipos, ausencia de duplicacion; o la deuda
+      tecnica y la duplicacion de SonarCloud si se importaron.
+    - Capacidad de prueba: solo con la cobertura de SonarCloud.
+
+    Las medidas de SonarCloud sustituyen a las estimadas porque son mejores:
+    cubren todos los lenguajes del proyecto y no heuristicas. Formula en
+    docs/ISO_25010_MAPPING.md.
     """
-    if m.get("code_file_count", 0) == 0 and m.get("analyzed_code_files", 0) == 0:
-        return {}
+    sonar = m.get("sonar") or {}
+    if m.get("code_file_count", 0) == 0 and m.get("analyzed_code_files", 0) == 0 and not sonar:
+        return []
 
     # -- Modularidad (38 pts) -------------------------------------------------
     modularidad = (
@@ -420,25 +442,49 @@ def _score_maintainability(m: dict) -> float:
         + _award(m.get("top_level_directory_count", 0) >= 2, 5)
         + _award(m.get("project_shape", "unknown") != "unknown", 3)
     )
+    partes = [("Modularidad", modularidad, 38.0, QALITIRADAR)]
+
     # -- Analizabilidad (30 pts) ---------------------------------------------
-    analizabilidad = (
-        _tiered(m.get("comment_ratio", 0.0), [(0.02, 4), (0.05, 8), (0.10, 11)])
-        + _tiered(m.get("function_documentation_ratio", 0.0), [(0.10, 3), (0.30, 6), (0.60, 9)])
-        + _tiered(-m.get("max_nesting_depth", 0), [(-8, 3), (-6, 6), (-4, 10)])
-    )
+    if "cognitive_complexity" in sonar and sonar.get("ncloc"):
+        # Por cada mil lineas: el total crece con el tamano del proyecto.
+        densidad = 1000 * sonar["cognitive_complexity"] / sonar["ncloc"]
+        analizabilidad = _tiered(-densidad, [(-250, 6), (-150, 14), (-100, 22), (-60, 30)])
+        partes.append(("Analizabilidad", analizabilidad, 30.0, SONARCLOUD))
+    else:
+        analizabilidad = (
+            _tiered(m.get("comment_ratio", 0.0), [(0.02, 4), (0.05, 8), (0.10, 11)])
+            + _tiered(m.get("function_documentation_ratio", 0.0), [(0.10, 3), (0.30, 6), (0.60, 9)])
+            + _tiered(-m.get("max_nesting_depth", 0), [(-8, 3), (-6, 6), (-4, 10)])
+        )
+        partes.append(("Analizabilidad", analizabilidad, 30.0, ESTIMADO))
+
     # -- Modificabilidad (32 pts) --------------------------------------------
-    modificabilidad = (
-        _award(m.get("has_linter_config", False), 10)
-        + _award(m.get("has_gitignore", False), 5)
-        + _award(m.get("has_dependency_manifest", False), 5)
-        + _tiered(m.get("type_annotation_ratio", 0.0), [(0.20, 3), (0.50, 6), (0.80, 8)])
-        + _award(m.get("duplicated_file_count", 0) == 0, 4)
-    )
-    return {
-        "Modularidad": modularidad,
-        "Analizabilidad": analizabilidad,
-        "Modificabilidad": modificabilidad,
-    }
+    if "sqale_rating" in sonar and "duplicated_lines_density" in sonar:
+        # sqale_rating: 1 = A ... 5 = E.
+        modificabilidad = _tiered(
+            -sonar["sqale_rating"], [(-4, 5), (-3, 10), (-2, 15), (-1, 20)]
+        ) + _tiered(-sonar["duplicated_lines_density"], [(-10, 4), (-5, 8), (-3, 12)])
+        partes.append(("Modificabilidad", modificabilidad, 32.0, SONARCLOUD))
+    else:
+        modificabilidad = (
+            _award(m.get("has_linter_config", False), 10)
+            + _award(m.get("has_gitignore", False), 5)
+            + _award(m.get("has_dependency_manifest", False), 5)
+            + _tiered(m.get("type_annotation_ratio", 0.0), [(0.20, 3), (0.50, 6), (0.80, 8)])
+            + _award(m.get("duplicated_file_count", 0) == 0, 4)
+        )
+        partes.append(("Modificabilidad", modificabilidad, 32.0, ESTIMADO))
+
+    # -- Capacidad de prueba (20 pts, solo con SonarCloud) -------------------
+    if "coverage" in sonar:
+        partes = [(n, p * _ESCALA_CON_COBERTURA, x * _ESCALA_CON_COBERTURA, o) for n, p, x, o in partes]
+        cobertura = _tiered(sonar["coverage"], [(20, 4), (40, 8), (60, 14), (80, _PUNTOS_CAPACIDAD_DE_PRUEBA)])
+        partes.append(("Capacidad de prueba", cobertura, float(_PUNTOS_CAPACIDAD_DE_PRUEBA), SONARCLOUD))
+    return partes
+
+
+def _score_maintainability(m: dict) -> dict:
+    return {nombre: puntos for nombre, puntos, _, _ in _partes_de_mantenibilidad(m)}
 
 
 def _score_security(m: dict) -> float:
@@ -590,10 +636,8 @@ _DESGLOSE_REPOSITORIO: dict[str, tuple[list[_Grupo], list[str]]] = {
          ("Recuperabilidad", 15, True)],
         ["Disponibilidad"],
     ),
-    "maintainability": (
-        [("Modularidad", 38, True), ("Analizabilidad", 30, True), ("Modificabilidad", 32, True)],
-        ["Reusabilidad", "Capacidad de prueba"],
-    ),
+    # Mantenibilidad no esta aqui: sus maximos cambian si hay datos de
+    # SonarCloud, ver _desglose_de_mantenibilidad.
     "security": (
         [("Confidencialidad", 50, True), ("Integridad", 50, True)],
         ["No repudio", "Responsabilidad", "Autenticidad", "Resistencia"],
@@ -646,6 +690,8 @@ def subcharacteristics(dimension: str, metrics: dict, *, url: bool = False) -> l
     define y aqui no se miden van al final con `measured: False` y sin puntos.
     """
     rubricas, desgloses = (URL_RUBRICS, _DESGLOSE_URL) if url else (DIMENSION_RUBRICS, _DESGLOSE_REPOSITORIO)
+    if not url and dimension == "maintainability":
+        return _desglose_de_mantenibilidad(metrics)
     if dimension not in rubricas:
         return []
     puntos = rubricas[dimension](metrics)
@@ -657,6 +703,25 @@ def subcharacteristics(dimension: str, metrics: dict, *, url: bool = False) -> l
     ] + [
         {"name": nombre, "earned": None, "max": None, "measured": False, "iso": True}
         for nombre in sin_medir
+    ]
+
+
+def _desglose_de_mantenibilidad(metrics: dict) -> list[dict]:
+    """Como `subcharacteristics`, con el origen de cada parte (`origin`)."""
+    partes = _partes_de_mantenibilidad(metrics)
+    if not partes:
+        # Sin codigo no hay puntos, pero se ensena la estructura igual.
+        partes = [("Modularidad", 0.0, 38.0, QALITIRADAR), ("Analizabilidad", 0.0, 30.0, ESTIMADO),
+                  ("Modificabilidad", 0.0, 32.0, ESTIMADO)]
+    medidas = {nombre for nombre, *_ in partes}
+    return [
+        {"name": nombre, "earned": round(puntos, 2), "max": round(maximo, 2),
+         "measured": True, "iso": True, "origin": origen}
+        for nombre, puntos, maximo, origen in partes
+    ] + [
+        {"name": nombre, "earned": None, "max": None, "measured": False, "iso": True, "origin": SIN_MEDIR}
+        for nombre in ("Reusabilidad", "Capacidad de prueba")
+        if nombre not in medidas
     ]
 
 

@@ -73,6 +73,17 @@ export default function AnalyzeUrlPage() {
     if (!haySesion()) router.replace("/entrar");
   }, [router]);
 
+  // "Ver" en Mis análisis llega aquí con ?analysis=<id>: se abre ese análisis
+  // (de cualquier tipo) en vez del formulario vacío. Se lee de `window` y no
+  // con useSearchParams para no tener que envolver la página en Suspense.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("analysis");
+    if (!id) return;
+    getAnalysis(id)
+      .then(setAnalysis)
+      .catch(() => setError("No se pudo abrir ese análisis."));
+  }, []);
+
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
         if (pending || !url.trim()) return;
@@ -158,7 +169,7 @@ export default function AnalyzeUrlPage() {
 
         {analysis && (
           <div className="mt-7">
-            <AnalysisPanel analysis={analysis} onClose={() => setAnalysis(null)} />
+            <AnalysisPanel analysis={analysis} onClose={() => setAnalysis(null)} onAnalysisChange={setAnalysis} />
           </div>
         )}
 

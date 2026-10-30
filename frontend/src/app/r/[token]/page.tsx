@@ -6,6 +6,7 @@ import { RadarMark } from "@/components/RadarMark";
 import { RadarChart } from "@/components/RadarChart";
 import { DimensionesDetalle, IndicadorDeSalud } from "@/components/DimensionesDetalle";
 import { AvisoDeCobertura } from "@/components/AvisoDeCobertura";
+import { SonarImport } from "@/components/SonarImport";
 
 // Página pública: no usa AnalysisPanel porque ese panel ofrece acciones que
 // solo tienen sentido con sesión (compartir, cerrar, exportar). Aquí se
@@ -116,7 +117,10 @@ export default function SharedReportPage({
 
             <div className="mt-8 flex flex-col items-center gap-6 md:flex-row md:items-start">
               <RadarChart dimensions={analysis.dimensions} />
-              <DimensionesDetalle dimensions={analysis.dimensions} />
+              <DimensionesDetalle
+                dimensions={analysis.dimensions}
+                extra={analysis.sonar ? { maintainability: <SonarImport analysis={analysis} /> } : {}}
+              />
             </div>
             <IndicadorDeSalud dimensions={analysis.dimensions} />
 

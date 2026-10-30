@@ -61,6 +61,11 @@ _REGISTRATION_KEY = "ratelimit:registrations:{ip}"
 MAX_VERIFICATION_EMAILS_PER_HOUR = 3
 _VERIFICATION_KEY = "ratelimit:verification:{user_id}"
 
+# Cada importacion es una peticion nuestra a SonarCloud: sin tope, la cuenta
+# podria usarnos para martillearles y que nos bloqueen a todos.
+MAX_SONAR_IMPORTS_PER_HOUR = 10
+_SONAR_KEY = "ratelimit:sonar:{user_id}"
+
 MAX_RESET_EMAILS_PER_EMAIL_HOUR = 3
 MAX_RESET_REQUESTS_PER_IP_HOUR = 10
 _RESET_EMAIL_KEY = "ratelimit:reset:email:{huella}"
@@ -276,6 +281,23 @@ def check_verification_email(user_id: uuid.UUID) -> None:
 
     if cliente.zcard(clave) >= MAX_VERIFICATION_EMAILS_PER_HOUR:
         raise RateLimitExceeded("Ya se enviaron varios correos; revisa tu bandeja.", HOUR_SECONDS)
+
+    cliente.zadd(clave, {str(uuid.uuid4()): ahora})
+    cliente.expire(clave, HOUR_SECONDS)
+
+
+def check_sonar_import(user_id: uuid.UUID) -> None:
+    """Limita cuantas veces por hora una cuenta pide metricas a SonarCloud."""
+    cliente = _client()
+    clave = _SONAR_KEY.format(user_id=user_id)
+    ahora = time.time()
+    cliente.zremrangebyscore(clave, 0, ahora - HOUR_SECONDS)
+
+    if cliente.zcard(clave) >= MAX_SONAR_IMPORTS_PER_HOUR:
+        raise RateLimitExceeded(
+            "Ya importaste varias veces en la última hora. Vuelve a intentarlo más tarde.",
+            HOUR_SECONDS,
+        )
 
     cliente.zadd(clave, {str(uuid.uuid4()): ahora})
     cliente.expire(clave, HOUR_SECONDS)

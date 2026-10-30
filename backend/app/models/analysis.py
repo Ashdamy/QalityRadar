@@ -76,6 +76,11 @@ class Analysis(Base):
     summary_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     summary_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Metricas que el usuario trajo de SonarCloud (migracion 0024). Sustituyen
+    # a las estimadas en la rubrica de mantenibilidad.
+    sonar_project_key: Mapped[str | None] = mapped_column(String(400), nullable=True)
+    sonar_metrics: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    sonar_imported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

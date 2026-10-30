@@ -210,6 +210,16 @@ export interface Subcaracteristica {
   measured: boolean;
   // false en los grupos que suman puntos pero no son de la norma.
   iso: boolean;
+  // De dónde sale el dato. Solo en mantenibilidad; ausente en el resto.
+  origin?: "sonarcloud" | "qalitiradar" | "estimado" | "sin_medir" | null;
+}
+
+export interface SonarImport {
+  project_key: string;
+  imported_at: string;
+  // coverage, duplicated_lines_density, sqale_index (minutos), sqale_rating
+  // (1 = A … 5 = E), cognitive_complexity y ncloc; solo las que había.
+  metrics: Record<string, number>;
 }
 
 export interface AnalysisDimension {
@@ -264,6 +274,8 @@ export interface Analysis {
   combined: Combined | null;
   // Si la calidad del código solo pudo analizarse en parte del proyecto.
   coverage_notice?: string | null;
+  // Métricas importadas de SonarCloud, si las hay.
+  sonar?: SonarImport | null;
 }
 
 export function startRepositoryAnalysis(repositoryId: string,
@@ -413,6 +425,17 @@ export interface AnalysisListItem {
 /** Los análisis de quien pregunta, del más reciente al más antiguo. */
 export function listAnalyses(limit = 20): Promise<AnalysisListItem[]> {
   return request<AnalysisListItem[]>(`/api/analyses?limit=${limit}`);
+}
+
+/**
+ * Trae de SonarCloud las métricas de un proyecto público y devuelve el
+ * análisis ya repuntuado.
+ */
+export function importSonarMetrics(analysisId: string, projectKey: string): Promise<Analysis> {
+  return request<Analysis>(`/api/analyses/${analysisId}/sonar`, {
+    method: "POST",
+    body: JSON.stringify({ project_key: projectKey }),
+  });
 }
 
 /** Cancela uno en marcha y devuelve el hueco de cuota. */
