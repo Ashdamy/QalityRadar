@@ -14,6 +14,8 @@ from datetime import datetime
 from app.services.iso25010 import dimension_label
 from app.analyzers.repository.code_quality import COBERTURA_MINIMA
 from app.services.scoring_service import HEALTH_INDICATORS
+from app.services.veredicto import APTO, NO_APTO, TEXTO_FIJO, calcular_veredicto
+from reportlab.graphics.shapes import Circle, Drawing, Line, PolyLine
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_LEFT
 from reportlab.lib.pagesizes import A4
@@ -50,6 +52,34 @@ def _iso_ordenadas(dimensions) -> list:
     return sorted(
         (d for d in dimensions if not _es_indicador_de_salud(d)), key=lambda x: -float(x.score)
     )
+
+
+def _icono_veredicto(nivel: str, color) -> Drawing:
+    """Palomita, equis o exclamacion dibujadas a mano.
+
+    Las fuentes estandar del PDF no traen esos simbolos (Helvetica los pinta
+    como cuadros y ZapfDingbats tampoco se ve bien en todos los visores).
+    """
+    icono = Drawing(12, 12)
+    icono.add(Circle(6, 6, 6, fillColor=color, strokeColor=None))
+    trazo = {"strokeColor": colors.white, "strokeWidth": 1.6, "strokeLineCap": 1}
+    if nivel == APTO:
+        icono.add(PolyLine([3, 6.2, 5.2, 4, 9, 8.2], **trazo))
+    elif nivel == NO_APTO:
+        icono.add(Line(3.8, 3.8, 8.2, 8.2, **trazo))
+        icono.add(Line(3.8, 8.2, 8.2, 3.8, **trazo))
+    else:
+        icono.add(Line(6, 5.2, 6, 9.4, **trazo))
+        icono.add(Line(6, 2.8, 6, 2.9, **trazo))
+    return icono
+
+
+def veredicto_de(analysis, findings) -> dict | None:
+    """Veredicto de un analisis terminado, con el texto fijo. Lo usan la API y el PDF."""
+    if getattr(analysis, "status", "completed") != "completed":
+        return None
+    veredicto = calcular_veredicto(analysis.overall_score, findings, analysis.confidence_level)
+    return {**veredicto, "aviso": TEXTO_FIJO} if veredicto else None
 
 
 def aviso_de_cobertura(dimensions) -> str | None:
@@ -235,6 +265,51 @@ def build_analysis_report(
                 estilo_mono,
             )
         )
+
+    # -- Veredicto, en la primera pagina ------------------------------------
+    veredicto = veredicto_de(analysis, findings)
+    if veredicto:
+        color = {APTO: GOOD, NO_APTO: BAD}.get(veredicto["nivel"], WARN)
+        # Simbolo ademas del color, para quien no distingue el verde del rojo
+        # o imprime en blanco y negro.
+        titulo = f"Veredicto: {veredicto['etiqueta']}"
+        if veredicto["provisional"]:
+            titulo += " (provisional)"
+        cabecera = Table(
+            [[_icono_veredicto(veredicto["nivel"], color),
+              Paragraph(f'<font color="{color.hexval()}"><b>{_escape(titulo)}</b></font>', estilo_cuerpo)]],
+            colWidths=[6 * mm, None],
+        )
+        cabecera.setStyle(
+            TableStyle(
+                [
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                ]
+            )
+        )
+        bloque = [
+            cabecera,
+            *[Paragraph(f"• {_escape(m)}", estilo_cuerpo) for m in veredicto["motivos"]],
+            Paragraph(_escape(veredicto["aviso"]), estilo_nota),
+        ]
+        caja = Table([[bloque]], colWidths=[170 * mm])
+        caja.setStyle(
+            TableStyle(
+                [
+                    ("BOX", (0, 0), (-1, -1), 1.2, color),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                    ("TOPPADDING", (0, 0), (-1, -1), 8),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+                ]
+            )
+        )
+        # La cifra grande de la nota desborda su fila hacia abajo: sin este
+        # margen, el recuadro la pisaba.
+        story.append(Spacer(1, 22))
+        story.append(caja)
 
     # -- Aviso de cobertura parcial, antes de leer ninguna nota ---------------
     aviso = aviso_de_cobertura(dimensions)

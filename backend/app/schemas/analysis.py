@@ -38,6 +38,14 @@ class BenchmarkOut(BaseModel):
     items: list[BenchmarkItemOut]
 
 
+class VeredictoOut(BaseModel):
+    nivel: str  # apto | apto_condicionado | no_apto
+    etiqueta: str
+    provisional: bool
+    motivos: list[str]
+    aviso: str
+
+
 class DimensionOut(BaseModel):
     name: str
     score: float
@@ -94,6 +102,8 @@ class AnalysisOut(BaseModel):
     combined: CombinedOut | None = None
     # Si la calidad del codigo solo pudo analizarse en parte del proyecto.
     coverage_notice: str | None = None
+    # Calculado al leer; nulo si el analisis no ha terminado bien.
+    verdict: VeredictoOut | None = None
 
 
 class TimelineEntry(BaseModel):

@@ -259,6 +259,20 @@ Cada dimensión parte de **cero**. Nunca se acredita calidad que no se haya comp
 
 Esto corrige el modelo original, que restaba penalizaciones desde 100 y por tanto premiaba la ausencia de evidencia: un repositorio con un solo archivo y sin nada más sacaba 87/100.
 
+## Veredicto de conformidad
+
+Encima de la nota, cada análisis terminado (repositorio, URL o combinado) lleva un veredicto. No se guarda en la base: se calcula al leer el análisis (`app/services/veredicto.py`), así que cambiar las reglas no exige migrar nada.
+
+| Nivel | Condición |
+|---|---|
+| **No apto** | nota global < 40, o al menos un hallazgo **crítico** |
+| **Apto condicionado** | nota entre 40 y 59, o al menos un hallazgo **alto** |
+| **Apto** | nota ≥ 60 y ningún hallazgo alto ni crítico |
+
+Si se cumplen varias condiciones gana la más grave. El veredicto se marca **provisional** cuando la confianza es menor del 50 % o el análisis lleva el aviso de *Cobertura parcial de lenguajes*: con tanto sin mirar, no se puede afirmar con la misma seguridad.
+
+Cada veredicto lista sus motivos en frases cortas ("Hay 1 hallazgo alto en Seguridad") y lleva siempre el texto fijo: *Indicador interno basado en ISO/IEC 25010. No constituye una certificación oficial.* Aparece en la interfaz, en el informe compartido y en la primera página del PDF.
+
 
 ---
 
