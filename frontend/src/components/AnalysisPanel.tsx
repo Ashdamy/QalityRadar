@@ -13,6 +13,7 @@ import { DimensionesDetalle, IndicadorDeSalud } from "@/components/DimensionesDe
 import { esIndicadorDeSalud } from "@/lib/dimensiones";
 import { AvisoDeCobertura } from "@/components/AvisoDeCobertura";
 import { VeredictoCard } from "@/components/VeredictoCard";
+import { SonarImport } from "@/components/SonarImport";
 
 const SEVERITY_LABELS: Record<AnalysisFinding["severity"], string> = {
   critical: "Crítico",
@@ -54,10 +55,14 @@ export function AnalysisPanel({
   analysis,
   onClose,
   embedded = false,
+  onAnalysisChange,
 }: {
   analysis: Analysis;
   onClose: () => void;
   embedded?: boolean;
+  // Si se pasa, el panel puede modificar el análisis (importar métricas de
+  // SonarCloud) y entrega aquí la versión nueva.
+  onAnalysisChange?: (analysis: Analysis) => void;
 }) {
   const running = !["completed", "failed", "timeout"].includes(analysis.status);
   const [downloading, setDownloading] = useState(false);
@@ -237,7 +242,14 @@ export function AnalysisPanel({
             <div className="mt-3 flex flex-wrap items-center gap-8">
               <RadarChart dimensions={analysis.dimensions} />
 
-              <DimensionesDetalle dimensions={analysis.dimensions} />
+              <DimensionesDetalle
+                dimensions={analysis.dimensions}
+                extra={
+                  analysis.analysis_type === "repository"
+                    ? { maintainability: <SonarImport analysis={analysis} onImported={onAnalysisChange} /> }
+                    : {}
+                }
+              />
             </div>
             <IndicadorDeSalud dimensions={analysis.dimensions} />
           </div>

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class FindingOut(BaseModel):
@@ -20,6 +20,19 @@ class SubcaracteristicaOut(BaseModel):
     measured: bool
     # False en los grupos que suman puntos pero no son de la norma.
     iso: bool
+    # De donde sale el dato: sonarcloud | qalitiradar | estimado | sin_medir.
+    # Solo en mantenibilidad; nulo en el resto y en analisis antiguos.
+    origin: str | None = None
+
+
+class SonarImportIn(BaseModel):
+    project_key: str = Field(min_length=1, max_length=400)
+
+
+class SonarOut(BaseModel):
+    project_key: str
+    imported_at: str
+    metrics: dict[str, float]
 
 
 class BenchmarkItemOut(BaseModel):
@@ -104,6 +117,8 @@ class AnalysisOut(BaseModel):
     coverage_notice: str | None = None
     # Calculado al leer; nulo si el analisis no ha terminado bien.
     verdict: VeredictoOut | None = None
+    # Metricas importadas de SonarCloud, si las hay.
+    sonar: SonarOut | None = None
 
 
 class TimelineEntry(BaseModel):

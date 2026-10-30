@@ -1,5 +1,13 @@
+import type { ReactNode } from "react";
 import type { AnalysisDimension, Subcaracteristica } from "@/lib/api";
 import { dimensionColor, dimensionLabel, esIndicadorDeSalud } from "@/lib/dimensiones";
+
+const ORIGEN: Record<NonNullable<Subcaracteristica["origin"]>, { texto: string; ayuda: string }> = {
+  sonarcloud: { texto: "SonarCloud", ayuda: "Medido por SonarCloud e importado" },
+  qalitiradar: { texto: "QalitiRadar", ayuda: "Medido por QalitiRadar sobre el código" },
+  estimado: { texto: "Estimado", ayuda: "Estimado por QalitiRadar a partir de señales indirectas" },
+  sin_medir: { texto: "Sin medir", ayuda: "La norma lo define, pero aquí no se mide" },
+};
 
 function Desglose({ subs }: { subs: Subcaracteristica[] }) {
   return (
@@ -19,9 +27,19 @@ function Desglose({ subs }: { subs: Subcaracteristica[] }) {
                 no es ISO
               </span>
             )}
+            {s.origin && (
+              <span
+                className={`ml-2 rounded-[4px] border px-[5px] text-[10.5px] ${
+                  s.origin === "sonarcloud" ? "border-accent text-accent" : "border-border text-faint"
+                }`}
+                title={ORIGEN[s.origin].ayuda}
+              >
+                {ORIGEN[s.origin].texto}
+              </span>
+            )}
           </span>
           <span className="shrink-0 font-mono">
-            {s.measured ? `${s.earned}/${s.max}` : "sin medir"}
+            {s.measured ? `${s.earned}/${s.max}` : s.origin ? "—" : "sin medir"}
           </span>
         </li>
       ))}
@@ -34,7 +52,15 @@ function Desglose({ subs }: { subs: Subcaracteristica[] }) {
  * subcaracterística. La comparten el panel de análisis y el informe
  * compartido. Los indicadores de salud van aparte, en `IndicadorDeSalud`.
  */
-export function DimensionesDetalle({ dimensions: todas }: { dimensions: AnalysisDimension[] }) {
+export function DimensionesDetalle({
+  dimensions: todas,
+  extra = {},
+}: {
+  dimensions: AnalysisDimension[];
+  // Contenido adicional dentro del desplegable de una dimensión, por nombre
+  // (hoy, la importación de SonarCloud en mantenibilidad).
+  extra?: Record<string, ReactNode>;
+}) {
   const dimensions = todas.filter((d) => !esIndicadorDeSalud(d.name));
 
   return (
@@ -58,8 +84,9 @@ export function DimensionesDetalle({ dimensions: todas }: { dimensions: Analysis
           </div>
         );
 
-        // Los análisis anteriores al desglose no lo traen: solo la barra.
-        if (!d.subcharacteristics?.length) return <div key={d.name}>{fila}</div>;
+        // Los análisis anteriores al desglose no lo traen: solo la barra, salvo
+        // que haya algo más que enseñar dentro (la importación de SonarCloud).
+        if (!d.subcharacteristics?.length && !extra[d.name]) return <div key={d.name}>{fila}</div>;
 
         return (
           <details key={d.name} className="group">
@@ -69,7 +96,8 @@ export function DimensionesDetalle({ dimensions: todas }: { dimensions: Analysis
             >
               {fila}
             </summary>
-            <Desglose subs={d.subcharacteristics} />
+            {d.subcharacteristics?.length ? <Desglose subs={d.subcharacteristics} /> : null}
+            {extra[d.name]}
           </details>
         );
       })}

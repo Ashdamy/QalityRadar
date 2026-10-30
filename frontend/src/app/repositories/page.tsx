@@ -348,7 +348,9 @@ export default function RepositoriesPage() {
               </p>
             )}
 
-            {analysis && <AnalysisPanel analysis={analysis} onClose={() => setAnalysis(null)} />}
+            {analysis && (
+              <AnalysisPanel analysis={analysis} onClose={() => setAnalysis(null)} onAnalysisChange={setAnalysis} />
+            )}
 
             {/* La key fuerza a volver a pedirla al terminar cada análisis nuevo. */}
             {analysis?.status === "completed" && selectedId && (

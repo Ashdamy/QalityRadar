@@ -99,6 +99,19 @@ El modo URL hace peticiones a donde diga el usuario. Sin defensas, eso convierte
 - **El cuerpo se corta a 3 MB leyendo por trozos.** Antes se leía la respuesta entera y *después* se recortaba: el tope existía, pero la memoria ya se había gastado, así que un servidor que responde un flujo sin fin tumbaba el worker.
 - **Los monitores revalidan en cada comprobación.** Un proyecto vigilado vive semanas y el DNS pudo cambiar desde el alta: la validación del primer día ya no vale.
 
+### Importación de métricas de SonarCloud
+
+`backend/app/services/sonar_service.py`
+
+Es una petición saliente que dispara el usuario, pero no puede elegir a dónde va:
+
+- **Host fijo en el código** (`https://sonarcloud.io/api/measures/component`). El usuario solo aporta la clave del proyecto, nunca una URL.
+- **La clave se valida antes de salir**: letras, dígitos, `-`, `_`, `.` y `:`, empezando por letra o dígito, como mucho 400 caracteres y no solo dígitos. Viaja como parámetro de consulta, codificado por `httpx`. Una clave inválida se rechaza sin hacer la petición y sin gastar cupo.
+- **Sin token ni credenciales.** Solo proyectos públicos; un 401/403 se traduce a "el proyecto es privado". No hay ningún secreto de SonarCloud que filtrar.
+- **10 segundos de tiempo máximo, sin seguir redirecciones.** Cualquier respuesta que no sea 200 se traduce a un mensaje fijo en español; el cuerpo de SonarCloud nunca se reenvía al usuario.
+- **De la respuesta solo se guardan las métricas de la lista, y solo si son números.** Lo demás se descarta.
+- **Solo sobre análisis propios**: 404 si es de otra cuenta, igual que el resto de rutas.
+
 ---
 
 ## 3. Autenticación y sesiones
@@ -243,6 +256,7 @@ Cada análisis clona un repositorio y levanta un contenedor. Sin límites, una s
 | Fallos de inicio de sesión por hora y cuenta | 10 |
 | Fallos de inicio de sesión por hora e IP | 30 |
 | Proyectos vigilados por cuenta | 3 |
+| Importaciones de SonarCloud por hora y cuenta | 10 |
 
 Tres decisiones que importan:
 
