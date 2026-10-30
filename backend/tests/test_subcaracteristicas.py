@@ -175,7 +175,8 @@ def test_la_api_devuelve_el_desglose_guardado_y_null_en_analisis_antiguos(dentro
 
     dims = {d["name"]: d for d in navegador.get(f"/api/analyses/{analysis_id}").json()["dimensions"]}
 
-    assert dims["security"]["subcharacteristics"] == desglose
+    # `origin` solo lo traen las partes que pueden venir del navegador real.
+    assert dims["security"]["subcharacteristics"] == [{**s, "origin": None} for s in desglose]
     assert dims["performance"]["subcharacteristics"] is None
 
 

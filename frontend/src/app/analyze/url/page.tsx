@@ -158,7 +158,7 @@ export default function AnalyzeUrlPage() {
 
         {analysis && (
           <div className="mt-7">
-            <AnalysisPanel analysis={analysis} onClose={() => setAnalysis(null)} />
+            <AnalysisPanel analysis={analysis} onClose={() => setAnalysis(null)} onAnalysisChange={setAnalysis} />
           </div>
         )}
 

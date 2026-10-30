@@ -12,6 +12,7 @@ import { RadarChart } from "@/components/RadarChart";
 import { DimensionesDetalle, IndicadorDeSalud } from "@/components/DimensionesDetalle";
 import { esIndicadorDeSalud } from "@/lib/dimensiones";
 import { AvisoDeCobertura } from "@/components/AvisoDeCobertura";
+import { MedicionNavegador } from "@/components/MedicionNavegador";
 
 const SEVERITY_LABELS: Record<AnalysisFinding["severity"], string> = {
   critical: "Crítico",
@@ -53,10 +54,13 @@ export function AnalysisPanel({
   analysis,
   onClose,
   embedded = false,
+  onAnalysisChange,
 }: {
   analysis: Analysis;
   onClose: () => void;
   embedded?: boolean;
+  // Recibe el análisis actualizado cuando llega la medición en navegador.
+  onAnalysisChange?: (analysis: Analysis) => void;
 }) {
   const running = !["completed", "failed", "timeout"].includes(analysis.status);
   const [downloading, setDownloading] = useState(false);
@@ -237,6 +241,7 @@ export function AnalysisPanel({
               <DimensionesDetalle dimensions={analysis.dimensions} />
             </div>
             <IndicadorDeSalud dimensions={analysis.dimensions} />
+            <MedicionNavegador analysis={analysis} onAnalysisChange={onAnalysisChange} />
           </div>
 
           {!embedded && (

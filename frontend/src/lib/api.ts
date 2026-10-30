@@ -210,6 +210,28 @@ export interface Subcaracteristica {
   measured: boolean;
   // false en los grupos que suman puntos pero no son de la norma.
   iso: boolean;
+  // De dónde sale el dato donde puede venir del navegador real; ausente en el resto.
+  origin?: "lighthouse" | "axe-core" | "qalitiradar" | null;
+}
+
+export interface ViolacionAxe {
+  id: string;
+  impact: "critical" | "serious" | "moderate" | "minor";
+  nodes: number;
+  help: string;
+}
+
+/** Medición en navegador real; llega después del análisis estático. */
+export interface MedicionNavegador {
+  status: "pending" | "ok" | "failed";
+  reason: string | null;
+  measured_at: string | null;
+  lcp_ms: number | null;
+  tbt_ms: number | null;
+  cls: number | null;
+  ratings: Partial<Record<"lcp_ms" | "tbt_ms" | "cls", "bueno" | "mejorable" | "malo">>;
+  axe_violations: ViolacionAxe[];
+  axe_passes: number | null;
 }
 
 export interface AnalysisDimension {
@@ -264,6 +286,8 @@ export interface Analysis {
   combined: Combined | null;
   // Si la calidad del código solo pudo analizarse en parte del proyecto.
   coverage_notice?: string | null;
+  // Solo en análisis de URL con la medición en navegador activada.
+  browser?: MedicionNavegador | null;
 }
 
 export function startRepositoryAnalysis(repositoryId: string,

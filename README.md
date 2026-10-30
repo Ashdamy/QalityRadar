@@ -255,8 +255,8 @@ Se declaran porque afectan a cómo hay que leer los resultados:
 
 - **Solo repositorios públicos.** Los privados quedan fuera del alcance actual.
 - **Se analiza una sola página** en el modo URL, la que se indique — no el sitio entero.
-- **El modo URL es análisis estático**: lee el HTML y las cabeceras HTTP, sin abrir un navegador. La eficiencia de desempeño medida es el tiempo de respuesta del servidor y cómo está construida la página, no la carga completa; Lighthouse queda como mejora futura.
-- **Las comprobaciones de accesibilidad son estáticas** sobre el HTML y no sustituyen a una auditoría con axe-core, también prevista como mejora futura.
+- **El modo URL es análisis estático por defecto**: lee el HTML y las cabeceras HTTP. Con `NAVEGADOR_REAL=true` y la imagen `navegador/` construida, además abre la página en un navegador aislado y mide las Core Web Vitals con Lighthouse y la accesibilidad con axe-core; esa medición llega unos segundos después del resultado estático. Ver [`docs/ISO_25010_MAPPING.md`](docs/ISO_25010_MAPPING.md).
+- **Sin la medición en navegador, las comprobaciones de accesibilidad son estáticas** sobre el HTML y no sustituyen a una auditoría con axe-core.
 - **La calidad del código solo se analiza en Python, JavaScript y TypeScript.** En otros lenguajes la mantenibilidad sale de una parte del código; cuando lo analizado baja del 70%, el resultado lo avisa y la confianza baja.
 - **La actividad del proyecto no forma parte de ISO/IEC 25010** y por eso no entra en la nota: se enseña aparte, como indicador de salud.
 - **La referencia por lenguaje es simulada**, y así se rotula en pantalla, hasta que haya datos reales.

@@ -1,6 +1,13 @@
 import type { AnalysisDimension, Subcaracteristica } from "@/lib/api";
 import { dimensionColor, dimensionLabel, esIndicadorDeSalud } from "@/lib/dimensiones";
 
+// Origen de las partes que pueden venir del navegador real.
+const ORIGEN: Record<NonNullable<Subcaracteristica["origin"]>, { texto: string; ayuda: string }> = {
+  lighthouse: { texto: "Lighthouse", ayuda: "Medido con Lighthouse en un navegador real" },
+  "axe-core": { texto: "axe-core", ayuda: "Comprobado con axe-core en un navegador real" },
+  qalitiradar: { texto: "QalitiRadar", ayuda: "Análisis estático de QalitiRadar sobre el HTML y las cabeceras" },
+};
+
 function Desglose({ subs }: { subs: Subcaracteristica[] }) {
   return (
     <ul className="mt-2 flex flex-col gap-[6px] border-l border-border pl-4">
@@ -17,6 +24,16 @@ function Desglose({ subs }: { subs: Subcaracteristica[] }) {
                 title="Suma puntos, pero no es una subcaracterística de ISO/IEC 25010"
               >
                 no es ISO
+              </span>
+            )}
+            {s.origin && (
+              <span
+                className={`ml-2 rounded-[4px] border px-[5px] text-[10.5px] ${
+                  s.origin === "qalitiradar" ? "border-border text-faint" : "border-accent text-accent"
+                }`}
+                title={ORIGEN[s.origin].ayuda}
+              >
+                {ORIGEN[s.origin].texto}
               </span>
             )}
           </span>

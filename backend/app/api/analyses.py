@@ -17,6 +17,7 @@ from app.schemas.analysis import (
     CorrespondenceOut,
     DimensionOut,
     FindingOut,
+    NavegadorOut,
     PlanItemOut,
 )
 from app.services.rate_limit_service import RateLimitExceeded, check_and_reserve, release
@@ -152,6 +153,7 @@ def serialize_analysis(db: Session, analysis: Analysis) -> AnalysisOut:
         repository_full_name=repository.full_name if repository else None,
         combined=_combined_block(db, analysis),
         coverage_notice=aviso_de_cobertura(dimensions),
+        browser=_medicion_en_navegador(analysis),
         dimensions=[
             DimensionOut(
                 name=d.name,
@@ -173,6 +175,24 @@ def serialize_analysis(db: Session, analysis: Analysis) -> AnalysisOut:
             )
             for f in sorted(findings, key=lambda f: SEVERITY_ORDER.get(f.severity, 99))
         ],
+    )
+
+
+def _medicion_en_navegador(analysis: Analysis) -> NavegadorOut | None:
+    datos = (analysis.raw_data or {}).get("browser") if analysis.analysis_type == "url" else None
+    if not isinstance(datos, dict) or "status" not in datos:
+        return None
+    axe = datos.get("axe") or {}
+    return NavegadorOut(
+        status=datos["status"],
+        reason=datos.get("reason"),
+        measured_at=datos.get("measured_at"),
+        lcp_ms=datos.get("lcp_ms"),
+        tbt_ms=datos.get("tbt_ms"),
+        cls=datos.get("cls"),
+        ratings=datos.get("ratings") or {},
+        axe_violations=axe.get("violations") or [],
+        axe_passes=axe.get("passes"),
     )
 
 

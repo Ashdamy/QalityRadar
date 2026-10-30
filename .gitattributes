@@ -1,0 +1,3 @@
+# Los scripts corren dentro de contenedores Linux: con CRLF (core.autocrlf en
+# Windows) `sh` falla al arrancar.
+*.sh text eol=lf

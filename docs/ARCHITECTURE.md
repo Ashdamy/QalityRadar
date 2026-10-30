@@ -112,7 +112,7 @@ sequenceDiagram
 
 Igual de forma, pero sin clonado: el worker valida la URL (SSRF checks, §4.3), descarga la página con la descarga segura (re-validando cada redirección) y la analiza **de forma estática**: lee el HTML y las cabeceras HTTP, sin ejecutar un navegador. Después aplica los pesos de la tabla de URL. Exige sesión y pasa por los mismos límites de uso que el resto.
 
-> *Corregido en octubre de 2026:* el diseño original preveía Lighthouse CI y axe-core en un contenedor con navegador. No se implementaron; quedan como mejora futura en [`ROADMAP.md`](ROADMAP.md).
+> *Actualizado en octubre de 2026:* la medición en navegador real (Lighthouse + axe-core) existe como opción (`NAVEGADOR_REAL`, apagada por defecto). Corre en un contenedor aparte después del análisis estático y se anexa al resultado. Aislamiento: [`SECURITY.md`](SECURITY.md#el-navegador-aislado).
 
 ### 3.3 Análisis combinado (Modo 3)
 
@@ -148,7 +148,7 @@ Mitigación obligatoria (más estricta que "bloquear por string" el spec origina
 1. Resolver DNS de la URL **antes** de conectar y validar que la(s) IP(s) resultantes no sean privadas/loopback/link-local (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `127.0.0.0/8`, `169.254.0.0/16` — este último bloquea metadata de cloud como `169.254.169.254`).
 2. Repetir la validación en **cada redirect** (una URL pública puede redirigir a `http://169.254.169.254/`), no solo en la URL inicial.
 3. Bloquear esquemas distintos de `http`/`https` (`file://`, `gopher://`, etc.).
-4. Si algún día se ejecuta un navegador (Lighthouse/axe-core, hoy no implementados), su contenedor tendrá que correr con `--network` restringido a salida únicamente y sin acceso a la red interna del propio QalitiRadar (para que no pueda alcanzar Postgres/Redis). Hoy la descarga de la página la hace el worker con la validación SSRF de §4.3.
+4. El navegador de la medición real (Lighthouse/axe-core) corre en su propia red, `qalitiradar-navegador`, sin nada de QalitiRadar dentro (ni Postgres ni Redis), y toda su salida pasa por un proxy que valida cada conexión contra SSRF. La descarga estática de la página la sigue haciendo el worker con la validación de §4.3.
 
 ### 4.4 Rate limiting y abuso
 

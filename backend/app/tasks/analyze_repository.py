@@ -33,6 +33,23 @@ def queue_url_analysis(analysis_id: str) -> None:
 
 
 @celery_app.task(
+    name="qalitiradar.medir_en_navegador",
+    # El contenedor se corta a los 90 s; esto es la red de seguridad por si
+    # el propio `docker run` se queda colgado.
+    time_limit=150,
+    soft_time_limit=120,
+)
+def medir_en_navegador_task(analysis_id: str) -> None:
+    from app.services.medicion_navegador_service import medir_y_anexar
+
+    medir_y_anexar(analysis_id)
+
+
+def queue_medicion_navegador(analysis_id: str) -> None:
+    medir_en_navegador_task.delay(analysis_id)
+
+
+@celery_app.task(
     name="qalitiradar.analyze_combined",
     # El doble de tiempo: ejecuta los dos analisis, uno detras de otro.
     time_limit=1200,

@@ -118,9 +118,20 @@ def _score_url_performance(m: dict) -> float:
         return {}
 
     # -- Comportamiento temporal (34 pts) ------------------------------------
-    temporal = _tiered(
-        -m.get("response_seconds", 99), [(-2.0, 8), (-1.2, 17), (-0.6, 27), (-0.3, 34)]
-    )
+    if _tiene_web_vitals(m):
+        # Medido en un navegador real: lo que tarda en verse (LCP), lo que el
+        # hilo principal queda bloqueado (TBT) y cuanto salta el contenido
+        # al cargar (CLS). Umbrales de Google; ver navegador.UMBRALES.
+        vitals = m["browser"]
+        temporal = (
+            _tiered(-vitals["lcp_ms"], [(-4000, 8), (-2500, 16)])
+            + _tiered(-vitals["tbt_ms"], [(-600, 5), (-200, 10)])
+            + _tiered(-vitals["cls"], [(-0.25, 4), (-0.1, 8)])
+        )
+    else:
+        temporal = _tiered(
+            -m.get("response_seconds", 99), [(-2.0, 8), (-1.2, 17), (-0.6, 27), (-0.3, 34)]
+        )
     # -- Transferencia (28 pts) ----------------------------------------------
     transferencia = (
         _award(m.get("uses_compression", False), 14)
@@ -147,8 +158,42 @@ def _score_url_performance(m: dict) -> float:
     }
 
 
+# Origen de una parte de la nota cuando puede venir del navegador real.
+LIGHTHOUSE = "lighthouse"
+AXE_CORE = "axe-core"
+QALITIRADAR = "qalitiradar"
+
+
+def _tiene_web_vitals(m: dict) -> bool:
+    navegador = m.get("browser") or {}
+    return all(k in navegador for k in ("lcp_ms", "tbt_ms", "cls"))
+
+
+def _tiene_axe(m: dict) -> bool:
+    return isinstance((m.get("browser") or {}).get("axe"), dict)
+
+
 def _score_url_accessibility(m: dict) -> float:
-    """Accesibilidad: la inclusividad de ISO 25010:2023. Comprobaciones estaticas del HTML."""
+    """Accesibilidad: la inclusividad de ISO 25010:2023.
+
+    Con la medicion del navegador, sale de axe-core, que comprueba la pagina
+    ya renderizada y con muchas mas reglas que el analisis estatico. Sin ella,
+    comprobaciones estaticas del HTML.
+    """
+    if _tiene_axe(m):
+        axe = m["browser"]["axe"]
+        por_impacto = {i: 0 for i in ("critical", "serious", "moderate", "minor")}
+        for v in axe["violations"]:
+            por_impacto[v["impact"]] += 1
+        # -- Sin violaciones graves (60 pts) ---------------------------------
+        graves = _award(por_impacto["critical"] == 0, 35) + (
+            25.0 if por_impacto["serious"] == 0 else _award(por_impacto["serious"] <= 2, 12)
+        )
+        # -- Reglas superadas (40 pts) ---------------------------------------
+        reglas = axe["passes"] + len(axe["violations"])
+        superadas = _tiered(axe["passes"] / reglas if reglas else 0.0, [(0.7, 10), (0.85, 20), (0.93, 30), (0.97, 40)])
+        return {"Sin violaciones graves (axe-core)": graves, "Reglas superadas (axe-core)": superadas}
+
     if "image_count" not in m:
         return {}
 
@@ -650,9 +695,19 @@ def subcharacteristics(dimension: str, metrics: dict, *, url: bool = False) -> l
         return []
     puntos = rubricas[dimension](metrics)
     grupos, sin_medir = desgloses[dimension]
+    origenes: dict[str, str] = {}
+    if url and dimension == "accessibility" and _tiene_axe(metrics):
+        grupos = [("Sin violaciones graves (axe-core)", 60, False), ("Reglas superadas (axe-core)", 40, False)]
+        origenes = {nombre: AXE_CORE for nombre, _, _ in grupos}
+    elif url and dimension in ("performance", "accessibility"):
+        # Se marca el origen solo donde puede venir del navegador, para que
+        # se vea que parte es medida real y que parte analisis estatico.
+        origenes = {nombre: QALITIRADAR for nombre, _, _ in grupos}
+        if dimension == "performance" and _tiene_web_vitals(metrics):
+            origenes["Comportamiento temporal"] = LIGHTHOUSE
     return [
         {"name": nombre, "earned": round(puntos.get(nombre, 0.0), 2), "max": maximo,
-         "measured": True, "iso": iso}
+         "measured": True, "iso": iso, **({"origin": origenes[nombre]} if nombre in origenes else {})}
         for nombre, maximo, iso in grupos
     ] + [
         {"name": nombre, "earned": None, "max": None, "measured": False, "iso": True}

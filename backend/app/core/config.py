@@ -44,6 +44,14 @@ class Settings(BaseSettings):
     # respaldo, que produce un texto correcto con los mismos datos.
     huggingface_api_key: str = ""
 
+    # Medicion en navegador real (Lighthouse + axe-core) de los analisis de
+    # URL. Apagada por defecto: necesita la imagen `navegador/` construida y
+    # la red `qalitiradar-navegador` creada (ver docs/SECURITY.md). Sin ella,
+    # el analisis de URL es solo estatico, como siempre.
+    navegador_real: bool = False
+    navegador_imagen: str = "qaliti/navegador:latest"
+    navegador_red: str = "qalitiradar-navegador"
+
     # En produccion se pone a false. La documentacion interactiva es comodisima
     # mientras se desarrolla, pero publicada regala el mapa completo de la API
     # a cualquiera: cada ruta, cada parametro y cada forma de respuesta. No es

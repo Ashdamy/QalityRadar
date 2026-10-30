@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 
 import httpx
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.analyzers.url.page_quality import (
     AccessibilityAnalyzer,
@@ -35,6 +36,7 @@ from app.services.scoring_service import (
     score_url_dimension,
     subcharacteristics,
 )
+from app.services.medicion_navegador_service import marcar_pendiente
 from app.services.summary_service import build_analysis_summary
 from app.utils.safe_http import fetch_public_page
 from app.utils.url_validation import UnsafeUrlError
@@ -149,8 +151,15 @@ def run_url_analysis(analysis_id: str) -> None:
         analysis.status = "completed"
         analysis.completed_at = datetime.now(timezone.utc)
         app_row.last_analyzed_at = analysis.completed_at
+        # Segundo tiempo: el estatico se entrega ya y la medicion en navegador
+        # real se anexa cuando termine, sin que el usuario espere por ella.
+        medir_despues = get_settings().navegador_real and analysis.analysis_type == "url"
+        if medir_despues:
+            marcar_pendiente(analysis)
         db.commit()
 
+        if medir_despues:
+            _encolar_medicion(db, analysis)
         _avisar_de_cambios(db, analysis)
     finally:
         # Se libera el hueco de analisis simultaneos pase lo que pase: si no,
@@ -175,6 +184,21 @@ def _liberar_hueco(db, analysis_id: str) -> None:
     except Exception:  # noqa: BLE001
         # Nunca debe tapar el resultado real del analisis.
         pass
+
+
+def _encolar_medicion(db, analysis) -> None:
+    """Si no se puede encolar, se dice: un "midiendo" que nunca acaba es peor."""
+    from app.tasks.analyze_repository import queue_medicion_navegador
+
+    try:
+        queue_medicion_navegador(str(analysis.id))
+    except Exception:  # noqa: BLE001
+        analysis.raw_data = {
+            **(analysis.raw_data or {}),
+            "browser": {"status": "failed", "reason": "No se pudo programar la medición en navegador."},
+        }
+        flag_modified(analysis, "raw_data")
+        db.commit()
 
 
 def _avisar_de_cambios(db, analysis) -> None:
