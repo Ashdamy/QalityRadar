@@ -12,6 +12,7 @@ import { RadarChart } from "@/components/RadarChart";
 import { DimensionesDetalle, IndicadorDeSalud } from "@/components/DimensionesDetalle";
 import { esIndicadorDeSalud } from "@/lib/dimensiones";
 import { AvisoDeCobertura } from "@/components/AvisoDeCobertura";
+import { RadarCargando } from "@/components/RadarCargando";
 
 const SEVERITY_LABELS: Record<AnalysisFinding["severity"], string> = {
   critical: "Crítico",
@@ -174,7 +175,7 @@ export function AnalysisPanel({
 
       {running && (
         <div className="mt-5 flex items-center gap-3">
-          <span className="h-3 w-3 animate-pulse rounded-full bg-accent" aria-hidden="true" />
+          <RadarCargando size={22} />
           <span className="text-[13px] text-muted">Esto puede tardar hasta un par de minutos.</span>
         </div>
       )}

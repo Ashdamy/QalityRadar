@@ -17,6 +17,7 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { EvolutionChart } from "@/components/EvolutionChart";
 import { ComparisonPanel } from "@/components/ComparisonPanel";
 import { BenchmarkPanel } from "@/components/BenchmarkPanel";
+import { Cargando } from "@/components/RadarCargando";
 
 type LoadState =
   | { kind: "loading" }
@@ -143,7 +144,7 @@ export default function HistoryPage() {
         <h1 className="text-[19px] font-semibold tracking-tight">Evolución de la calidad</h1>
 
         {state.kind === "loading" && (
-          <p className="py-10 text-center text-[13.5px] text-faint">Cargando histórico…</p>
+          <Cargando className="justify-center py-10 text-[13.5px] text-faint">Cargando histórico…</Cargando>
         )}
 
         {state.kind === "empty" && (

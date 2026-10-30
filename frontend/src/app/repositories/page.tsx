@@ -20,6 +20,7 @@ import { PrimaryButton } from "@/components/PrimaryButton";
 import { GithubButton } from "@/components/GithubButton";
 import { AnalysisPanel } from "@/components/AnalysisPanel";
 import { BenchmarkPanel } from "@/components/BenchmarkPanel";
+import { Cargando } from "@/components/RadarCargando";
 
 // Estados en los que el analisis sigue en marcha y hay que volver a consultar.
 const IN_PROGRESS: ReadonlySet<Analysis["status"]> = new Set([
@@ -226,8 +227,7 @@ export default function RepositoriesPage() {
         <div className="flex items-center gap-[14px]">
           <NotificationBell />
           <Link href="/cuenta" className="text-[13px] text-muted hover:text-text focus:outline-none focus:ring-[3px] focus:ring-accentDim">Mi cuenta</Link>
-          <div className="h-[26px] w-[26px] rounded-[6px] border border-border bg-surface2" aria-hidden="true" />
-          <button
+                    <button
             type="button"
             onClick={handleLogout}
             className="cursor-pointer text-[13px] text-muted hover:text-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
@@ -248,8 +248,8 @@ export default function RepositoriesPage() {
         </div>
 
         {state.kind === "loading" && (
-          <div className="rounded-lg border border-border p-8 text-center text-[13.5px] text-faint">
-            Cargando repositorios…
+          <div className="flex justify-center rounded-lg border border-border p-8 text-[13.5px] text-faint">
+            <Cargando>Cargando repositorios…</Cargando>
           </div>
         )}
 

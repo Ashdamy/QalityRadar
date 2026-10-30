@@ -18,6 +18,7 @@ import { RadarMark } from "@/components/RadarMark";
 import { TextField } from "@/components/TextField";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { GithubButton } from "@/components/GithubButton";
+import { Cargando } from "@/components/RadarCargando";
 
 function mensajeDeError(err: unknown, porDefecto: string): string {
   if (err instanceof ApiError) {
@@ -183,7 +184,7 @@ export default function CuentaPage() {
           </p>
         )}
 
-        {!me && !errorCarga && <p className="text-[13px] text-muted">Cargando…</p>}
+        {!me && !errorCarga && <Cargando className="text-[13px] text-muted">Cargando…</Cargando>}
 
         {me && (
           <>
