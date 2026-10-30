@@ -112,6 +112,37 @@ Es una petición saliente que dispara el usuario, pero no puede elegir a dónde 
 - **De la respuesta solo se guardan las métricas de la lista, y solo si son números.** Lo demás se descarta.
 - **Solo sobre análisis propios**: 404 si es de otra cuenta, igual que el resto de rutas.
 
+### El navegador aislado
+
+`navegador/`, `backend/app/utils/navegador.py`, `backend/app/utils/proxy_navegador.py`
+
+Con `NAVEGADOR_REAL=true`, los análisis de URL abren además la página en Chromium para medirla con Lighthouse y axe-core. Es el punto más delicado del producto: un navegador ejecuta el JavaScript de un desconocido, y ese JavaScript puede pedir lo que quiera — `fetch("http://169.254.169.254/")`, una imagen en `http://10.0.0.5/`, un iframe hacia `localhost:5432` — o redirigir a cualquiera de ellos. Validar la URL inicial, como hace el modo estático, no basta. Por eso hay tres capas:
+
+1. **Antes de lanzar nada**, la URL pasa por `validate_public_url` (la misma validación del modo estático) en el worker, justo antes del `docker run`.
+2. **El proxy de salida, la defensa principal.** Chromium arranca con `--proxy-server` apuntando a un proxy propio dentro del contenedor, y con `--proxy-bypass-list=<-loopback>` para que **ni siquiera `localhost`** quede fuera. Por él pasa cada conexión de la página: documento, subrecursos, iframes, redirecciones y `fetch`. Para cada una:
+   - **resuelve el DNS una sola vez**,
+   - comprueba **todas** las IP devueltas (públicas y enrutables: fuera privadas, loopback, enlace local con `169.254.169.254`, la `fd00:ec2::254` de AWS, IPv4 mapeadas en IPv6, reservadas, multicast) y que el puerto no sea de un servicio interno,
+   - y **conecta a esa misma IP, sin segunda resolución**. Un dominio que responda una IP pública a la comprobación y una privada a la conexión (*DNS rebinding*) no tiene segunda resolución que aprovechar. Hay una prueba con un resolvedor que cambia de IP pública a privada.
+
+   Lo bloqueado recibe un 403. QUIC y WebRTC, que no pasarían por un proxy HTTP, se desactivan (`--disable-quic`, `--force-webrtc-ip-handling-policy=disable_non_proxied_udp`). El proxy usa solo la biblioteca estándar, y la imagen copia el mismo archivo que prueban los tests.
+3. **Reglas de red en el host**, la tercera capa: `navegador/red.sh` crea la red `qalitiradar-navegador` (sin comunicación entre contenedores) y añade en la cadena `DOCKER-USER` de iptables reglas que tiran el tráfico de esa red hacia rangos privados y de metadatos, por si fallaran el proxy o Chromium.
+
+   > **Ojo: en Docker Desktop (Windows y Mac) estas reglas pueden no aplicarse igual.** Ahí los contenedores corren dentro de una máquina virtual y las reglas de iptables del anfitrión no gobiernan su tráfico de la misma manera; el script está pensado para un servidor Linux. **No hay que contar con esta capa: la defensa principal es el proxy.** En el entorno de desarrollo en Windows, la protección efectiva son las capas 1 y 2.
+   >
+   > Comprobado el 30/10/2026 en Docker Desktop para Windows: desde un contenedor de la red `qalitiradar-navegador`, una conexión directa (sin pasar por el proxy) **sí llega** a `host.docker.internal:8000` (la API) y a `host.docker.internal:5433` (Postgres). Pasando por el proxy, las dos se bloquean con un 403. En desarrollo lo único que separa al navegador de los servicios locales es que Chromium esté obligado a salir por el proxy.
+
+**El contenedor**: usuario sin privilegios (65534), sistema de archivos de solo lectura con un `tmpfs` de 256 MB en `/tmp`, `--cap-drop=ALL`, `no-new-privileges`, 1 GB de memoria sin swap, 1 CPU, 256 procesos y ningún volumen montado. Chromium corre con `--no-sandbox` porque su sandbox interno necesita capacidades que el contenedor no da; el aislamiento lo pone el contenedor. La red `qalitiradar-navegador` no contiene nada nuestro: ni Postgres, ni Redis, ni la API.
+
+**Tiempo**: el `docker run` se corta a los 90 s y, como matar el proceso de Docker no mata el contenedor, se borra por su nombre (`docker rm -f`). La tarea de Celery tiene además un corte duro a los 150 s. Si algo falla, el análisis se queda con la puntuación estática; la medición nunca lo rompe.
+
+**La salida del contenedor es un dato hostil.** Se lee solo la última línea JSON y solo los campos esperados, con su tipo y acotados (NaN, infinitos, negativos y textos largos se descartan o se recortan).
+
+**Cómo se lanza el contenedor, y por qué no se monta `docker.sock`.** Lo lanza el worker de Celery, que corre **en el host** (ver más arriba), con `docker run` por `subprocess`, sin shell y con el comando armado solo con constantes. Lo único que viene del usuario es la URL, ya validada, como argumento después de `--`, así que Docker nunca la lee como una opción. No se monta `/var/run/docker.sock` en ningún contenedor.
+
+- **Riesgo que se asume:** el worker puede hablar con el demonio de Docker, y eso equivale a ser root en la máquina. Si alguien comprometiera el proceso del worker, tendría la máquina.
+- **Mitigación:** el worker no ejecuta nada del usuario. El navegador y el código analizado corren en contenedores sin privilegios, y el worker solo los lanza con argumentos fijos.
+- **Si algún día el worker pasa a un contenedor, no hay que montarle el socket tal cual.** Hay que ponerle delante un proxy del socket que solo permita crear, arrancar, esperar y borrar contenedores de las imágenes `qaliti/*` (por ejemplo, `docker-socket-proxy`), o usar Docker en modo *rootless*.
+
 ---
 
 ## 3. Autenticación y sesiones

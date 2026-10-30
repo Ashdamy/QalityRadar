@@ -310,7 +310,17 @@ y las cabeceras HTTP, sin ejecutar un navegador.
 | | Imágenes sin carga diferida y sin dimensiones declaradas | 7 |
 | **Capacidad** | — | *sin medir* |
 
-*Limitación declarada:* se mide la respuesta del servidor y cómo está construida la página, **no el renderizado**. La **capacidad** (cuánta carga aguanta) exige pruebas de carga.
+*Limitación declarada:* sin la medición en navegador, se mide la respuesta del servidor y cómo está construida la página, **no el renderizado**. La **capacidad** (cuánta carga aguanta) exige pruebas de carga.
+
+**Con la medición en navegador real** (ver [más abajo](#medición-en-navegador-real-lighthouse--axe-core)), el **comportamiento temporal** deja de ser el tiempo de respuesta del servidor y pasa a ser las Core Web Vitals medidas con Lighthouse, con los umbrales de Google:
+
+| Métrica | Bueno | Mejorable | Malo | Puntos (bueno / mejorable / malo) |
+|---|---|---|---|---|
+| **LCP** (carga del contenido principal) | ≤ 2,5 s | ≤ 4 s | > 4 s | 16 / 8 / 0 |
+| **TBT** (tiempo bloqueado del hilo principal) | ≤ 200 ms | ≤ 600 ms | > 600 ms | 10 / 5 / 0 |
+| **CLS** (saltos de diseño) | ≤ 0,1 | ≤ 0,25 | > 0,25 | 8 / 4 / 0 |
+
+La **utilización de recursos** sigue saliendo del análisis estático (el navegador no la sustituye) y se marca *QalitiRadar*; el comportamiento temporal medido, *Lighthouse*.
 
 ## Seguridad — 25%
 
@@ -348,6 +358,23 @@ En 2023 la accesibilidad se cubre con la **inclusividad**, dentro de la capacida
 | **Estructura navegable** | `h1` (y solo uno), jerarquía sin saltos, HTML semántico, `main`, ids únicos | 32 |
 
 *Limitación declarada:* son comprobaciones estáticas del HTML. **No sustituyen a axe-core**: el contraste de color efectivo y el árbol de accesibilidad final solo se pueden evaluar con renderizado real.
+
+**Con la medición en navegador real**, toda la dimensión sale de **axe-core** sobre la página ya renderizada, y sustituye a las comprobaciones estáticas:
+
+| Parte | Qué cuenta | Puntos |
+|---|---|---|
+| **Sin violaciones graves** | Ninguna crítica: 35. Ninguna seria: 25 (1 o 2 serias: 12) | 60 |
+| **Reglas superadas** | Proporción de reglas de axe que pasan: ≥ 97 % → 40, ≥ 93 % → 30, ≥ 85 % → 20, ≥ 70 % → 10 | 40 |
+
+Cada violación se convierte además en un hallazgo, con esta severidad: **crítica → alta**, **seria → media**, **moderada y menor → informativas**. Una crítica de axe es un problema serio para quien no puede ver una imagen sin texto alternativo, pero no es comparable a un secreto expuesto: como hallazgo crítico bajaría la nota global a 40 y dejaría el veredicto en "No apto" por una sola regla. Como alta, el techo es 70.
+
+## Medición en navegador real (Lighthouse + axe-core)
+
+Va **en dos tiempos**: el análisis estático se entrega en cuanto termina y el usuario ya puede leerlo; la medición en navegador se anexa después, cuando acaba su tarea (unos 20–60 s). Mientras, la interfaz muestra *"Midiendo en navegador…"*. Al llegar se repuntúan eficiencia de desempeño y accesibilidad, se añaden los hallazgos de axe y se recalcula la nota global.
+
+Si la medición falla (tiempo agotado, contenedor caído, la dirección pasó a apuntar a una IP interna), **el análisis no se rompe**: se queda con la puntuación estática y se avisa al usuario. El resumen en prosa del análisis se escribe con la parte estática y no se regenera al llegar la medición.
+
+Está **apagada por defecto** (`NAVEGADOR_REAL=false`): necesita la imagen `navegador/` construida y su red creada. Solo se mide en análisis de URL, no en los combinados. Cómo se aísla: [`SECURITY.md`](SECURITY.md#el-navegador-aislado).
 
 ## Compatibilidad — 15%
 

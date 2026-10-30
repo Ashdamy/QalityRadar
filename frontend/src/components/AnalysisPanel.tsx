@@ -14,6 +14,7 @@ import { esIndicadorDeSalud } from "@/lib/dimensiones";
 import { AvisoDeCobertura } from "@/components/AvisoDeCobertura";
 import { VeredictoCard } from "@/components/VeredictoCard";
 import { SonarImport } from "@/components/SonarImport";
+import { MedicionNavegador } from "@/components/MedicionNavegador";
 
 const SEVERITY_LABELS: Record<AnalysisFinding["severity"], string> = {
   critical: "Crítico",
@@ -61,7 +62,8 @@ export function AnalysisPanel({
   onClose: () => void;
   embedded?: boolean;
   // Si se pasa, el panel puede modificar el análisis (importar métricas de
-  // SonarCloud) y entrega aquí la versión nueva.
+  // SonarCloud) y entrega aquí la versión nueva; también la recibe cuando
+  // llega la medición en navegador.
   onAnalysisChange?: (analysis: Analysis) => void;
 }) {
   const running = !["completed", "failed", "timeout"].includes(analysis.status);
@@ -252,6 +254,7 @@ export function AnalysisPanel({
               />
             </div>
             <IndicadorDeSalud dimensions={analysis.dimensions} />
+            <MedicionNavegador analysis={analysis} onAnalysisChange={onAnalysisChange} />
           </div>
 
           {!embedded && (

@@ -2,9 +2,13 @@ import type { ReactNode } from "react";
 import type { AnalysisDimension, Subcaracteristica } from "@/lib/api";
 import { dimensionColor, dimensionLabel, esIndicadorDeSalud } from "@/lib/dimensiones";
 
+// De dónde sale cada parte de la nota: SonarCloud o estimado en
+// mantenibilidad; Lighthouse o axe-core donde puede venir del navegador real.
 const ORIGEN: Record<NonNullable<Subcaracteristica["origin"]>, { texto: string; ayuda: string }> = {
   sonarcloud: { texto: "SonarCloud", ayuda: "Medido por SonarCloud e importado" },
-  qalitiradar: { texto: "QalitiRadar", ayuda: "Medido por QalitiRadar sobre el código" },
+  lighthouse: { texto: "Lighthouse", ayuda: "Medido con Lighthouse en un navegador real" },
+  "axe-core": { texto: "axe-core", ayuda: "Comprobado con axe-core en un navegador real" },
+  qalitiradar: { texto: "QalitiRadar", ayuda: "Medido por el análisis estático de QalitiRadar" },
   estimado: { texto: "Estimado", ayuda: "Estimado por QalitiRadar a partir de señales indirectas" },
   sin_medir: { texto: "Sin medir", ayuda: "La norma lo define, pero aquí no se mide" },
 };
@@ -30,7 +34,9 @@ function Desglose({ subs }: { subs: Subcaracteristica[] }) {
             {s.origin && (
               <span
                 className={`ml-2 rounded-[4px] border px-[5px] text-[10.5px] ${
-                  s.origin === "sonarcloud" ? "border-accent text-accent" : "border-border text-faint"
+                  ["sonarcloud", "lighthouse", "axe-core"].includes(s.origin)
+                    ? "border-accent text-accent"
+                    : "border-border text-faint"
                 }`}
                 title={ORIGEN[s.origin].ayuda}
               >

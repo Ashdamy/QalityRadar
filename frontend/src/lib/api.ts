@@ -210,8 +210,9 @@ export interface Subcaracteristica {
   measured: boolean;
   // false en los grupos que suman puntos pero no son de la norma.
   iso: boolean;
-  // De dónde sale el dato. Solo en mantenibilidad; ausente en el resto.
-  origin?: "sonarcloud" | "qalitiradar" | "estimado" | "sin_medir" | null;
+  // De dónde sale el dato: en mantenibilidad (SonarCloud, estimado…) y donde
+  // puede venir del navegador real (Lighthouse, axe-core); ausente en el resto.
+  origin?: "sonarcloud" | "qalitiradar" | "estimado" | "sin_medir" | "lighthouse" | "axe-core" | null;
 }
 
 export interface SonarImport {
@@ -220,6 +221,26 @@ export interface SonarImport {
   // coverage, duplicated_lines_density, sqale_index (minutos), sqale_rating
   // (1 = A … 5 = E), cognitive_complexity y ncloc; solo las que había.
   metrics: Record<string, number>;
+}
+
+export interface ViolacionAxe {
+  id: string;
+  impact: "critical" | "serious" | "moderate" | "minor";
+  nodes: number;
+  help: string;
+}
+
+/** Medición en navegador real; llega después del análisis estático. */
+export interface MedicionNavegador {
+  status: "pending" | "ok" | "failed";
+  reason: string | null;
+  measured_at: string | null;
+  lcp_ms: number | null;
+  tbt_ms: number | null;
+  cls: number | null;
+  ratings: Partial<Record<"lcp_ms" | "tbt_ms" | "cls", "bueno" | "mejorable" | "malo">>;
+  axe_violations: ViolacionAxe[];
+  axe_passes: number | null;
 }
 
 export interface AnalysisDimension {
@@ -278,6 +299,8 @@ export interface Analysis {
   verdict?: Veredicto | null;
   // Métricas importadas de SonarCloud, si las hay.
   sonar?: SonarImport | null;
+  // Solo en análisis de URL con la medición en navegador activada.
+  browser?: MedicionNavegador | null;
 }
 
 export interface Veredicto {

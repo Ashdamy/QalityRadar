@@ -20,8 +20,9 @@ class SubcaracteristicaOut(BaseModel):
     measured: bool
     # False en los grupos que suman puntos pero no son de la norma.
     iso: bool
-    # De donde sale el dato: sonarcloud | qalitiradar | estimado | sin_medir.
-    # Solo en mantenibilidad; nulo en el resto y en analisis antiguos.
+    # De donde sale el dato: sonarcloud | qalitiradar | estimado | sin_medir
+    # en mantenibilidad; lighthouse | axe-core | qalitiradar donde puede venir
+    # del navegador real. Nulo en el resto y en analisis antiguos.
     origin: str | None = None
 
 
@@ -33,6 +34,28 @@ class SonarOut(BaseModel):
     project_key: str
     imported_at: str
     metrics: dict[str, float]
+
+
+class ViolacionAxeOut(BaseModel):
+    id: str
+    impact: str  # critical | serious | moderate | minor
+    nodes: int
+    help: str
+
+
+class NavegadorOut(BaseModel):
+    """Medicion en navegador real, que llega despues del analisis estatico."""
+
+    status: str  # pending | ok | failed
+    reason: str | None = None
+    measured_at: str | None = None
+    lcp_ms: float | None = None
+    tbt_ms: float | None = None
+    cls: float | None = None
+    # bueno | mejorable | malo, por metrica.
+    ratings: dict[str, str] = {}
+    axe_violations: list[ViolacionAxeOut] = []
+    axe_passes: int | None = None
 
 
 class BenchmarkItemOut(BaseModel):
@@ -119,6 +142,8 @@ class AnalysisOut(BaseModel):
     verdict: VeredictoOut | None = None
     # Metricas importadas de SonarCloud, si las hay.
     sonar: SonarOut | None = None
+    # Solo en analisis de URL con la medicion en navegador activada.
+    browser: NavegadorOut | None = None
 
 
 class TimelineEntry(BaseModel):

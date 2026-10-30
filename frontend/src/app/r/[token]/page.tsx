@@ -8,6 +8,7 @@ import { DimensionesDetalle, IndicadorDeSalud } from "@/components/DimensionesDe
 import { AvisoDeCobertura } from "@/components/AvisoDeCobertura";
 import { VeredictoCard } from "@/components/VeredictoCard";
 import { SonarImport } from "@/components/SonarImport";
+import { MedicionNavegador } from "@/components/MedicionNavegador";
 
 // Página pública: no usa AnalysisPanel porque ese panel ofrece acciones que
 // solo tienen sentido con sesión (compartir, cerrar, exportar). Aquí se
@@ -125,6 +126,7 @@ export default function SharedReportPage({
               />
             </div>
             <IndicadorDeSalud dimensions={analysis.dimensions} />
+            <MedicionNavegador analysis={analysis} />
 
             <div className="mt-8">
               <h2 className="text-[13px] font-semibold text-muted">
