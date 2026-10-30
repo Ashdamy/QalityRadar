@@ -264,6 +264,17 @@ export interface Analysis {
   combined: Combined | null;
   // Si la calidad del código solo pudo analizarse en parte del proyecto.
   coverage_notice?: string | null;
+  // Nulo mientras el análisis no haya terminado bien.
+  verdict?: Veredicto | null;
+}
+
+export interface Veredicto {
+  nivel: "apto" | "apto_condicionado" | "no_apto";
+  etiqueta: string;
+  provisional: boolean;
+  motivos: string[];
+  // Texto fijo: indicador interno, no certificación oficial.
+  aviso: string;
 }
 
 export function startRepositoryAnalysis(repositoryId: string,

@@ -6,10 +6,7 @@ floja sin que nada dijera que la mayor parte del codigo no se habia mirado.
 No se amplia el soporte: se hace visible.
 """
 
-import base64
-import re
 import tempfile
-import zlib
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -19,6 +16,7 @@ from app.analyzers.base import AnalyzerResult
 from app.analyzers.repository.code_quality import CodeQualityAnalyzer
 from app.services import report_service
 from app.services.scoring_service import REPOSITORY_WEIGHTS, calculate_confidence
+from tests.pdf_texto import texto_del_pdf
 
 TITULO = "Cobertura parcial de lenguajes"
 
@@ -131,14 +129,7 @@ def test_el_pdf_incluye_el_aviso():
     pdf = report_service.build_analysis_report(
         repository_full_name="a/b", analysis=analisis, dimensions=dims, findings=[]
     )
-    # ReportLab guarda el texto en flujos ASCII85 sobre Flate: se deshacen las
-    # dos capas para leerlo.
-    texto = b"".join(
-        zlib.decompress(base64.a85decode(b"<~" + flujo.strip(), adobe=True))
-        for flujo in re.findall(rb"stream\r?\n(.*?)endstream", pdf, re.S)
-        if flujo.strip().endswith(b"~>")
-    )
-    assert b"Cobertura parcial de lenguajes" in texto
+    assert "Cobertura parcial de lenguajes" in texto_del_pdf(pdf)
 
 
 def test_sin_cobertura_parcial_no_hay_aviso():

@@ -12,6 +12,7 @@ import { RadarChart } from "@/components/RadarChart";
 import { DimensionesDetalle, IndicadorDeSalud } from "@/components/DimensionesDetalle";
 import { esIndicadorDeSalud } from "@/lib/dimensiones";
 import { AvisoDeCobertura } from "@/components/AvisoDeCobertura";
+import { VeredictoCard } from "@/components/VeredictoCard";
 
 const SEVERITY_LABELS: Record<AnalysisFinding["severity"], string> = {
   critical: "Crítico",
@@ -191,6 +192,8 @@ export function AnalysisPanel({
 
       {analysis.status === "completed" && (
         <>
+          <VeredictoCard veredicto={analysis.verdict} />
+
           {!embedded && (
           <div className="mt-6 flex flex-wrap items-end gap-8">
             <div>
