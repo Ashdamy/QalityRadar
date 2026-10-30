@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { RadarCargando } from "@/components/RadarCargando";
 import { getAnalysis, type Analysis, type MedicionNavegador as Medicion } from "@/lib/api";
 
 const NOTA =
@@ -143,7 +144,7 @@ export function MedicionNavegador({
 
         {pendiente && !agotado && (
           <p className="mt-3 flex items-center gap-2 text-[12.5px] text-muted">
-            <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-accent border-t-transparent" aria-hidden="true" />
+            <RadarCargando size={18} />
             Midiendo en navegador… El resto del análisis ya está listo; esto se añadirá solo al terminar.
           </p>
         )}
